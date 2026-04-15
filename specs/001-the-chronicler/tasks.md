@@ -23,13 +23,13 @@ description: "Task list for The Chronicler — AI Reading Companion PWA"
 
 **Purpose**: Project initialization and tooling configuration
 
-- [ ] T001 Initialize Vue 3 + TypeScript project with Vite 6 using `pnpm create vite@latest . -- --template vue-ts` at repository root
-- [ ] T002 Install all dependencies: `pnpm add @supabase/supabase-js pinia vue-router@4 @primevue/core @primeuix/themes primeicons @ericblade/quagga2 @anthropic-ai/sdk` and `pnpm add -D vite-plugin-pwa vitest @vue/test-utils playwright`
-- [ ] T003 [P] Configure `vite.config.ts` with vite-plugin-pwa: register service worker, set `registerType: 'autoUpdate'`, configure Workbox offline caching for app shell
-- [ ] T004 [P] Configure PrimeVue 4 in `src/main.ts`: register plugin with custom liquid glass preset extending Lara Dark (import from `@primeuix/themes`)
-- [ ] T005 [P] Create `src/assets/styles/preset.ts` — custom `definePreset` extending Lara Dark with semi-transparent surface tokens (`rgba(30,30,40,0.6)`) and glass CSS variables (`--glass-blur: 16px`, `--glass-brightness: 1.1`)
-- [ ] T006 [P] Create `public/manifest.webmanifest` with app name "The Chronicler", `display: standalone`, theme/background colors, and icon entries (192×192, 512×512, maskable)
-- [ ] T007 [P] Create `.env.example` with all required keys: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_GOOGLE_BOOKS_API_KEY` (optional)
+- [x] T001 Initialize Vue 3 + TypeScript project with Vite 6 using `pnpm create vite@latest . -- --template vue-ts` at repository root
+- [x] T002 Install all dependencies: `pnpm add @supabase/supabase-js pinia vue-router@4 @primevue/core @primeuix/themes @primeuix/styles primeicons @ericblade/quagga2 @vueuse/core` and `pnpm add -D vite-plugin-pwa vitest @vue/test-utils`
+- [x] T003 [P] Configure `vite.config.ts` with vite-plugin-pwa: register service worker, set `registerType: 'autoUpdate'`, configure Workbox offline caching for app shell and book covers
+- [x] T004 [P] Configure PrimeVue 4 in `src/main.ts`: register plugin with custom liquid glass preset, dark mode default via `useColorMode`
+- [x] T005 [P] Create `src/assets/styles/preset.ts` — custom `definePreset` extending Lara with semi-transparent surface tokens and glass CSS variables
+- [x] T006 [P] Create `public/manifest.webmanifest` with app name "The Chronicler", `display: standalone`, theme/background colors, icon entries, and shortcuts
+- [x] T007 [P] Create `.env.example` with all required keys: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_GOOGLE_BOOKS_API_KEY` (optional)
 
 ---
 
@@ -39,18 +39,18 @@ description: "Task list for The Chronicler — AI Reading Companion PWA"
 
 **⚠️ CRITICAL**: No user story work begins until this phase is complete
 
-- [ ] T008 Apply Supabase database migration to project `zlndhygpqacygceivuvk` using the SQL from `specs/001-the-chronicler/contracts/supabase-schema.sql` — creates `books`, `reading_progress`, `recaps` tables with indexes, RLS policies, and `set_updated_at` trigger
-- [ ] T009 [P] Create `src/types/index.ts` with all domain TypeScript interfaces from `specs/001-the-chronicler/contracts/pinia-store-interfaces.ts`: `Book`, `ReadingProgress`, `Recap`, `BookMetadata`, store state/action interfaces
-- [ ] T010 [P] Create `src/services/supabase.ts` — Supabase JS v2 client singleton using `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` env vars
-- [ ] T011 [P] Create `src/assets/styles/glass.css` — `.glass-surface` utility class with `backdrop-filter: blur(var(--glass-blur)) brightness(var(--glass-brightness))`, semi-transparent background, and subtle white border; import in `src/assets/styles/main.css`
-- [ ] T012 [P] Create `src/assets/styles/main.css` — global CSS: import `glass.css`, set root CSS custom properties for glass tokens, base typography, dark-mode-first color palette
-- [ ] T013 [P] Create shared components: `src/components/shared/LoadingSpinner.vue` (PrimeVue ProgressSpinner wrapper) and `src/components/shared/EmptyState.vue` (icon + message + optional CTA slot)
-- [ ] T014 Implement `src/stores/auth.ts` (`useAuthStore`) — Pinia store with `user`, `loading` state; actions: `signIn`, `signUp`, `signOut`, `sendMagicLink`, `initialize` (restores session via `supabase.auth.onAuthStateChange`)
-- [ ] T015 Create `src/pages/AuthPage.vue` — sign in / magic link form using PrimeVue InputText, Button; wires to `useAuthStore`; applies `.glass-surface` card container
-- [ ] T016 Create `src/components/shared/AppHeader.vue` — top navigation bar with app title, dark mode toggle (`useColorMode`), and sign-out button; uses `.glass-surface` styling
-- [ ] T017 Create `src/layouts/DefaultLayout.vue` — wraps `<AppHeader>` + `<router-view>` with main content area; applies base page background
-- [ ] T018 Create `src/router/index.ts` — Vue Router 4 config with routes for: `/` (DashboardPage), `/library` (LibraryPage), `/books/add` (AddBookPage), `/books/:id` (BookDetailPage), `/books/:id/recaps` (RecapHistoryPage), `/auth` (AuthPage), `/:pathMatch` (NotFoundPage); add navigation guard redirecting unauthenticated users to `/auth`
-- [ ] T019 Create `src/App.vue` — root component mounting `<DefaultLayout>`, calling `authStore.initialize()` on `onMounted`
+- [x] T008 Apply Supabase database migration to project `zlndhygpqacygceivuvk` — `books`, `reading_progress`, `recaps` tables + RLS policies + `set_updated_at` trigger applied via MCP
+- [x] T009 [P] Create `src/types/index.ts` — domain types + DB row types + mappers
+- [x] T010 [P] Create `src/services/supabase.ts` — Supabase JS v2 client singleton
+- [x] T011 [P] `src/assets/styles/glass.css` — glass-surface, glass-elevated, glass-subtle, shimmer (done in Phase 1)
+- [x] T012 [P] `src/assets/styles/main.css` — global styles, dark-mode-first background (done in Phase 1)
+- [x] T013 [P] Create `src/components/shared/LoadingSpinner.vue` + `EmptyState.vue`
+- [x] T014 Implement `src/stores/auth.ts` (`useAuthStore`) — signIn, signUp, signOut, sendMagicLink, initialize
+- [x] T015 Create `src/pages/AuthPage.vue` — sign in / sign up / magic link; glass-surface card
+- [x] T016 Create `src/components/shared/AppHeader.vue` — sticky glass header with nav, dark mode toggle, sign-out
+- [x] T017 Create `src/layouts/DefaultLayout.vue` — AppHeader + router-view + page transitions
+- [x] T018 Create `src/router/index.ts` — all routes + auth navigation guard
+- [x] T019 Create `src/App.vue` — calls authStore.initialize() on mount; stub pages for all routes created
 
 **Checkpoint**: Auth, routing, shared components, and database schema are all in place
 

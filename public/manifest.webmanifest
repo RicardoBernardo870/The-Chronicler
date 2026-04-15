@@ -1,0 +1,49 @@
+{
+  "name": "The Chronicler",
+  "short_name": "Chronicler",
+  "description": "AI-powered reading companion — spoiler-free recaps for every book.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0a0a14",
+  "background_color": "#0a0a14",
+  "lang": "en",
+  "categories": ["books", "productivity", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Current Read",
+      "short_name": "Reading",
+      "description": "Jump to your current book",
+      "url": "/",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Add Book",
+      "short_name": "Add",
+      "description": "Add a new book via ISBN scan",
+      "url": "/books/add",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
