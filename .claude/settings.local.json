@@ -4,7 +4,9 @@
       "Bash(powershell.exe -File \".specify/scripts/powershell/setup-plan.ps1\" -Json)",
       "Bash(powershell.exe -ExecutionPolicy Bypass -File \".specify/scripts/powershell/setup-plan.ps1\" -Json)",
       "WebSearch",
-      "Bash(powershell.exe -ExecutionPolicy Bypass -File \".specify/scripts/powershell/update-agent-context.ps1\" -AgentType claude)"
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \".specify/scripts/powershell/update-agent-context.ps1\" -AgentType claude)",
+      "mcp__4c7c02b6-653b-457c-b08b-d3a1461ae2c2__list_projects",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \".specify/scripts/powershell/check-prerequisites.ps1\" -Json)"
     ]
   }
 }
