@@ -100,7 +100,7 @@ nearby when they pick up a book.
 
 ## Technical Stack & Integration Standards
 
-- **Frontend**: React (TypeScript) PWA with service worker for offline support.
+- **Frontend**: Vue (TypeScript) PWA with service worker for offline support.
 - **Backend / BaaS**: Supabase (PostgreSQL + Auth + Realtime + Storage).
 - **AI Layer**: Claude API (Anthropic) — default to the latest capable model for recap
   generation; include prompt caching to reduce latency and cost on repeated lookups.
@@ -123,6 +123,7 @@ The Chronicler's UI MUST remain minimalist and distraction-free:
 - Color scheme and typography MUST prioritize legibility in low-light reading environments
   (dark mode MUST be supported from day one).
 - Empty states MUST provide clear, actionable onboarding copy — never a blank screen.
+- UI must be inspired by iOS liquid glass
 
 **Rationale**: Complexity is the enemy of the use case. A reader reaching for the app has
 one goal: get oriented and get back to reading. Every extra click is a failure.
