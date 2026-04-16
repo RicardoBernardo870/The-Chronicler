@@ -102,7 +102,8 @@
       "Bash('/c/Program Files/GitHub CLI/gh.exe' issue create --repo RicardoBernardo870/The-Chronicler --title 'T039 [US5] Create src/stores/recapFragments.ts: Pinia store for milestone fragments' --label US5 --body '## Task T039 — Phase 7: User Story 5 *)",
       "Bash('/c/Program Files/GitHub CLI/gh.exe' issue create --repo RicardoBernardo870/The-Chronicler --title 'T040 [US5] Modify src/stores/progress.ts: trigger fragment extraction at 10% milestones' --label US5 --body '## Task T040 — Phase 7: User Story 5 *)",
       "Bash('/c/Program Files/GitHub CLI/gh.exe' issue create --repo RicardoBernardo870/The-Chronicler --title 'T041 [US5] Add extractFragment\\(\\) to src/services/recapService.ts' --label US5 --body '## Task T041 — Phase 7: User Story 5 *)",
-      "Bash('/c/Program Files/GitHub CLI/gh.exe' issue create --repo RicardoBernardo870/The-Chronicler --title 'T042 [US5] Modify BookDetailPage.vue: recap button lock/unlock at 10% threshold' --label US5 --body '## Task T042 — Phase 7: User Story 5 *)"
+      "Bash('/c/Program Files/GitHub CLI/gh.exe' issue create --repo RicardoBernardo870/The-Chronicler --title 'T042 [US5] Modify BookDetailPage.vue: recap button lock/unlock at 10% threshold' --label US5 --body '## Task T042 — Phase 7: User Story 5 *)",
+      "Bash(npx tsc *)"
     ]
   }
 }
