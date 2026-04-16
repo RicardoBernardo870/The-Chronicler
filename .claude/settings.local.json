@@ -38,7 +38,9 @@
       "Bash(powershell -ExecutionPolicy Bypass -File \".specify/scripts/powershell/check-prerequisites.ps1\" -Json)",
       "Bash(npm run:*)",
       "Bash(npx supabase:*)",
-      "Bash(powershell.exe -Command \"Get-Content 'C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\supabase\\\\functions\\\\generate-recap\\\\index.ts'\")"
+      "Bash(powershell.exe -Command \"Get-Content 'C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\supabase\\\\functions\\\\generate-recap\\\\index.ts'\")",
+      "Bash(powershell.exe -Command \"if \\(Test-Path 'C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\.specify\\\\init-options.json'\\) { Get-Content 'C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\.specify\\\\init-options.json' } else { 'NOT FOUND' }\")",
+      "Bash(powershell.exe -Command \"New-Item -ItemType Directory -Force -Path 'C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\specs\\\\003-reading-suite-v3\\\\checklists' | Out-Null; Write-Output 'Created'\")"
     ]
   }
 }
