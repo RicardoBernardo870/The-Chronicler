@@ -39,8 +39,8 @@ IMPORTANT: You must use ONLY the information provided in the extracted content b
 OUTPUT FORMAT - MANDATORY:
 Respond with a raw JSON object ONLY. No markdown, no code fences, no backticks, no commentary.
 {
-  "memory_jogger": "<2-4 sentences summarizing the key events from the extracted content>",
-  "concept_watchlist": "<comma-separated list of characters and concepts from the extracted content>",
+  "memory_jogger": "<2-4 sentences, MAX 600 characters including spaces. Focus on the most important plot developments only.>",
+  "concept_watchlist": "<comma-separated, MAX 13 items. Include ONLY main characters central to the plot and key locations where major events take place. No secondary locations.>",
   "thematic_bridge": "<1-2 sentences on the current mood and tensions, based ONLY on the extracted content>"
 }`
 
