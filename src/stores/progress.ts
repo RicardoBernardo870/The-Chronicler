@@ -91,6 +91,13 @@ export const useProgressStore = defineStore('progress', () => {
     if (navigator.onLine) {
       // Online: persist synchronously
       await syncToSupabase(bookId, currentPage)
+      // Fire-and-forget: log to progress_history — never blocks UI, silent on error
+      supabase.from('progress_history').insert({
+        book_id: bookId,
+        user_id: authStore.user.id,
+        page: currentPage,
+        recorded_at: new Date().toISOString(),
+      })
     } else {
       // Offline: queue for later sync
       await enqueue({

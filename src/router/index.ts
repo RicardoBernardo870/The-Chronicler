@@ -37,6 +37,17 @@ const router = createRouter({
           component: () => import('@/pages/RecapHistoryPage.vue'),
           props: true,
         },
+        {
+          path: 'lexicon',
+          name: 'lexicon',
+          component: () => import('@/pages/LexiconPage.vue'),
+        },
+        {
+          path: 'books/:id/passport',
+          name: 'book-passport',
+          component: () => import('@/pages/BookPassportPage.vue'),
+          props: true,
+        },
       ],
     },
     {

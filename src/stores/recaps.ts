@@ -54,6 +54,7 @@ export const useRecapsStore = defineStore('recaps', () => {
           book_id: bookId,
           user_id: authStore.user.id,
           progress_snapshot: percentage,
+          page_snapshot: currentPage,
           memory_jogger: result.memoryJogger,
           concept_watchlist: result.conceptWatchlist,
           thematic_bridge: result.thematicBridge,
