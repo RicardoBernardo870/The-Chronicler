@@ -1,0 +1,80 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Glass utilities — iOS Liquid Glass aesthetic
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --glass-blur: 20px;
+  --glass-brightness: 1.08;
+  --glass-saturation: 1.6;
+  --glass-border-radius: 20px;
+  --glass-border: 1px solid rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+/* Base glass surface */
+.glass-surface {
+  background: rgba(18, 18, 28, 0.50);
+  backdrop-filter: blur(var(--glass-blur)) brightness(var(--glass-brightness)) saturate(var(--glass-saturation));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) brightness(var(--glass-brightness)) saturate(var(--glass-saturation));
+  border: var(--glass-border);
+  border-radius: var(--glass-border-radius);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Light mode override */
+:root[data-p-theme="light"] .glass-surface,
+.p-light .glass-surface {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.60);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 1px 0 rgba(255, 255, 255, 0.80) inset;
+}
+
+/* Elevated glass — for modals, drawers, popovers */
+.glass-elevated {
+  background: rgba(28, 28, 42, 0.65);
+  backdrop-filter: blur(calc(var(--glass-blur) * 1.5)) brightness(var(--glass-brightness)) saturate(var(--glass-saturation));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.5)) brightness(var(--glass-brightness)) saturate(var(--glass-saturation));
+  border: var(--glass-border);
+  border-radius: var(--glass-border-radius);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.50), 0 1px 0 rgba(255, 255, 255, 0.10) inset;
+}
+
+/* Subtle glass — for secondary cards, list items */
+.glass-subtle {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(8px) brightness(1.04);
+  -webkit-backdrop-filter: blur(8px) brightness(1.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: calc(var(--glass-border-radius) - 4px);
+}
+
+:root[data-p-theme="light"] .glass-subtle,
+.p-light .glass-subtle {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(0, 0, 0, 0.17);
+}
+
+/* Progress bar track */
+.glass-track {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+/* Shimmer animation for streaming skeleton */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+.glass-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 8px;
+}

@@ -1,0 +1,66 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  scrollBehavior: () => ({ top: 0 }),
+  routes: [
+    {
+      path: '/',
+      component: () => import('@/layouts/DefaultLayout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          name: 'dashboard',
+          component: () => import('@/pages/DashboardPage.vue'),
+        },
+        {
+          path: 'library',
+          name: 'library',
+          component: () => import('@/pages/LibraryPage.vue'),
+        },
+        {
+          path: 'books/add',
+          name: 'add-book',
+          component: () => import('@/pages/AddBookPage.vue'),
+        },
+        {
+          path: 'books/:id',
+          name: 'book-detail',
+          component: () => import('@/pages/BookDetailPage.vue'),
+          props: true,
+        },
+        {
+          path: 'books/:id/recaps',
+          name: 'recap-history',
+          component: () => import('@/pages/RecapHistoryPage.vue'),
+          props: true,
+        },
+      ],
+    },
+    {
+      path: '/auth',
+      name: 'auth',
+      component: () => import('@/pages/AuthPage.vue'),
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      component: () => import('@/pages/NotFoundPage.vue'),
+    },
+  ],
+})
+
+// Navigation guard — redirect unauthenticated users to /auth
+router.beforeEach((to) => {
+  const authStore = useAuthStore()
+  if (to.meta.requiresAuth && !authStore.user) {
+    return { name: 'auth' }
+  }
+  if (to.name === 'auth' && authStore.user) {
+    return { name: 'dashboard' }
+  }
+})
+
+export default router
