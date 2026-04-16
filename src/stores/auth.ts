@@ -6,26 +6,49 @@ import { supabase } from '@/services/supabase'
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null)
   const loading = ref(false)
+  const ready = ref(false)
 
-  async function initialize() {
-    loading.value = true
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        user.value = { id: session.user.id, email: session.user.email ?? '' }
+  // Cached promise so initialize() is idempotent — safe to call from both
+  // the router guard and App.vue without duplicating work or subscriptions.
+  let _initPromise: Promise<void> | null = null
+  let _unsubscribe: (() => void) | null = null
+
+  const initialize = (): Promise<void> => {
+    if (_initPromise) return _initPromise
+    _initPromise = (async () => {
+      loading.value = true
+      try {
+        // Read persisted session from localStorage synchronously before any
+        // router guard evaluates authStore.user
+        const { data: { session } } = await supabase.auth.getSession()
+        user.value = session?.user
+          ? { id: session.user.id, email: session.user.email ?? '' }
+          : null
+        ready.value = true
+      } finally {
+        loading.value = false
       }
-    } finally {
-      loading.value = false
-    }
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      user.value = session?.user
-        ? { id: session.user.id, email: session.user.email ?? '' }
-        : null
-    })
+      // Subscribe AFTER ready=true so guard won't re-run with stale state
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        user.value = session?.user
+          ? { id: session.user.id, email: session.user.email ?? '' }
+          : null
+      })
+      _unsubscribe = () => subscription.unsubscribe()
+    })()
+    return _initPromise
   }
 
-  async function signIn(email: string, password: string) {
+  // Call from App.vue onUnmounted to clean up the auth listener
+  const dispose = () => {
+    _unsubscribe?.()
+    _unsubscribe = null
+    _initPromise = null
+    ready.value = false
+  }
+
+  const signIn = async (email: string, password: string) => {
     loading.value = true
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -35,7 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function signUp(email: string, password: string) {
+  const signUp = async (email: string, password: string) => {
     loading.value = true
     try {
       const { error } = await supabase.auth.signUp({ email, password })
@@ -45,7 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function sendMagicLink(email: string) {
+  const sendMagicLink = async (email: string) => {
     loading.value = true
     try {
       const { error } = await supabase.auth.signInWithOtp({ email })
@@ -55,7 +78,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function signOut() {
+  const signOut = async () => {
     loading.value = true
     try {
       const { error } = await supabase.auth.signOut()
@@ -66,5 +89,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, loading, initialize, signIn, signUp, sendMagicLink, signOut }
+  return { user, loading, ready, initialize, dispose, signIn, signUp, sendMagicLink, signOut }
 })

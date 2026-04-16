@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { supabase } from '@/services/supabase'
 import { mapReadingProgress, type ReadingProgress, type ReadingProgressRow } from '@/types'
 import { useBooksStore } from '@/stores/books'
@@ -102,17 +102,41 @@ export const useProgressStore = defineStore('progress', () => {
     }
   }
 
-  function progressForBook(bookId: string): ReadingProgress | undefined {
-    return progress.value[bookId]
-  }
+  const progressForBook = (bookId: string): ReadingProgress | undefined =>
+    progress.value[bookId]
 
-  function percentageForBook(bookId: string): number {
-    return progress.value[bookId]?.percentage ?? 0
-  }
+  const percentageForBook = (bookId: string): number =>
+    progress.value[bookId]?.percentage ?? 0
+
+  /** Books with 0 < percentage < 100, sorted by most recently updated */
+  const inProgressBooks = computed(() => {
+    const booksStore = useBooksStore()
+    return Object.values(progress.value)
+      .filter(p => p.percentage > 0 && p.percentage < 100)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .map(p => ({ book: booksStore.bookById(p.bookId) ?? null, progress: p }))
+      .filter((item): item is { book: NonNullable<typeof item.book>; progress: ReadingProgress } =>
+        item.book !== null
+      )
+  })
+
+  /** Books at exactly 100%, sorted by most recently completed */
+  const completedBooks = computed(() => {
+    const booksStore = useBooksStore()
+    return Object.values(progress.value)
+      .filter(p => p.percentage >= 100)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .map(p => ({ book: booksStore.bookById(p.bookId) ?? null, progress: p }))
+      .filter((item): item is { book: NonNullable<typeof item.book>; progress: ReadingProgress } =>
+        item.book !== null
+      )
+  })
 
   return {
     progress,
     pendingSync,
+    inProgressBooks,
+    completedBooks,
     fetchProgress,
     updateProgress,
     progressForBook,

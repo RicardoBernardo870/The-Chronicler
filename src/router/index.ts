@@ -52,9 +52,11 @@ const router = createRouter({
   ],
 })
 
-// Navigation guard — redirect unauthenticated users to /auth
-router.beforeEach((to) => {
+// Navigation guard — ensure session is restored from localStorage before
+// evaluating auth state, so page refresh doesn't bounce users to /auth.
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
+  if (!authStore.ready) await authStore.initialize()
   if (to.meta.requiresAuth && !authStore.user) {
     return { name: 'auth' }
   }
