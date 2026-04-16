@@ -38,7 +38,6 @@ const props = defineProps<{
   gap: 0.6rem;
   padding: 3rem 2rem;
   border-radius: var(--p-border-radius-xl, 16px);
-  color: var(--p-text-muted-color);
 }
 
 .recap-history__empty-msg {

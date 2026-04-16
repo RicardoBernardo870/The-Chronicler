@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
@@ -16,6 +16,18 @@ onMounted(async () => {
   await booksStore.fetchLibrary()
   await progressStore.fetchProgress()
 })
+
+// Sort ascending by progress % (least complete first), updatedAt desc as tie-breaker
+const sortedBooks = computed(() =>
+  [...booksStore.books].sort((a, b) => {
+    const pA = progressStore.percentageForBook(a.id)
+    const pB = progressStore.percentageForBook(b.id)
+    if (pA !== pB) return pA - pB
+    const dateA = progressStore.progressForBook(a.id)?.updatedAt ?? a.createdAt
+    const dateB = progressStore.progressForBook(b.id)?.updatedAt ?? b.createdAt
+    return new Date(dateB).getTime() - new Date(dateA).getTime()
+  })
+)
 </script>
 
 <template>
@@ -56,10 +68,10 @@ onMounted(async () => {
       </template>
     </EmptyState>
 
-    <!-- Book list -->
+    <!-- Book list — sorted by progress ascending -->
     <TransitionGroup v-else name="book-list" tag="div" class="library__grid">
       <BookCard
-        v-for="book in booksStore.books"
+        v-for="book in sortedBooks"
         :key="book.id"
         :book="book"
       />

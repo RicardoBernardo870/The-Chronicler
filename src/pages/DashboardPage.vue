@@ -31,11 +31,15 @@ onMounted(async () => {
   }
 })
 
-// Most recently updated book = first in progress entries by updatedAt
+// Hero card: most recently updated in-progress book (< 100%).
+// Falls back to most recently updated book of any % if none are in-progress.
 const currentBook = computed(() => {
   const allProgress = Object.values(progressStore.progress)
   if (allProgress.length === 0) return null
-  const latest = allProgress.sort((a, b) =>
+  const inProgress = allProgress.filter(p => p.percentage < 100)
+  const source = inProgress.length > 0 ? inProgress : []
+  if (source.length === 0) return null
+  const latest = [...source].sort((a, b) =>
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   )[0]
   return booksStore.bookById(latest.bookId) ?? null
@@ -45,9 +49,22 @@ const currentProgress = computed(() =>
   currentBook.value ? progressStore.progressForBook(currentBook.value.id) : null
 )
 
+// In-progress list: all books between 0–99%, excluding the hero card book
+const inProgressOthers = computed(() =>
+  progressStore.inProgressBooks.filter(
+    item => item.book.id !== currentBook.value?.id
+  )
+)
+
+// Completed section
+const completedPreview = computed(() => progressStore.completedBooks.slice(0, 2))
+const completedOverflow = computed(() => Math.max(0, progressStore.completedBooks.length - 2))
+
 const pendingSync = computed(() => progressStore.pendingSync)
 
-async function saveProgress() {
+const hasAnyBooks = computed(() => booksStore.books.length > 0)
+
+const saveProgress = async () => {
   if (!currentBook.value) return
   const page = Math.max(0, Math.min(pageInput.value ?? 0, currentBook.value.totalPages))
   saving.value = true
@@ -64,7 +81,7 @@ async function saveProgress() {
   }
 }
 
-function coverFallback(e: Event) {
+const coverFallback = (e: Event) => {
   const img = e.target as HTMLImageElement
   img.style.display = 'none'
 }
@@ -85,24 +102,19 @@ function coverFallback(e: Event) {
 
     <!-- No books at all -->
     <EmptyState
-      v-else-if="!currentBook"
+      v-else-if="!hasAnyBooks"
       icon="pi-book"
       title="No current read"
       description="Add your first book to start tracking your reading journey."
     >
       <template #action>
-        <Button
-          label="Add a book"
-          icon="pi pi-plus"
-          @click="router.push('/books/add')"
-        />
+        <Button label="Add a book" icon="pi pi-plus" @click="router.push('/books/add')" />
       </template>
     </EmptyState>
 
-    <!-- Current read card -->
     <template v-else>
-      <article class="dashboard__current glass-surface">
-        <!-- Cover + meta -->
+      <!-- Hero: current in-progress book -->
+      <article v-if="currentBook" class="dashboard__current glass-surface">
         <div class="dashboard__hero">
           <div class="dashboard__cover-wrap">
             <img
@@ -136,7 +148,6 @@ function coverFallback(e: Event) {
           </div>
         </div>
 
-        <!-- Inline progress update -->
         <div class="dashboard__update">
           <InputNumber
             v-model="pageInput"
@@ -161,13 +172,11 @@ function coverFallback(e: Event) {
           <i class="pi pi-exclamation-triangle" /> {{ saveError }}
         </p>
 
-        <!-- Offline indicator -->
         <div v-if="pendingSync" class="dashboard__offline-badge">
           <i class="pi pi-wifi" style="opacity: 0.5" />
           Progress will sync when you're back online
         </div>
 
-        <!-- Actions -->
         <div class="dashboard__actions">
           <Button
             label="Get Recap"
@@ -184,6 +193,81 @@ function coverFallback(e: Event) {
           />
         </div>
       </article>
+
+      <!-- In Progress list (all other in-progress books) -->
+      <section v-if="inProgressOthers.length > 0" class="dashboard__section glass-surface">
+        <h3 class="dashboard__section-title">
+          <i class="pi pi-book-open" /> In Progress
+        </h3>
+        <ul class="dashboard__book-list">
+          <li
+            v-for="item in inProgressOthers"
+            :key="item.book.id"
+            class="dashboard__book-item glass-subtle"
+            @click="router.push({ name: 'book-detail', params: { id: item.book.id } })"
+          >
+            <img
+              v-if="item.book.coverUrl"
+              :src="item.book.coverUrl"
+              :alt="item.book.title"
+              class="dashboard__book-thumb"
+              @error="coverFallback"
+            />
+            <div v-else class="dashboard__book-thumb dashboard__book-thumb--placeholder">
+              <i class="pi pi-book" style="font-size: 1rem; opacity: 0.35" />
+            </div>
+            <div class="dashboard__book-info">
+              <span class="dashboard__book-title">{{ item.book.title }}</span>
+              <span class="dashboard__book-author">{{ item.book.author }}</span>
+              <div class="dashboard__book-progress-row">
+                <ProgressBar :value="item.progress.percentage" class="dashboard__book-bar" />
+                <span class="dashboard__book-pct">{{ item.progress.percentage.toFixed(0) }}%</span>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Completed section -->
+      <section v-if="completedPreview.length > 0" class="dashboard__section glass-surface">
+        <h3 class="dashboard__section-title">
+          <i class="pi pi-check-circle" /> Completed
+        </h3>
+        <ul class="dashboard__book-list">
+          <li
+            v-for="item in completedPreview"
+            :key="item.book.id"
+            class="dashboard__book-item glass-subtle"
+            @click="router.push({ name: 'book-detail', params: { id: item.book.id } })"
+          >
+            <img
+              v-if="item.book.coverUrl"
+              :src="item.book.coverUrl"
+              :alt="item.book.title"
+              class="dashboard__book-thumb"
+              @error="coverFallback"
+            />
+            <div v-else class="dashboard__book-thumb dashboard__book-thumb--placeholder">
+              <i class="pi pi-book" style="font-size: 1rem; opacity: 0.35" />
+            </div>
+            <div class="dashboard__book-info">
+              <span class="dashboard__book-title">{{ item.book.title }}</span>
+              <span class="dashboard__book-author">{{ item.book.author }}</span>
+              <span class="dashboard__book-complete-badge">
+                <i class="pi pi-check" /> Finished
+              </span>
+            </div>
+          </li>
+        </ul>
+
+        <p v-if="completedOverflow > 0" class="dashboard__overflow-hint">
+          <i class="pi pi-info-circle" />
+          and {{ completedOverflow }} more —
+          <button class="dashboard__overflow-link" @click="router.push('/library')">
+            check your Library
+          </button>
+        </p>
+      </section>
     </template>
   </div>
 </template>
@@ -205,7 +289,7 @@ function coverFallback(e: Event) {
   letter-spacing: -0.02em;
 }
 
-/* Current read card */
+/* ── Hero card ────────────────────────────────────────────────── */
 .dashboard__current {
   border-radius: var(--p-border-radius-xl, 16px);
   padding: 1.5rem;
@@ -214,126 +298,135 @@ function coverFallback(e: Event) {
   gap: 1.25rem;
 }
 
-.dashboard__hero {
-  display: flex;
-  gap: 1.25rem;
-  align-items: flex-start;
-}
-
+.dashboard__hero { display: flex; gap: 1.25rem; align-items: flex-start; }
 .dashboard__cover-wrap { flex-shrink: 0; }
 
 .dashboard__cover {
-  width: 88px;
-  height: 128px;
-  object-fit: cover;
-  border-radius: 8px;
+  width: 88px; height: 128px;
+  object-fit: cover; border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.35);
 }
 
 .dashboard__cover-placeholder {
-  width: 88px;
-  height: 128px;
+  width: 88px; height: 128px;
   border-radius: 8px;
   background: rgba(255,255,255,0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
 }
 
 .dashboard__meta {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 0.25rem;
 }
 
 .dashboard__genre {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--p-indigo-300);
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--p-indigo-300);
+  padding: 0.15rem 0.5rem; border-radius: 999px;
   background: rgba(99,102,241,0.15);
-  align-self: flex-start;
-  margin-bottom: 0.2rem;
+  align-self: flex-start; margin-bottom: 0.2rem;
 }
 
 .dashboard__title {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 700;
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin: 0; font-size: 1.15rem; font-weight: 700; line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-.dashboard__author {
-  margin: 0;
-  font-size: 0.85rem;
-}
+.dashboard__author { margin: 0; font-size: 0.85rem; }
 
 .dashboard__progress-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+  display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;
 }
-
 .dashboard__progress-bar { flex: 1; }
-
 .dashboard__pct {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--p-indigo-300);
-  min-width: 40px;
-  text-align: right;
+  font-size: 0.8rem; font-weight: 700; color: var(--p-indigo-300);
+  min-width: 40px; text-align: right;
 }
+.dashboard__page-hint { margin: 0; font-size: 0.75rem; opacity: 0.7; }
 
-.dashboard__page-hint {
-  margin: 0;
-  font-size: 0.75rem;
-  opacity: 0.7;
-}
-
-/* Update row */
-.dashboard__update {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-}
-
+.dashboard__update { display: flex; gap: 0.75rem; align-items: center; }
 .dashboard__page-input { flex: 1; }
+.dashboard__error { margin: 0; font-size: 0.85rem; color: var(--p-red-400); }
 
-.dashboard__error {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--p-red-400);
-}
-
-/* Offline badge */
 .dashboard__offline-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.78rem;
-  color: var(--p-text-muted-color);
-  padding: 0.3rem 0.75rem;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.78rem; color: var(--p-text-muted-color);
+  padding: 0.3rem 0.75rem; border-radius: 999px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
   align-self: flex-start;
 }
 
-/* Action buttons */
-.dashboard__actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+.dashboard__actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.dashboard__action-btn { flex: 1; min-width: 120px; }
+
+/* ── Shared section ───────────────────────────────────────────── */
+.dashboard__section {
+  border-radius: var(--p-border-radius-xl, 16px);
+  padding: 1.25rem;
+  display: flex; flex-direction: column; gap: 0.75rem;
 }
 
-.dashboard__action-btn { flex: 1; min-width: 120px; }
+.dashboard__section-title {
+  margin: 0; font-size: 0.85rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  opacity: 0.65; display: flex; align-items: center; gap: 0.4rem;
+}
+
+.dashboard__book-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+
+.dashboard__book-item {
+  display: flex; align-items: center; gap: 0.875rem;
+  padding: 0.75rem; border-radius: 12px; cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.dashboard__book-item:hover { opacity: 0.85; }
+
+.dashboard__book-thumb {
+  width: 44px; height: 62px;
+  object-fit: cover; border-radius: 5px; flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.dashboard__book-thumb--placeholder {
+  background: rgba(255,255,255,0.06);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.dashboard__book-info {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 0.2rem;
+}
+.dashboard__book-title {
+  font-size: 0.9rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dashboard__book-author { font-size: 0.78rem; opacity: 0.6; }
+
+.dashboard__book-progress-row {
+  display: flex; align-items: center; gap: 0.4rem; margin-top: 0.2rem;
+}
+.dashboard__book-bar { flex: 1; }
+.dashboard__book-pct {
+  font-size: 0.72rem; font-weight: 700;
+  color: var(--p-indigo-300); min-width: 32px; text-align: right;
+}
+
+.dashboard__book-complete-badge {
+  font-size: 0.72rem; font-weight: 600;
+  color: #34d399; display: inline-flex; align-items: center; gap: 0.25rem;
+  margin-top: 0.2rem;
+}
+
+/* Overflow hint */
+.dashboard__overflow-hint {
+  margin: 0; font-size: 0.8rem; opacity: 0.60;
+  display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap;
+}
+.dashboard__overflow-link {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--p-indigo-300); font-size: inherit; font-weight: 600;
+  text-decoration: underline;
+}
 </style>

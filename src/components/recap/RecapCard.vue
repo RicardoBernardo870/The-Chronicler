@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import type { Recap } from '@/types'
+import Accordion from 'primevue/accordion'
+import AccordionPanel from 'primevue/accordionpanel'
+import AccordionHeader from 'primevue/accordionheader'
+import AccordionContent from 'primevue/accordioncontent'
 
 const props = defineProps<{
   recap: Recap
@@ -24,34 +28,46 @@ function formatDate(iso: string): string {
       </time>
     </header>
 
-    <div class="recap-card__sections">
-      <div class="recap-card__section glass-subtle">
-        <span class="recap-card__section-label recap-card__section-label--memory">
-          <i class="pi pi-book" /> Memory Jogger
-        </span>
-        <p class="recap-card__section-body">{{ recap.memoryJogger }}</p>
-      </div>
+    <Accordion :value="['0']" multiple class="recap-accordion">
+      <AccordionPanel value="0">
+        <AccordionHeader>
+          <span class="recap-card__section-label recap-card__section-label--memory">
+            <i class="pi pi-book" /> Memory Jogger
+          </span>
+        </AccordionHeader>
+        <AccordionContent>
+          <p class="recap-card__section-body">{{ recap.memoryJogger }}</p>
+        </AccordionContent>
+      </AccordionPanel>
 
-      <div class="recap-card__section glass-subtle">
-        <span class="recap-card__section-label recap-card__section-label--concepts">
-          <i class="pi pi-list" /> Concept Watchlist
-        </span>
-        <div class="recap-card__chips">
-          <span
-            v-for="item in recap.conceptWatchlist.split(',').map(s => s.trim()).filter(Boolean)"
-            :key="item"
-            class="recap-chip"
-          >{{ item }}</span>
-        </div>
-      </div>
+      <AccordionPanel value="1">
+        <AccordionHeader>
+          <span class="recap-card__section-label recap-card__section-label--concepts">
+            <i class="pi pi-list" /> Concept Watchlist
+          </span>
+        </AccordionHeader>
+        <AccordionContent>
+          <div class="recap-card__chips">
+            <span
+              v-for="item in recap.conceptWatchlist.split(',').map((s: string) => s.trim()).filter(Boolean)"
+              :key="item"
+              class="recap-chip"
+            >{{ item }}</span>
+          </div>
+        </AccordionContent>
+      </AccordionPanel>
 
-      <div class="recap-card__section glass-subtle">
-        <span class="recap-card__section-label recap-card__section-label--bridge">
-          <i class="pi pi-compass" /> Thematic Bridge
-        </span>
-        <p class="recap-card__section-body">{{ recap.thematicBridge }}</p>
-      </div>
-    </div>
+      <AccordionPanel value="2">
+        <AccordionHeader>
+          <span class="recap-card__section-label recap-card__section-label--bridge">
+            <i class="pi pi-compass" /> Thematic Bridge
+          </span>
+        </AccordionHeader>
+        <AccordionContent>
+          <p class="recap-card__section-body">{{ recap.thematicBridge }}</p>
+        </AccordionContent>
+      </AccordionPanel>
+    </Accordion>
   </article>
 </template>
 
@@ -87,17 +103,6 @@ function formatDate(iso: string): string {
 .recap-card__date {
   font-size: 0.75rem;
   opacity: 0.55;
-}
-
-.recap-card__sections {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.recap-card__section {
-  border-radius: var(--p-border-radius-lg, 12px);
-  padding: 0.875rem 1rem;
 }
 
 .recap-card__section-label {
@@ -150,5 +155,53 @@ function formatDate(iso: string): string {
   background: rgba(99, 102, 241, 0.12);
   opacity: 0.90;
   border: 1px solid rgba(99, 102, 241, 0.20);
+}
+
+/* Accordion overrides */
+.recap-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.recap-accordion :deep(.p-accordionpanel) {
+  overflow: hidden;
+}
+
+.recap-accordion :deep(.p-accordionheader) {
+  background: none !important;
+  padding: 0.625rem 0.875rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Kill PrimeVue's ugly gray hover */
+.recap-accordion :deep(.p-accordionpanel:not(.p-accordionpanel-active):not(.p-disabled) > .p-accordionheader:hover) {
+  background: none !important;
+}
+
+/* Toggle chevron — locked to indigo in every state */
+.recap-accordion :deep(.p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionheader:hover .p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionheader:focus .p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionheader:focus-visible .p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionpanel-active > .p-accordionheader .p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionpanel-active > .p-accordionheader:hover .p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionpanel-active > .p-accordionheader:focus .p-accordionheader-toggle-icon) {
+  color: #818cf8 !important;
+  opacity: 0.85;
+}
+
+/* Content area — inherit text color, no background, generous padding */
+.recap-accordion :deep(.p-accordioncontent-content) {
+  padding: 0.5rem 1rem 1rem;
+  background: none !important;
+  color: inherit;
+}
+
+.recap-accordion :deep(.p-accordionpanel + .p-accordionpanel) {
+  border-top: none;
 }
 </style>

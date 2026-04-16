@@ -1,4 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+// deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { GoogleGenAI } from "npm:@google/genai"
 
@@ -8,25 +8,40 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
-const buildSystemPrompt = (percentage: number, currentPage: number) => `You are a reading companion for The Chronicler app. Your job is to produce a spoiler-free three-part briefing for a reader returning to a book.
+// ---- Pass 1: Extract ONLY what happens in pages 1-N ----
+const buildExtractionPrompt = (currentPage: number, totalPages: number) => `You are a literary analyst. Your task is to recall the content of a specific book and produce a detailed summary of ONLY the first ${currentPage} pages (out of ${totalPages} total).
 
-EDITION CONTEXT:
-If an ISBN is provided, use it to identify the exact edition of the book and its specific page layout. This improves your accuracy in determining what content falls within the reader's progress.
+METHODOLOGY - FOLLOW THIS STEP BY STEP:
+1. Reconstruct the book's chapter structure
+2. Identify which chapters fall within pages 1 to ${currentPage}
+3. For each of those chapters, describe the key events and which characters are involved
+4. STOP at the chapter that contains page ${currentPage} — include content from that chapter only up to approximately page ${currentPage}
+5. Do NOT include any chapter or content that begins after page ${currentPage}
 
-SPOILER RULE — ABSOLUTE AND NON-NEGOTIABLE:
-- The reader has read ONLY the first ${percentage}% of this book (up to page ${currentPage}). They have NOT read anything beyond this point.
-- You MUST cover ONLY events, characters, and concepts that appear in the first ${percentage}% of the book.
-- Do NOT mention any character, plot point, death, revelation, alliance, betrayal, or twist that occurs AFTER page ${currentPage}.
-- If you are even slightly uncertain whether something falls before or after page ${currentPage}, OMIT IT ENTIRELY. Err on the side of less information.
-- Being conservative is the only correct choice. A spoiler destroys the reading experience; omitting something that was already revealed does not.
-- If the reader is at 0%, provide only a back-cover level introduction with no plot details.
+Be thorough and detailed for the chapters you DO cover. Include all significant characters, plot developments, relationships, and themes that have been established. A rich, detailed extraction is valuable — just make sure every detail comes from before page ${currentPage}.
 
-OUTPUT FORMAT — CRITICAL:
-Respond with a raw JSON object ONLY. No markdown code fences, no backticks, no extra text before or after.
+Respond with a JSON object:
 {
-  "memory_jogger": "<2-4 sentence summary of only what has happened up to page ${currentPage}>",
-  "concept_watchlist": "<comma-separated list of characters and concepts active as of page ${currentPage}>",
-  "thematic_bridge": "<1-2 sentences on the current mood and where things seem headed, based only on what has been read>"
+  "chapters_covered": ["<chapter name/number>", "..."],
+  "key_events": ["<detailed event description>", "..."],
+  "active_characters": ["<character name and their role so far>", "..."],
+  "current_conflicts": "<unresolved tensions and open questions as of page ${currentPage}>",
+  "mood": "<the emotional tone and atmosphere at this point in the story>"
+}
+
+Respond with ONLY the JSON object. No markdown, no code fences, no extra text.`
+
+// ---- Pass 2: Generate recap from ONLY the extracted content ----
+const buildRecapPrompt = () => `You are a reading companion called The Chronicler. You will receive a structured summary of what a reader has read so far. Your job is to turn this into a warm, engaging three-part briefing.
+
+IMPORTANT: You must use ONLY the information provided in the extracted content below. Do NOT add any details from your own knowledge of the book. Do NOT reference events, characters, or developments that are not explicitly listed in the provided content. If the provided content seems incomplete, that is intentional - the reader has not reached those parts yet.
+
+OUTPUT FORMAT - MANDATORY:
+Respond with a raw JSON object ONLY. No markdown, no code fences, no backticks, no commentary.
+{
+  "memory_jogger": "<2-4 sentences, MAX 600 characters including spaces. Focus on the most important plot developments only.>",
+  "concept_watchlist": "<comma-separated, MAX 13 items. Include ONLY main characters central to the plot and key locations where major events take place. No secondary locations.>",
+  "thematic_bridge": "<1-2 sentences on the current mood and tensions, based ONLY on the extracted content>"
 }`
 
 Deno.serve(async (req: Request) => {
@@ -75,20 +90,53 @@ Deno.serve(async (req: Request) => {
     }
 
     const ai = new GoogleGenAI({ apiKey: geminiApiKey })
+    const isbnLine = isbn ? `ISBN: ${isbn}\n` : ''
 
-    const isbnLine = isbn ? `ISBN: ${isbn} (use this to identify the exact edition and its page layout)\n` : ''
-    const userMessage = `Book: "${title}" by ${author}
-${isbnLine}Reader progress: ${percentage}% complete — page ${currentPage} of ${totalPages}.
-REMINDER: Only summarise content from pages 1–${currentPage}. Do NOT reference anything after page ${currentPage}.
-Generate the briefing now.`
+    // ========== PASS 1: Extract content up to current page ==========
+    const extractionMessage = `Book: "${title}" by ${author}
+${isbnLine}Total pages: ${totalPages}
+Reader progress: page ${currentPage} of ${totalPages} (${percentage}%).
+
+List ONLY what happens in pages 1 through ${currentPage}. Nothing after page ${currentPage}.`
+
+    const extractionResult = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [{ role: "user", parts: [{ text: extractionMessage }] }],
+      config: {
+        systemInstruction: buildExtractionPrompt(currentPage, totalPages),
+        temperature: 0.4,
+        maxOutputTokens: 4096,
+      },
+    })
+
+    const rawExtraction = extractionResult.text ?? ''
+
+    // Clean up the extraction (strip fences if present)
+    let extractedContent = rawExtraction.trim()
+    const fenceMatch = extractedContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+    if (fenceMatch) extractedContent = fenceMatch[1].trim()
+
+    // Validate JSON, fall back to raw text
+    try {
+      JSON.parse(extractedContent)
+    } catch {
+      extractedContent = rawExtraction
+    }
+
+    // ========== PASS 2: Generate recap from extracted content only ==========
+    const recapMessage = `Here is the extracted content from pages 1 to ${currentPage} of "${title}" by ${author}:
+
+${extractedContent}
+
+Generate the three-part briefing using ONLY the characters, events, and details listed above. Do NOT add anything from your own knowledge of the book that is not in the extracted content.`
 
     const stream = await ai.models.generateContentStream({
       model: "gemini-2.5-flash",
-      contents: [{ role: "user", parts: [{ text: userMessage }] }],
+      contents: [{ role: "user", parts: [{ text: recapMessage }] }],
       config: {
-        systemInstruction: buildSystemPrompt(percentage, currentPage),
-        temperature: 1,
-        maxOutputTokens: 8192,
+        systemInstruction: buildRecapPrompt(),
+        temperature: 0.7,
+        maxOutputTokens: 4096,
       },
     })
 

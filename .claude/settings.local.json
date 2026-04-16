@@ -31,7 +31,14 @@
       "Bash(cp maskable-icon-512x512.png icons/icon-maskable.png)",
       "mcp__4c7c02b6-653b-457c-b08b-d3a1461ae2c2__get_logs",
       "mcp__4c7c02b6-653b-457c-b08b-d3a1461ae2c2__get_edge_function",
-      "WebFetch(domain:ai.google.dev)"
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(powershell -File \".specify/scripts/powershell/setup-plan.ps1\" -Json)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \".specify/scripts/powershell/setup-plan.ps1\" -Json)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \".specify/scripts/powershell/update-agent-context.ps1\" -AgentType claude)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \".specify/scripts/powershell/check-prerequisites.ps1\" -Json)",
+      "Bash(npm run:*)",
+      "Bash(npx supabase:*)",
+      "Bash(powershell.exe -Command \"Get-Content 'C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\supabase\\\\functions\\\\generate-recap\\\\index.ts'\")"
     ]
   }
 }

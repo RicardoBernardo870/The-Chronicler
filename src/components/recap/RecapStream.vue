@@ -2,6 +2,10 @@
 import { computed } from 'vue'
 import { useRecapsStore } from '@/stores/recaps'
 import Button from 'primevue/button'
+import Accordion from 'primevue/accordion'
+import AccordionPanel from 'primevue/accordionpanel'
+import AccordionHeader from 'primevue/accordionheader'
+import AccordionContent from 'primevue/accordioncontent'
 
 const props = defineProps<{
   bookId: string
@@ -44,7 +48,7 @@ const parsedRecap = computed(() => {
 
 <template>
   <!-- Shimmer skeleton while streaming -->
-  <div v-if="status === 'streaming'" class="recap-stream glass-surface">
+  <div v-if="status === 'streaming'" class="recap-stream">
     <div class="recap-stream__header">
       <div class="recap-stream__spinner">
         <i class="pi pi-spin pi-spinner" style="font-size: 1.25rem" />
@@ -63,38 +67,50 @@ const parsedRecap = computed(() => {
   </div>
 
   <!-- Complete recap -->
-  <div v-else-if="status === 'complete' && parsedRecap" class="recap-stream recap-stream--done">
-    <div class="recap-stream__sections">
-      <div class="recap-section glass-subtle">
-        <div class="recap-section__badge recap-section__badge--memory">
-          <i class="pi pi-book" />
-          The Memory Jogger
-        </div>
-        <p class="recap-section__body">{{ parsedRecap.memoryJogger }}</p>
-      </div>
+   <div v-else-if="status === 'complete' && parsedRecap" class="recap-stream recap-stream--done">
+    <Accordion :value="['0']" multiple class="recap-accordion">
+      <AccordionPanel value="0">
+        <AccordionHeader class="recap-accordion__header recap-accordion__header--memory">
+          <span class="recap-section__badge recap-section__badge--memory">
+            <i class="pi pi-book" />
+            Memory Jogger
+          </span>
+        </AccordionHeader>
+        <AccordionContent>
+          <p class="recap-section__body">{{ parsedRecap.memoryJogger }}</p>
+        </AccordionContent>
+      </AccordionPanel>
 
-      <div class="recap-section glass-subtle">
-        <div class="recap-section__badge recap-section__badge--concepts">
-          <i class="pi pi-list" />
-          Concept Watchlist
-        </div>
-        <div class="recap-section__chips">
-          <span
-            v-for="item in parsedRecap.conceptWatchlistItems"
-            :key="item"
-            class="recap-chip"
-          >{{ item }}</span>
-        </div>
-      </div>
+      <AccordionPanel value="1">
+        <AccordionHeader class="recap-accordion__header recap-accordion__header--concepts">
+          <span class="recap-section__badge recap-section__badge--concepts">
+            <i class="pi pi-list" />
+            Concept Watchlist
+          </span>
+        </AccordionHeader>
+        <AccordionContent>
+          <div class="recap-section__chips">
+            <span
+              v-for="item in parsedRecap.conceptWatchlistItems"
+              :key="item"
+              class="recap-chip"
+            >{{ item }}</span>
+          </div>
+        </AccordionContent>
+      </AccordionPanel>
 
-      <div class="recap-section glass-subtle">
-        <div class="recap-section__badge recap-section__badge--bridge">
-          <i class="pi pi-compass" />
-          Thematic Bridge
-        </div>
-        <p class="recap-section__body">{{ parsedRecap.thematicBridge }}</p>
-      </div>
-    </div>
+      <AccordionPanel value="2">
+        <AccordionHeader class="recap-accordion__header recap-accordion__header--bridge">
+          <span class="recap-section__badge recap-section__badge--bridge">
+            <i class="pi pi-compass" />
+            Thematic Bridge
+          </span>
+        </AccordionHeader>
+        <AccordionContent>
+          <p class="recap-section__body">{{ parsedRecap.thematicBridge }}</p>
+        </AccordionContent>
+      </AccordionPanel>
+    </Accordion>
   </div>
 
   <!-- Error state -->
@@ -109,7 +125,7 @@ const parsedRecap = computed(() => {
       class="glass-surface"
       outlined
       @click="emit('retry')"
-    />
+    /> 
   </div>
 </template>
 
@@ -125,7 +141,6 @@ const parsedRecap = computed(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  color: var(--p-text-muted-color);
   font-size: 0.9rem;
 }
 
@@ -245,5 +260,58 @@ const parsedRecap = computed(() => {
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Accordion overrides */
+.recap-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.recap-accordion :deep(.p-accordionpanel) {
+  border-radius: var(--p-border-radius-lg, 12px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.recap-accordion :deep(.p-accordionheader) {
+  background: none !important;
+  border: none;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Kill PrimeVue's ugly gray hover */
+.recap-accordion :deep(.p-accordionpanel:not(.p-accordionpanel-active):not(.p-disabled) > .p-accordionheader:hover) {
+  background: none !important;
+}
+
+/* Toggle chevron — locked to indigo in every state */
+.recap-accordion :deep(.p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionheader:hover .p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionheader:focus .p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionheader:focus-visible .p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionpanel-active > .p-accordionheader .p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionpanel-active > .p-accordionheader:hover .p-accordionheader-toggle-icon),
+.recap-accordion :deep(.p-accordionpanel-active > .p-accordionheader:focus .p-accordionheader-toggle-icon) {
+  color: #818cf8 !important;
+  opacity: 0.85;
+}
+
+/* Content area — inherit text color, no background, generous padding */
+.recap-accordion :deep(.p-accordioncontent-content) {
+  padding: 0.5rem 1.25rem 1.125rem;
+  background: none !important;
+  color: inherit;
+}
+
+/* Remove default PrimeVue accordion separator lines */
+.recap-accordion :deep(.p-accordionpanel + .p-accordionpanel) {
+  border-top: none;
 }
 </style>

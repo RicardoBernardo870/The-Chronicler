@@ -21,6 +21,8 @@ function handleSwMessage(event: MessageEvent) {
 }
 
 onMounted(async () => {
+  // initialize() is idempotent — the router guard may have already resolved it;
+  // this call returns the cached promise instantly in that case.
   await authStore.initialize()
   initializing.value = false
   progressStore.setupListeners()
@@ -28,6 +30,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  authStore.dispose()
   progressStore.teardownListeners()
   navigator.serviceWorker?.removeEventListener('message', handleSwMessage)
 })
