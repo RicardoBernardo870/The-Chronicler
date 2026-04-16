@@ -48,6 +48,12 @@
   border-radius: calc(var(--glass-border-radius) - 4px);
 }
 
+:root[data-p-theme="light"] .glass-subtle,
+.p-light .glass-subtle {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(0, 0, 0, 0.17);
+}
+
 /* Progress bar track */
 .glass-track {
   background: rgba(255, 255, 255, 0.08);

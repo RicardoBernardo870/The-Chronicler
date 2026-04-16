@@ -95,6 +95,32 @@ img {
   font-size: 0.75rem;
 }
 
+/* ── InputNumber spinner buttons ─────────────────────────────────────────── */
+
+.p-inputnumber-button {
+  color: var(--p-primary-400) !important;
+  background: transparent !important;
+  border-color: var(--p-primary-400) !important;
+}
+
+.p-inputnumber-button:hover {
+  background: rgba(99, 102, 241, 0.12) !important;
+  color: var(--p-primary-300) !important;
+  border-color: var(--p-primary-300) !important;
+}
+
+[data-p-theme='light'] .p-inputnumber-button,
+body.p-light .p-inputnumber-button {
+  color: var(--p-primary-600) !important;
+  border-color: var(--p-primary-400) !important;
+}
+
+[data-p-theme='light'] .p-inputnumber-button:hover,
+body.p-light .p-inputnumber-button:hover {
+  background: rgba(99, 102, 241, 0.10) !important;
+  color: var(--p-primary-700) !important;
+}
+
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar {

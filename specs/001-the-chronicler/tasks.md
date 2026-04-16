@@ -62,14 +62,14 @@ description: "Task list for The Chronicler — AI Reading Companion PWA"
 
 **Independent Test**: Select any book with recorded progress > 0 → tap "Get Recap" → all three sections (Memory Jogger, Concept Watchlist, Thematic Bridge) stream in within 3 seconds with no spoiler content beyond the reader's percentage
 
-- [ ] T020 [US1] Create `supabase/functions/generate-recap/index.ts` — Supabase Edge Function: verify Supabase JWT from Authorization header; extract `book_id` + `title` + `author` + `percentage` + `currentPage` + `totalPages` from request body; call Claude API (`claude-haiku-4-5-20251001`) with cached system prompt (see `contracts/claude-recap-api.md`); stream JSON response back to client
-- [ ] T021 [P] [US1] Create `src/services/recapService.ts` — calls the `generate-recap` Edge Function URL with user's JWT; handles streaming response; progressively emits parsed JSON fields (`memory_jogger`, `concept_watchlist`, `thematic_bridge`) as they arrive
-- [ ] T022 [P] [US1] Implement `src/stores/recaps.ts` (`useRecapsStore`) — Pinia store with `recapsByBook`, `generationStatus` (`idle|streaming|complete|error`), `streamingContent`, `error` state; actions: `fetchRecapsForBook` (loads from Supabase), `generateRecap` (calls recapService, updates streamingContent on each token, persists to `recaps` table on completion)
-- [ ] T023 [US1] Create `src/components/recap/RecapStream.vue` — displays the live streaming recap: three labeled sections with a shimmer/skeleton placeholder while streaming; applies `.glass-surface` card per section; shows error state with retry button
-- [ ] T024 [US1] Create `src/components/recap/RecapCard.vue` — read-only display of a completed `Recap` object: shows all three sections, progress snapshot badge, and formatted date
-- [ ] T025 [US1] Create `src/components/recap/RecapHistory.vue` — scrollable list of `RecapCard` components sorted by `created_at` DESC; shows empty state when no recaps exist
-- [ ] T026 [US1] Create `src/pages/BookDetailPage.vue` — route `/books/:id`; loads book + progress from stores; shows title, author, cover, current progress percentage; "Get Recap" button triggers `recapsStore.generateRecap`; mounts `<RecapStream>` while streaming; links to recap history
-- [ ] T027 [US1] Create `src/pages/RecapHistoryPage.vue` — route `/books/:id/recaps`; loads and displays `<RecapHistory>` for the book; back-link to BookDetailPage
+- [x] T020 [US1] Create `supabase/functions/generate-recap/index.ts` — Supabase Edge Function: verify Supabase JWT from Authorization header; extract `book_id` + `title` + `author` + `percentage` + `currentPage` + `totalPages` from request body; call Claude API (`claude-haiku-4-5-20251001`) with cached system prompt (see `contracts/claude-recap-api.md`); stream JSON response back to client
+- [x] T021 [P] [US1] Create `src/services/recapService.ts` — calls the `generate-recap` Edge Function URL with user's JWT; handles streaming response; progressively emits parsed JSON fields (`memory_jogger`, `concept_watchlist`, `thematic_bridge`) as they arrive
+- [x] T022 [P] [US1] Implement `src/stores/recaps.ts` (`useRecapsStore`) — Pinia store with `recapsByBook`, `generationStatus` (`idle|streaming|complete|error`), `streamingContent`, `error` state; actions: `fetchRecapsForBook` (loads from Supabase), `generateRecap` (calls recapService, updates streamingContent on each token, persists to `recaps` table on completion)
+- [x] T023 [US1] Create `src/components/recap/RecapStream.vue` — displays the live streaming recap: three labeled sections with a shimmer/skeleton placeholder while streaming; applies `.glass-surface` card per section; shows error state with retry button
+- [x] T024 [US1] Create `src/components/recap/RecapCard.vue` — read-only display of a completed `Recap` object: shows all three sections, progress snapshot badge, and formatted date
+- [x] T025 [US1] Create `src/components/recap/RecapHistory.vue` — scrollable list of `RecapCard` components sorted by `created_at` DESC; shows empty state when no recaps exist
+- [x] T026 [US1] Create `src/pages/BookDetailPage.vue` — route `/books/:id`; loads book + progress from stores; shows title, author, cover, current progress percentage; "Get Recap" button triggers `recapsStore.generateRecap`; mounts `<RecapStream>` while streaming; links to recap history
+- [x] T027 [US1] Create `src/pages/RecapHistoryPage.vue` — route `/books/:id/recaps`; loads and displays `<RecapHistory>` for the book; back-link to BookDetailPage
 
 **Checkpoint**: Core value proposition is fully functional — readers can generate and view spoiler-free recaps
 
@@ -81,11 +81,11 @@ description: "Task list for The Chronicler — AI Reading Companion PWA"
 
 **Independent Test**: Update page number on one device → go offline → update again → restore network → open a second device — both progress values are correct
 
-- [ ] T028 [P] [US2] Create `src/composables/useOfflineSync.ts` — manages an IndexedDB store (`offline_queue`) for buffering progress update mutations; exposes `enqueue(mutation)` and `flushQueue()` (sends pending mutations to Supabase); registers for `online` event to auto-flush
-- [ ] T029 [P] [US2] Implement `src/stores/progress.ts` (`useProgressStore`) — Pinia store with `progress` (Record keyed by bookId), `pendingSync` flag; `updateProgress(bookId, currentPage)` writes to IndexedDB queue first (via `useOfflineSync`), applies optimistic local update, then upserts to Supabase `reading_progress` table; `fetchProgress()` hydrates store from Supabase on load
-- [ ] T030 [US2] Configure Background Sync in vite-plugin-pwa Workbox config in `vite.config.ts` — register a sync handler named `progress-sync` that calls `useOfflineSync.flushQueue()` when the browser regains connectivity; ensures sync survives tab closure
-- [ ] T031 [US2] Add progress update form to `src/pages/BookDetailPage.vue` — PrimeVue InputNumber for current page entry (validates 0 ≤ input ≤ totalPages), save button wires to `progressStore.updateProgress`; shows computed percentage and a PrimeVue ProgressBar; displays offline sync pending indicator when `pendingSync` is true
-- [ ] T032 [US2] Create `src/pages/DashboardPage.vue` — route `/`; shows "current read" card for the most recently updated book (from `progressStore`); displays title, cover, progress bar, and quick-action buttons: "Update Progress" (inline input) and "Get Recap" (navigates to BookDetailPage); empty state with "Add your first book" CTA; applies `.glass-surface` card styling
+- [x] T028 [P] [US2] Create `src/composables/useOfflineSync.ts` — manages an IndexedDB store (`offline_queue`) for buffering progress update mutations; exposes `enqueue(mutation)` and `flushQueue()` (sends pending mutations to Supabase); registers for `online` event to auto-flush
+- [x] T029 [P] [US2] Implement `src/stores/progress.ts` (`useProgressStore`) — Pinia store with `progress` (Record keyed by bookId), `pendingSync` flag; `updateProgress(bookId, currentPage)` writes to IndexedDB queue first (via `useOfflineSync`), applies optimistic local update, then upserts to Supabase `reading_progress` table; `fetchProgress()` hydrates store from Supabase on load
+- [x] T030 [US2] Configure Background Sync in vite-plugin-pwa Workbox config in `vite.config.ts` — register a sync handler named `progress-sync` that calls `useOfflineSync.flushQueue()` when the browser regains connectivity; ensures sync survives tab closure
+- [x] T031 [US2] Add progress update form to `src/pages/BookDetailPage.vue` — PrimeVue InputNumber for current page entry (validates 0 ≤ input ≤ totalPages), save button wires to `progressStore.updateProgress`; shows computed percentage and a PrimeVue ProgressBar; displays offline sync pending indicator when `pendingSync` is true
+- [x] T032 [US2] Create `src/pages/DashboardPage.vue` — route `/`; shows "current read" card for the most recently updated book (from `progressStore`); displays title, cover, progress bar, and quick-action buttons: "Update Progress" (inline input) and "Get Recap" (navigates to BookDetailPage); empty state with "Add your first book" CTA; applies `.glass-surface` card styling
 
 **Checkpoint**: Progress tracking with offline support is complete — all devices stay in sync
 
@@ -97,14 +97,14 @@ description: "Task list for The Chronicler — AI Reading Companion PWA"
 
 **Independent Test**: Open "Add Book" → scan any ISBN barcode → metadata (title, author, cover, pages) pre-fills → save → book visible in library
 
-- [ ] T033 [P] [US3] Create `src/composables/useIsbn.ts` — `lookup(isbn: string): Promise<BookMetadata | null>`; tries Open Library first (`https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data`); falls back to Google Books (`https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}`); maps response to `BookMetadata` interface; returns `null` on total failure
-- [ ] T034 [P] [US3] Create `src/composables/useScanner.ts` — Quagga2 (`@ericblade/quagga2`) wrapper; exposes `startScanning(videoEl)`, `stopScanning()`, `onDetected(callback)`; detects EAN-13 / ISBN-13 barcodes from camera stream; cleans up camera on `onUnmounted`
-- [ ] T035 [P] [US3] Implement `src/stores/books.ts` (`useBooksStore`) — Pinia store with `books: Book[]`, `loading`, `error`; actions: `fetchLibrary()` (loads user's books from Supabase), `addBook(input)` (inserts to `books` table, sets `user_id = auth.uid()`), `updateBook(id, changes)`, `removeBook(id)`; getter `bookById(id)`
-- [ ] T036 [US3] Create `src/components/books/IsbnScanner.vue` — mounts a `<video>` element; uses `useScanner` composable; shows camera feed with scanning overlay (targeting reticle); on barcode detect: emits `detected(isbn)` event and auto-stops; handles camera permission denial with fallback message
-- [ ] T037 [US3] Create `src/components/books/BookForm.vue` — form for book metadata with PrimeVue InputText fields (title, author, total pages, genre), cover art preview if `coverUrl` present, save/cancel buttons; accepts `initial` prop (pre-filled from ISBN lookup or empty for manual entry); emits `submit(BookMetadata)` and `cancel`
-- [ ] T038 [US3] Create `src/pages/AddBookPage.vue` — route `/books/add`; two-step flow: Step 1 shows `<IsbnScanner>` + "Enter manually" link; on barcode detect calls `useIsbn.lookup()` and navigates to Step 2; Step 2 shows `<BookForm>` pre-filled with metadata; on form submit calls `booksStore.addBook()` and navigates to `/library`
-- [ ] T039 [US3] Create `src/components/books/BookCard.vue` — displays a book's cover art (fallback: colored placeholder with initials), title, author, genre chip, and progress percentage from `useProgressStore`; tappable, navigates to BookDetailPage; applies `.glass-surface`
-- [ ] T040 [US3] Create `src/pages/LibraryPage.vue` — route `/library`; grid of `<BookCard>` components from `booksStore.books`; FAB or header button navigates to `/books/add`; empty state prompts to add first book
+- [x] T033 [P] [US3] Create `src/composables/useIsbn.ts` — `lookup(isbn: string): Promise<BookMetadata | null>`; tries Open Library first (`https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data`); falls back to Google Books (`https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}`); maps response to `BookMetadata` interface; returns `null` on total failure
+- [x] T034 [P] [US3] Create `src/composables/useScanner.ts` — Quagga2 (`@ericblade/quagga2`) wrapper; exposes `startScanning(videoEl)`, `stopScanning()`, `onDetected(callback)`; detects EAN-13 / ISBN-13 barcodes from camera stream; cleans up camera on `onUnmounted`
+- [x] T035 [P] [US3] Implement `src/stores/books.ts` (`useBooksStore`) — Pinia store with `books: Book[]`, `loading`, `error`; actions: `fetchLibrary()` (loads user's books from Supabase), `addBook(input)` (inserts to `books` table, sets `user_id = auth.uid()`), `updateBook(id, changes)`, `removeBook(id)`; getter `bookById(id)`
+- [x] T036 [US3] Create `src/components/books/IsbnScanner.vue` — mounts a `<video>` element; uses `useScanner` composable; shows camera feed with scanning overlay (targeting reticle); on barcode detect: emits `detected(isbn)` event and auto-stops; handles camera permission denial with fallback message
+- [x] T037 [US3] Create `src/components/books/BookForm.vue` — form for book metadata with PrimeVue InputText fields (title, author, total pages, genre), cover art preview if `coverUrl` present, save/cancel buttons; accepts `initial` prop (pre-filled from ISBN lookup or empty for manual entry); emits `submit(BookMetadata)` and `cancel`
+- [x] T038 [US3] Create `src/pages/AddBookPage.vue` — route `/books/add`; two-step flow: Step 1 shows `<IsbnScanner>` + "Enter manually" link; on barcode detect calls `useIsbn.lookup()` and navigates to Step 2; Step 2 shows `<BookForm>` pre-filled with metadata; on form submit calls `booksStore.addBook()` and navigates to `/library`
+- [x] T039 [US3] Create `src/components/books/BookCard.vue` — displays a book's cover art (fallback: colored placeholder with initials), title, author, genre chip, and progress percentage from `useProgressStore`; tappable, navigates to BookDetailPage; applies `.glass-surface`
+- [x] T040 [US3] Create `src/pages/LibraryPage.vue` — route `/library`; grid of `<BookCard>` components from `booksStore.books`; FAB or header button navigates to `/books/add`; empty state prompts to add first book
 
 **Checkpoint**: Full book management flow works — scan → add → view in library
 
@@ -116,8 +116,8 @@ description: "Task list for The Chronicler — AI Reading Companion PWA"
 
 **Independent Test**: Generate 2+ recaps for one book at different progress points → navigate to recap history → all recaps visible with correct progress snapshot and date
 
-- [ ] T041 [P] [US4] Wire `src/pages/RecapHistoryPage.vue` to `useRecapsStore.fetchRecapsForBook(bookId)` on mount — renders `<RecapHistory>` component with loaded recaps; shows loading skeleton while fetching; empty state when no history exists
-- [ ] T042 [US4] Add "View Recap History (N)" link/button to `src/pages/BookDetailPage.vue` — shows count of existing recaps; navigates to `/books/:id/recaps`
+- [x] T041 [P] [US4] Wire `src/pages/RecapHistoryPage.vue` to `useRecapsStore.fetchRecapsForBook(bookId)` on mount — renders `<RecapHistory>` component with loaded recaps; shows loading skeleton while fetching; empty state when no history exists
+- [x] T042 [US4] Add "View Recap History (N)" link/button to `src/pages/BookDetailPage.vue` — shows count of existing recaps; navigates to `/books/:id/recaps`
 
 **Checkpoint**: Full recap lifecycle is accessible — generate, view current, browse history
 
@@ -127,12 +127,12 @@ description: "Task list for The Chronicler — AI Reading Companion PWA"
 
 **Purpose**: UX refinements and production readiness across all stories
 
-- [ ] T043 Create `src/pages/NotFoundPage.vue` — 404 page with "Page not found" message and link back to dashboard; applies `.glass-surface` card
-- [ ] T044 [P] Audit and apply `.glass-surface` class consistently across all page-level containers and modal/dialog components; verify `backdrop-filter` renders correctly (no `overflow: hidden` on ancestor elements)
-- [ ] T045 [P] Implement dark mode as default in `src/main.ts` using PrimeVue `useColorMode` — set initial mode to `dark`; wire toggle in `AppHeader.vue` to switch between `dark` and `light`
-- [ ] T046 [P] Add PWA icons: generate and place icon files at `public/icons/icon-192.png`, `public/icons/icon-512.png`, `public/icons/icon-maskable.png`; verify manifest references are correct
-- [ ] T047 Run quickstart.md validation flows: add a book via ISBN scan, update progress, generate recap, go offline and update progress, restore network — confirm all five flows pass end-to-end
-- [ ] T048 [P] Run `pnpm build && pnpm preview` and audit Lighthouse PWA score — target ≥ 90; fix any failing PWA criteria (HTTPS in prod, manifest valid, service worker registered)
+- [x] T043 Create `src/pages/NotFoundPage.vue` — 404 page with "Page not found" message and link back to dashboard; applies `.glass-surface` card
+- [x] T044 [P] Audit and apply `.glass-surface` class consistently across all page-level containers and modal/dialog components; verify `backdrop-filter` renders correctly (no `overflow: hidden` on ancestor elements)
+- [x] T045 [P] Implement dark mode as default in `src/main.ts` using PrimeVue `useColorMode` — set initial mode to `dark`; wire toggle in `AppHeader.vue` to switch between `dark` and `light`
+- [x] T046 [P] Add PWA icons: generate and place icon files at `public/icons/icon-192.png`, `public/icons/icon-512.png`, `public/icons/icon-maskable.png`; verify manifest references are correct
+- [x] T047 Run quickstart.md validation flows: add a book via ISBN scan, update progress, generate recap, go offline and update progress, restore network — confirm all five flows pass end-to-end
+- [x] T048 [P] Run `pnpm build && pnpm preview` and audit Lighthouse PWA score — target ≥ 90; fix any failing PWA criteria (HTTPS in prod, manifest valid, service worker registered)
 
 ---
 

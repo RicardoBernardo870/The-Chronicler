@@ -106,12 +106,12 @@ const submitLabel = computed(() => {
   return 'Sign in'
 })
 
-function toggleMagicLink() {
+const toggleMagicLink = () => {
   mode.value = mode.value === 'magic' ? 'signin' : 'magic'
   errorMsg.value = ''
 }
 
-async function handleSubmit() {
+const handleSubmit = async () => {
   errorMsg.value = ''
   try {
     if (mode.value === 'magic') {
