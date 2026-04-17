@@ -164,6 +164,25 @@ body.p-light .p-inputnumber-button:hover {
   background: transparent !important;
 }
 
+/* Select (dropdown) overlay */
+.p-select-overlay {
+  background: #1c1c2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.50) !important;
+}
+
+.p-select-overlay .p-select-option {
+  background: transparent !important;
+}
+
+.p-select-overlay .p-select-option.p-select-option-selected {
+  background: rgba(99, 102, 241, 0.20) !important;
+}
+
+.p-select-overlay .p-select-option:not(.p-select-option-selected):hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+}
+
 /* Light mode */
 html[data-p-theme='light'] .p-menu {
   background: #ffffff !important;
@@ -176,6 +195,20 @@ html[data-p-theme='light'] .p-confirmdialog {
   background: #ffffff !important;
   border-color: rgba(0, 0, 0, 0.10) !important;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.20) !important;
+}
+
+html[data-p-theme='light'] .p-select-overlay {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.10) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
+}
+
+html[data-p-theme='light'] .p-select-overlay .p-select-option.p-select-option-selected {
+  background: rgba(99, 102, 241, 0.12) !important;
+}
+
+html[data-p-theme='light'] .p-select-overlay .p-select-option:not(.p-select-option-selected):hover {
+  background: rgba(0, 0, 0, 0.05) !important;
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
