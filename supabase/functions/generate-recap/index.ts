@@ -15,6 +15,12 @@ const buildExtractionPrompt = (fromPage: number, currentPage: number, totalPages
     ? `pages ${rangeStart} to ${currentPage}`
     : `the first ${currentPage} pages (out of ${totalPages} total)`
 
+  const toPct = Math.round((currentPage / totalPages) * 100)
+  const fromPct = Math.round((fromPage / totalPages) * 100)
+  const editionNote = fromPage > 0
+    ? `If the page numbers don't align perfectly with your internal record of this edition, prioritize the plot milestones that would reasonably occur between ${fromPct}% and ${toPct}% of the book's total length.`
+    : `If the page numbers don't align perfectly with your internal record of this edition, prioritize the plot milestones that would reasonably occur by ${toPct}% of the book's total length.`
+
   return `You are a literary analyst. Your task is to recall the content of a specific book and produce a detailed summary of ONLY ${rangeDesc}.
 
 METHODOLOGY - FOLLOW THIS STEP BY STEP:
@@ -23,6 +29,8 @@ METHODOLOGY - FOLLOW THIS STEP BY STEP:
 3. For each of those chapters, describe the key events and which characters are involved
 4. STOP at the chapter that contains page ${currentPage} — include content from that chapter only up to approximately page ${currentPage}
 5. Do NOT include any chapter or content that begins after page ${currentPage}${fromPage > 0 ? `\n6. Do NOT include any chapter or content from before page ${rangeStart} — the reader already has a summary of that material` : ''}
+
+${editionNote}
 
 Be thorough and detailed for the chapters you DO cover. Include all significant characters, plot developments, relationships, and themes that have been established. A rich, detailed extraction is valuable — just make sure every detail comes from ${fromPage > 0 ? `between pages ${rangeStart} and ${currentPage}` : `before page ${currentPage}`}.
 
