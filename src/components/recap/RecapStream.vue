@@ -267,7 +267,6 @@ const parsedRecap = computed(() => {
 .recap-accordion {
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
 }
 
 .recap-accordion :deep(.p-accordionpanel) {
