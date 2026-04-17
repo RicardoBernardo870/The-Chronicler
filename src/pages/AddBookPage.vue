@@ -132,7 +132,7 @@ const onFormCancel = () => {
 .add-book {
   max-width: 600px;
   margin: 0 auto;
-  padding: 1rem 1rem 4rem;
+  padding: 1rem 1rem var(--app-nav-bottom-clearance);
   display: flex;
   flex-direction: column;
   gap: 1.25rem;

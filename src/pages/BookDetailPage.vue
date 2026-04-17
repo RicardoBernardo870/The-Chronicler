@@ -5,8 +5,10 @@ import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
 import { useRecapsStore } from '@/stores/recaps'
 import { useBookPassportStore } from '@/stores/bookPassport'
+import { useLexiconStore } from '@/stores/lexicon'
 import RecapStream from '@/components/recap/RecapStream.vue'
 import VelocityBadge from '@/components/pulse/VelocityBadge.vue'
+import AddWordDialog from '@/components/lexicon/AddWordDialog.vue'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
 import ProgressBar from 'primevue/progressbar'
@@ -18,6 +20,7 @@ const booksStore = useBooksStore()
 const progressStore = useProgressStore()
 const recapsStore = useRecapsStore()
 const passportStore = useBookPassportStore()
+const lexiconStore = useLexiconStore()
 
 const bookId = computed(() => route.params.id as string)
 const book = computed(() => booksStore.bookById(bookId.value))
@@ -27,6 +30,9 @@ const currentPageInput = ref<number>(0)
 const progressLoading = ref(false)
 const progressError = ref<string | null>(null)
 const recapTriggered = ref(false)
+const addWordVisible = ref(false)
+
+const lexiconCount = computed(() => lexiconStore.entriesByBook[bookId.value]?.length ?? 0)
 
 onMounted(async () => {
   if (!book.value) await booksStore.fetchLibrary()
@@ -34,6 +40,7 @@ onMounted(async () => {
   await recapsStore.fetchRecapsForBook(bookId.value)
   if (progress.value) currentPageInput.value = progress.value.currentPage
   await passportStore.fetchPassport(bookId.value)
+  await lexiconStore.fetchEntriesForBook(bookId.value)
 })
 
 watch(progress, (p) => {
@@ -167,6 +174,23 @@ const coverFallback = (e: Event) => {
           :current-page="progress.currentPage"
         />
 
+        <div class="book-detail__vocab-row">
+          <Button
+            label="Add Word"
+            icon="pi pi-plus"
+            size="small"
+            outlined
+            @click="addWordVisible = true"
+          />
+          <RouterLink
+            v-if="lexiconCount > 0"
+            :to="{ name: 'lexicon', query: { bookId: bookId } }"
+            class="book-detail__vocab-count"
+          >
+            {{ lexiconCount }} {{ lexiconCount === 1 ? 'word' : 'words' }} saved
+          </RouterLink>
+        </div>
+
         <Button
           v-if="isComplete"
           label="✦ View Reading Journey"
@@ -226,6 +250,17 @@ const coverFallback = (e: Event) => {
         <Skeleton height="1rem" width="40%" style="margin-top: 0.5rem" />
       </div>
     </template>
+
+    <!-- Add Word Dialog — book locked to current book, page defaults to current progress -->
+    <!-- Placed inside the root div so the page keeps a single root element (required for <Transition>) -->
+    <AddWordDialog
+      v-if="addWordVisible"
+      :visible="addWordVisible"
+      :book-id="bookId"
+      :default-page-found="progress?.currentPage"
+      @update:visible="addWordVisible = $event"
+      @saved="addWordVisible = false"
+    />
   </div>
 </template>
 
@@ -236,7 +271,7 @@ const coverFallback = (e: Event) => {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  padding: 1.5rem 1rem 4rem;
+  padding: 1.5rem 1rem var(--app-nav-bottom-clearance);
 }
 
 .book-detail__not-found {
@@ -408,5 +443,25 @@ const coverFallback = (e: Event) => {
 .book-detail__skeleton {
   border-radius: var(--p-border-radius-xl, 16px);
   padding: 1.5rem;
+}
+
+.book-detail__vocab-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.book-detail__vocab-count {
+  font-size: 0.8rem;
+  opacity: 0.65;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s;
+}
+
+.book-detail__vocab-count:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 </style>
