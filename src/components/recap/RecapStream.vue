@@ -244,6 +244,7 @@ const parsedRecap = computed(() => {
   align-items: center;
   text-align: center;
   gap: 0.75rem;
+  padding: 20px;
 }
 
 .recap-stream__error-msg {
