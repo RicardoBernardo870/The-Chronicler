@@ -59,12 +59,23 @@ Respond with a raw JSON object ONLY. No markdown, no code fences, no backticks, 
   "thematic_bridge": "<1-2 sentences on the current mood and tensions, based ONLY on the extracted content>"
 }`
 
+// ---- Book Blurb: spoiler-free preview for readers at page 0 ----
+const buildBlurbPrompt = () => `You are a book curator writing a preview for a reader who is about to start a book. Your job is to give them an enticing, spoiler-free introduction — the kind of thing you'd read on the back cover or inside flap.
+
+OUTPUT FORMAT — MANDATORY:
+Respond with a raw JSON object ONLY. No markdown, no code fences, no backticks, no commentary.
+{
+  "memory_jogger": "<2–4 sentences, MAX 600 characters. A spoiler-free hook: what is the premise, who is the protagonist, what's at stake. No plot reveals, no twists, no ending hints. Make it feel inviting and intriguing.>",
+  "concept_watchlist": "<comma-separated, MAX 13 items. Key characters and locations the reader will encounter — names only, no descriptions that hint at outcomes. Think cast list, not character analysis.>",
+  "thematic_bridge": "<1–2 sentences on the mood, tone, and themes to expect going in — genre feel, emotional register, pacing. No spoilers.>"
+}`
+
 // ---- Passport Summary: narrative prompt for completed book ----
 const buildPassportSummaryPrompt = (title: string, author: string) =>
   `You are a book chronicler celebrating a reader's completion of "${title}" by ${author}. Write a flowing, personal narrative summary of this book for the reader who has just finished it.
 
 The summary should:
-- Be a single cohesive paragraph of 200–400 words
+- Be a single cohesive paragraph of 300–500 words
 - Cover the full arc of the story from beginning to end
 - Highlight the most memorable moments, characters, and themes
 - Capture the emotional journey and what made this book special
@@ -153,6 +164,39 @@ Deno.serve(async (req: Request) => {
             controller.close()
           } catch (err) {
             console.error("Passport summary stream error:", err)
+            controller.error(err)
+          }
+        },
+      })
+
+      return new Response(readable, {
+        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" },
+      })
+    }
+
+    // ========== BLURB mode: reader hasn't started the book yet ==========
+    if (currentPage === 0) {
+      const stream = await ai.models.generateContentStream({
+        model: "gemini-2.5-flash",
+        contents: [{ role: "user", parts: [{ text: `Book: "${title}" by ${author}.${isbn ? ` ISBN: ${isbn}.` : ''} The reader is about to start this book. Write the preview.` }] }],
+        config: {
+          systemInstruction: buildBlurbPrompt(),
+          temperature: 0.7,
+          maxOutputTokens: 4096,
+        },
+      })
+
+      const encoder = new TextEncoder()
+      const readable = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const chunk of stream) {
+              const text = chunk.text
+              if (text) controller.enqueue(encoder.encode(text))
+            }
+            controller.close()
+          } catch (err) {
+            console.error("Blurb stream error:", err)
             controller.error(err)
           }
         },
