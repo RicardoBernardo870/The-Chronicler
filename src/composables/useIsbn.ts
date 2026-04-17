@@ -51,14 +51,41 @@ const fetchFromGoogleBooks = async (isbn: string): Promise<BookMetadata | null> 
   }
 }
 
+// ── Field-by-field merge ──────────────────────────────────────────────────────
+
+const isMissingFields = (result: BookMetadata): boolean =>
+  !result.coverUrl || !result.totalPages || !result.genre || result.author === 'Unknown Author'
+
+const mergeMetadata = (primary: BookMetadata, secondary: BookMetadata): BookMetadata => ({
+  // Title always comes from primary
+  title: primary.title,
+  // Fill each field from secondary only when primary is missing it
+  author: primary.author !== 'Unknown Author' ? primary.author : secondary.author,
+  coverUrl: primary.coverUrl ?? secondary.coverUrl,
+  totalPages: primary.totalPages ?? secondary.totalPages,
+  genre: primary.genre ?? secondary.genre,
+})
+
 // ── Public composable ─────────────────────────────────────────────────────────
 
 export const useIsbn = () => {
   const lookup = async (isbn: string): Promise<BookMetadata | null> => {
     const clean = isbn.replace(/[^0-9X]/gi, '')
-    const result = await fetchFromOpenLibrary(clean)
-    if (result) return result
-    return fetchFromGoogleBooks(clean)
+
+    const olResult = await fetchFromOpenLibrary(clean)
+
+    // Open Library returned nothing — full fallback to Google Books
+    if (!olResult) return fetchFromGoogleBooks(clean)
+
+    // Open Library has all fields — return immediately, no Google Books call
+    if (!isMissingFields(olResult)) return olResult
+
+    // Open Library returned a partial result — fetch Google Books for gap-filling only
+    const gbResult = await fetchFromGoogleBooks(clean)
+    if (!gbResult) return olResult
+
+    // Merge: primary = Open Library, secondary = Google Books (fills gaps only)
+    return mergeMetadata(olResult, gbResult)
   }
 
   return { lookup }

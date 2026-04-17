@@ -21,7 +21,7 @@ function formatDate(iso: string): string {
     <header class="recap-card__header">
       <span class="recap-card__progress">
         <i class="pi pi-chart-bar" />
-        {{ recap.progressSnapshot }}% through
+        page {{ recap.pageSnapshot ?? '—' }} · {{ recap.progressSnapshot }}%
       </span>
       <time class="recap-card__date" :datetime="recap.createdAt">
         {{ formatDate(recap.createdAt) }}

@@ -15,6 +15,9 @@
         <RouterLink to="/library" class="app-header__nav-link" :class="{ active: route.path.startsWith('/library') }">
           Library
         </RouterLink>
+        <RouterLink to="/lexicon" class="app-header__nav-link" :class="{ active: route.path.startsWith('/lexicon') }">
+          Lexicon
+        </RouterLink>
       </nav>
 
       <!-- Actions -->

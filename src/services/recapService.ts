@@ -8,7 +8,10 @@ export interface RecapRequest {
   percentage: number
   currentPage: number
   totalPages: number
+  /** Start of the incremental recap range. AI covers from_page+1 → currentPage only. Omit for full recap from page 1. */
+  from_page?: number
 }
+
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-recap`
 
@@ -84,3 +87,4 @@ export async function streamRecap(
     thematicBridge: thematic_bridge,
   }
 }
+
