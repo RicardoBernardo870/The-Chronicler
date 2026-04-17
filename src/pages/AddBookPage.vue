@@ -21,11 +21,14 @@ const saving = ref(false)
 const saveError = ref<string | null>(null)
 const lookupLoading = ref(false)
 const manualIsbn = ref('')
+// Stores the ISBN from scan/lookup so it gets saved with the book (US6)
+const resolvedIsbn = ref<string | null>(null)
 
 const onBarcodeDetected = async (isbn: string) => {
   lookupLoading.value = true
   const meta = await lookup(isbn)
   lookupLoading.value = false
+  resolvedIsbn.value = isbn
   prefill.value = meta ?? {}
   step.value = 'form'
 }
@@ -43,15 +46,17 @@ const lookupManualIsbn = async () => {
   lookupLoading.value = true
   const meta = await lookup(manualIsbn.value.trim())
   lookupLoading.value = false
+  resolvedIsbn.value = manualIsbn.value.trim()
   prefill.value = meta ?? {}
   step.value = 'form'
 }
 
-const onFormSubmit = async (data: Required<Omit<BookMetadata, 'coverUrl'>> & { coverUrl: string | null }) => {
+const onFormSubmit = async (data: Required<Omit<BookMetadata, 'coverUrl'>> & { coverUrl: string | null; isbn: string | null }) => {
   saving.value = true
   saveError.value = null
   try {
-    await booksStore.addBook({ ...data, isbn: null, totalPages: data.totalPages ?? 0 })
+    // data.isbn comes from BookForm (user may have typed one manually); resolvedIsbn is the fallback from scan
+    await booksStore.addBook({ ...data, isbn: data.isbn ?? resolvedIsbn.value, totalPages: data.totalPages ?? 0 })
     router.push('/library')
   } catch (e: unknown) {
     saveError.value = e instanceof Error ? e.message : 'Failed to save book'
@@ -110,7 +115,7 @@ const onFormCancel = () => {
 
       <div class="add-book__form-wrap glass-surface">
         <BookForm
-          :initial="prefill"
+          :initial="{ ...prefill, isbn: resolvedIsbn }"
           :loading="saving"
           @submit="onFormSubmit"
           @cancel="onFormCancel"

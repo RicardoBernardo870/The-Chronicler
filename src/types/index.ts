@@ -252,35 +252,6 @@ export const mapUpNextOrder = (row: UpNextOrderRow): UpNextOrder => ({
   updatedAt: row.updated_at,
 })
 
-export interface RecapFragment {
-  id: string
-  bookId: string
-  userId: string
-  pageAtExtraction: number
-  percentageAtExtraction: number
-  extractedJson: Record<string, unknown>
-  createdAt: string
-}
-
-export interface RecapFragmentRow {
-  id: string
-  book_id: string
-  user_id: string
-  page_at_extraction: number
-  percentage_at_extraction: number
-  extracted_json: Record<string, unknown>
-  created_at: string
-}
-
-export const mapRecapFragment = (row: RecapFragmentRow): RecapFragment => ({
-  id: row.id,
-  bookId: row.book_id,
-  userId: row.user_id,
-  pageAtExtraction: row.page_at_extraction,
-  percentageAtExtraction: Number(row.percentage_at_extraction),
-  extractedJson: row.extracted_json,
-  createdAt: row.created_at,
-})
 
 export interface BookPassport {
   id: string

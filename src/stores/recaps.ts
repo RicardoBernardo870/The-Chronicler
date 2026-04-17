@@ -24,6 +24,9 @@ export const useRecapsStore = defineStore('recaps', () => {
   }
 
   async function generateRecap(bookId: string) {
+    // Lockout guard: prevent duplicate requests while streaming (FR-010)
+    if (generationStatus.value === 'streaming') return
+
     const authStore = useAuthStore()
     const booksStore = useBooksStore()
     const progressStore = useProgressStore()
@@ -42,8 +45,19 @@ export const useRecapsStore = defineStore('recaps', () => {
     error.value = null
 
     try {
+      // Incremental recap: cover only pages since the last recap (Decision 3)
+      const fromPage = recapsByBook[bookId]?.[0]?.pageSnapshot ?? 0
+
       const result = await streamRecap(
-        { title: book.title, author: book.author, isbn: book.isbn, percentage, currentPage, totalPages: book.totalPages },
+        {
+          title: book.title,
+          author: book.author,
+          isbn: book.isbn,
+          percentage,
+          currentPage,
+          totalPages: book.totalPages,
+          from_page: fromPage > 0 ? fromPage : undefined,
+        },
         (token) => { streamingText.value += token },
       )
 

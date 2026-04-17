@@ -5,7 +5,6 @@ import { mapReadingProgress, type ReadingProgress, type ReadingProgressRow } fro
 import { useBooksStore } from '@/stores/books'
 import { useAuthStore } from '@/stores/auth'
 import { useOfflineSync } from '@/composables/useOfflineSync'
-import { useRecapFragmentsStore } from '@/stores/recapFragments'
 import { useBookPassportStore } from '@/stores/bookPassport'
 
 export const useProgressStore = defineStore('progress', () => {
@@ -100,21 +99,13 @@ export const useProgressStore = defineStore('progress', () => {
       // Online: persist synchronously
       await syncToSupabase(bookId, currentPage)
       // Fire-and-forget: log to progress_history — never blocks UI, silent on error
+      // .then(() => {}) is required: Supabase JS v2 lazy execution only dispatches on consumption
       supabase.from('progress_history').insert({
         book_id: bookId,
         user_id: authStore.user.id,
         page: currentPage,
         recorded_at: new Date().toISOString(),
-      })
-
-      // Fire-and-forget: trigger fragment extraction if a 10% milestone was crossed
-      if (Math.floor(newPct / 10) > Math.floor(prevPct / 10)) {
-        const recapFragmentsStore = useRecapFragmentsStore()
-        recapFragmentsStore.triggerExtraction(
-          bookId, currentPage, newPct,
-          book.title, book.author, book.totalPages, book.isbn
-        )
-      }
+      }).then(() => {})
 
       // Fire-and-forget: auto-generate Book Passport when first reaching 100%
       if (newPct >= 100 && prevPct < 100) {

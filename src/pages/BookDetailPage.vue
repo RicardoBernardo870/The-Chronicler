@@ -51,7 +51,7 @@ const lastRecapPct = computed(() =>
 )
 const unlockPage = computed(() => {
   if (!book.value || lastRecapPct.value === 0) return 0
-  return Math.ceil((lastRecapPct.value + 10) / 100 * book.value.totalPages)
+  return Math.ceil((lastRecapPct.value + 5) / 100 * book.value.totalPages)
 })
 const recapLocked = computed(() =>
   lastRecapPct.value > 0 && (progress.value?.currentPage ?? 0) < unlockPage.value
@@ -161,7 +161,7 @@ const coverFallback = (e: Event) => {
         </p>
 
         <VelocityBadge
-          v-if="progress && progress.currentPage > 0"
+          v-if="progress && progress.currentPage > 0 && !isComplete"
           :book-id="bookId"
           :total-pages="book.totalPages"
           :current-page="progress.currentPage"
@@ -176,8 +176,8 @@ const coverFallback = (e: Event) => {
         />
       </section>
 
-      <!-- Recap -->
-      <section class="book-detail__recap glass-surface">
+      <!-- Recap — hidden when book is complete (use Book Passport instead) -->
+      <section v-if="!isComplete" class="book-detail__recap glass-surface">
         <div class="book-detail__recap-header">
           <h2 class="book-detail__section-title">AI Recap</h2>
           <!-- Locked state -->

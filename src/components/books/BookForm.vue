@@ -6,12 +6,12 @@ import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 
 const props = defineProps<{
-  initial?: Partial<BookMetadata>
+  initial?: Partial<BookMetadata> & { isbn?: string | null }
   loading?: boolean
 }>()
 
 const emit = defineEmits<{
-  submit: [data: Required<Omit<BookMetadata, 'coverUrl'>> & { coverUrl: string | null }]
+  submit: [data: Required<Omit<BookMetadata, 'coverUrl'>> & { coverUrl: string | null; isbn: string | null }]
   cancel: []
 }>()
 
@@ -20,6 +20,7 @@ const author = ref(props.initial?.author ?? '')
 const totalPages = ref<number | null>(props.initial?.totalPages ?? null)
 const genre = ref<string | null>(props.initial?.genre ?? '')
 const coverUrl = ref<string | null>(props.initial?.coverUrl ?? null)
+const isbn = ref<string | null>(props.initial?.isbn ?? null)
 
 const errors = ref<Record<string, string>>({})
 
@@ -31,6 +32,7 @@ watch(() => props.initial, (val) => {
   totalPages.value = val.totalPages ?? totalPages.value
   genre.value = val.genre ?? genre.value
   coverUrl.value = val.coverUrl ?? coverUrl.value
+  isbn.value = val.isbn ?? isbn.value
 })
 
 const validate = () => {
@@ -50,6 +52,7 @@ const onSubmit = () => {
     totalPages: totalPages.value!,
     genre: genre.value,
     coverUrl: coverUrl.value,
+    isbn: isbn.value?.trim() || null,
   })
 }
 </script>
@@ -105,6 +108,16 @@ const onSubmit = () => {
         id="bf-genre"
         v-model="genre"
         placeholder="e.g. Fantasy"
+        fluid
+      />
+    </div>
+
+    <div class="book-form__field">
+      <label class="book-form__label" for="bf-isbn">ISBN <span class="book-form__optional">(optional — improves AI recap accuracy)</span></label>
+      <InputText
+        id="bf-isbn"
+        v-model="isbn"
+        placeholder="e.g. 9780261102354"
         fluid
       />
     </div>

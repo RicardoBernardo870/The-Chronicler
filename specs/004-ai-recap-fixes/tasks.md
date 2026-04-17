@@ -20,8 +20,8 @@ description: "Task list for AI Recap & Progress Tracking Fixes"
 
 **Purpose**: Orient to affected files before making any changes.
 
-- [ ] T001 Read current `src/stores/progress.ts` to locate the fire-and-forget `progress_history` insert call
-- [ ] T002 Read current `supabase/functions/generate-recap/index.ts` to map the existing mode branches and token budget values
+- [x] T001 Read current `src/stores/progress.ts` to locate the fire-and-forget `progress_history` insert call
+- [x] T002 Read current `supabase/functions/generate-recap/index.ts` to map the existing mode branches and token budget values
 
 ---
 
@@ -41,7 +41,7 @@ description: "Task list for AI Recap & Progress Tracking Fixes"
 
 ### Implementation
 
-- [ ] T003 [US1] In `src/stores/progress.ts`: add `.then(() => {})` to the fire-and-forget `supabase.from('progress_history').insert({...})` call so the HTTP request is actually dispatched (Decision 2 — Supabase JS v2 lazy execution fix)
+- [x] T003 [US1] In `src/stores/progress.ts`: add `.then(() => {})` to the fire-and-forget `supabase.from('progress_history').insert({...})` call so the HTTP request is actually dispatched (Decision 2 — Supabase JS v2 lazy execution fix)
 - [ ] T004 [US1] Verify the fix: save progress on a test book, check `progress_history` table in Supabase Studio for a new row with correct `book_id`, `user_id`, `page`, and `recorded_at`
 
 **Checkpoint**: US1 complete. `progress_history` now accumulates rows. US5 and US7 unblock automatically.
@@ -56,10 +56,10 @@ description: "Task list for AI Recap & Progress Tracking Fixes"
 
 ### Implementation
 
-- [ ] T005 [P] [US2] In `src/stores/recapFragments.ts`: add a validation gate before the `.insert()` call — discard the fragment silently if `raw_json` does not have a non-empty `key_events` array OR has a `raw` key present (Decision 5 — prevents `{raw:""}` rows)
-- [ ] T006 [P] [US2] In `supabase/functions/generate-recap/index.ts`: increase Pass 1 extraction `maxOutputTokens` from `4096` to `8192` (Decision 8 — prevents mid-JSON truncation for large books)
-- [ ] T007 [US2] In `supabase/functions/generate-recap/index.ts`: remove the `fragments` array handling from the `recap` mode path — the recap must always run its own fresh Pass 1 over the relevant page range; delete any code that accepts, validates, or forwards fragments to Pass 2 (Decision 1)
-- [ ] T008 [US2] In `src/stores/recaps.ts`: add a streaming lockout guard at the start of `generateRecap` — if `generationStatus.value === 'streaming'` return early without making a network request (FR-010); also bind `:disabled="recapsStore.generationStatus === 'streaming'"` on the recap trigger button in `src/pages/BookDetailPage.vue`
+- [x] T005 [P] [US2] In `src/stores/recapFragments.ts`: add a validation gate before the `.insert()` call — discard the fragment silently if `raw_json` does not have a non-empty `key_events` array OR has a `raw` key present (Decision 5 — prevents `{raw:""}` rows)
+- [x] T006 [P] [US2] In `supabase/functions/generate-recap/index.ts`: increase Pass 1 extraction `maxOutputTokens` from `4096` to `8192` (Decision 8 — prevents mid-JSON truncation for large books)
+- [x] T007 [US2] In `supabase/functions/generate-recap/index.ts`: remove the `fragments` array handling from the `recap` mode path — the recap must always run its own fresh Pass 1 over the relevant page range; delete any code that accepts, validates, or forwards fragments to Pass 2 (Decision 1)
+- [x] T008 [US2] In `src/stores/recaps.ts`: add a streaming lockout guard at the start of `generateRecap` — if `generationStatus.value === 'streaming'` return early without making a network request (FR-010); also bind `:disabled="recapsStore.generationStatus === 'streaming'"` on the recap trigger button in `src/pages/BookDetailPage.vue`
 
 **Checkpoint**: US2 complete. Recaps reliably return all three fields, fragments no longer poison context, button is locked during streaming.
 
@@ -73,10 +73,10 @@ description: "Task list for AI Recap & Progress Tracking Fixes"
 
 ### Implementation
 
-- [ ] T009 [P] [US4] In `src/pages/BookDetailPage.vue`: wrap the entire AI Recap `<section>` (button, hint text, history link) with `v-if="!isComplete"` where `isComplete` is already computed as `percentage >= 100` (Decision 7)
-- [ ] T010 [P] [US4] In `supabase/functions/generate-recap/index.ts`: add a new `passport_summary` mode branch — skip Pass 1 entirely, use a dedicated narrative system prompt ("Write a flowing 200–400 word paragraph covering the full arc, themes, and memorable moments of [title] by [author] — the reader has finished the book, no spoiler constraints"), stream plain text directly (no JSON structure), set `maxOutputTokens: 4096` (Decision 4)
-- [ ] T011 [US4] In `src/stores/bookPassport.ts`: change the AI call `mode` from `'full_summary'` to `'passport_summary'`; update the response handling to accumulate streaming text as plain text without attempting `JSON.parse` — store the accumulated string directly as `ai_summary` (Decision 4)
-- [ ] T012 [US4] Deploy the updated edge function: run `supabase functions deploy generate-recap` and verify in Supabase Dashboard → Edge Functions → Logs that the deployment succeeded
+- [x] T009 [P] [US4] In `src/pages/BookDetailPage.vue`: wrap the entire AI Recap `<section>` (button, hint text, history link) with `v-if="!isComplete"` where `isComplete` is already computed as `percentage >= 100` (Decision 7)
+- [x] T010 [P] [US4] In `supabase/functions/generate-recap/index.ts`: add a new `passport_summary` mode branch — skip Pass 1 entirely, use a dedicated narrative system prompt ("Write a flowing 200–400 word paragraph covering the full arc, themes, and memorable moments of [title] by [author] — the reader has finished the book, no spoiler constraints"), stream plain text directly (no JSON structure), set `maxOutputTokens: 4096` (Decision 4)
+- [x] T011 [US4] In `src/stores/bookPassport.ts`: change the AI call `mode` from `'full_summary'` to `'passport_summary'`; update the response handling to accumulate streaming text as plain text without attempting `JSON.parse` — store the accumulated string directly as `ai_summary` (Decision 4)
+- [ ] T012 [US4] Deploy the updated edge function: run `supabase functions deploy generate-recap` and verify in Supabase Dashboard → Edge Functions → Logs that the deployment succeeded ⚠️ MANUAL STEP — requires `supabase login` in your terminal
 
 **Checkpoint**: US4 complete. At 100%, recap section hidden; passport shows narrative summary.
 
@@ -92,7 +92,7 @@ description: "Task list for AI Recap & Progress Tracking Fixes"
 
 ### Implementation
 
-- [ ] T013 [US5] In `src/stores/bookPassport.ts`: change the stats computation guard from `histRows.length >= 2` to `histRows.length >= 1`; for a single row set `totalDays = 1`, `peakDay` = that row's date, `peakDayPages = 0` (the reader recorded their position, no delta computable — acceptable for single-save case) (Decision 6)
+- [x] T013 [US5] In `src/stores/bookPassport.ts`: change the stats computation guard from `histRows.length >= 2` to `histRows.length >= 1`; for a single row set `totalDays = 1`, `peakDay` = that row's date, `peakDayPages = 0` (the reader recorded their position, no delta computable — acceptable for single-save case) (Decision 6)
 
 **Checkpoint**: US5 complete. Passport stats show correctly for both single-session and multi-day readers.
 
@@ -106,9 +106,9 @@ description: "Task list for AI Recap & Progress Tracking Fixes"
 
 ### Implementation
 
-- [ ] T014 [P] [US3] In `src/services/recapService.ts`: add `from_page?: number` to the `RecapRequest` interface; pass it through in the request body of `streamRecap` (Decision 3)
-- [ ] T015 [P] [US3] In `src/stores/recaps.ts`: before calling `streamRecap`, resolve `fromPage` as `recapsByBook[bookId]?.[0]?.pageSnapshot ?? 0` (latest recap's page snapshot or 0 for first recap); pass it as `from_page: fromPage` in the request (Decision 3)
-- [ ] T016 [US3] In `supabase/functions/generate-recap/index.ts`: read `from_page` from the request body (default `0`); update the Pass 1 extraction system prompt to include the instruction "Cover only pages [from_page + 1] to [currentPage]. Do not summarise or reference events before page [from_page + 1]." — apply this only when `from_page > 0` (Decision 3)
+- [x] T014 [P] [US3] In `src/services/recapService.ts`: add `from_page?: number` to the `RecapRequest` interface; pass it through in the request body of `streamRecap` (Decision 3)
+- [x] T015 [P] [US3] In `src/stores/recaps.ts`: before calling `streamRecap`, resolve `fromPage` as `recapsByBook[bookId]?.[0]?.pageSnapshot ?? 0` (latest recap's page snapshot or 0 for first recap); pass it as `from_page: fromPage` in the request (Decision 3)
+- [x] T016 [US3] In `supabase/functions/generate-recap/index.ts`: read `from_page` from the request body (default `0`); update the Pass 1 extraction system prompt to include the instruction "Cover only pages [from_page + 1] to [currentPage]. Do not summarise or reference events before page [from_page + 1]." — apply this only when `from_page > 0` (Decision 3)
 
 **Checkpoint**: US3 complete. Recaps are incremental — each new recap covers only the pages read since the previous one.
 
@@ -124,7 +124,7 @@ description: "Task list for AI Recap & Progress Tracking Fixes"
 
 ### Implementation
 
-- [ ] T017 [US7] In `src/pages/BookDetailPage.vue`: verify the `VelocityBadge` component is rendered with the correct `v-if` guard (at least 2 history entries and progress < 100%); if the guard is missing or incorrect, fix it to match the acceptance criteria from spec.md US7 — no logic changes to `useReadingPulse` should be needed once history rows exist
+- [x] T017 [US7] In `src/pages/BookDetailPage.vue`: verify the `VelocityBadge` component is rendered with the correct `v-if` guard (at least 2 history entries and progress < 100%); if the guard is missing or incorrect, fix it to match the acceptance criteria from spec.md US7 — no logic changes to `useReadingPulse` should be needed once history rows exist
 
 **Checkpoint**: US7 complete. Velocity badge appears automatically now that history is being written.
 
@@ -138,8 +138,8 @@ description: "Task list for AI Recap & Progress Tracking Fixes"
 
 ### Implementation
 
-- [ ] T018 [P] [US6] In `src/stores/bookPassport.ts`: verify the `generatePassport` call includes `isbn` in the edge function request body — if missing, add `isbn: isbn ?? null` to the payload (already present in `RecapRequest` and `extractFragment`; passport call may have been missed)
-- [ ] T019 [P] [US6] In the Add Book manual entry form (`src/pages/AddBookPage.vue` or equivalent): verify an optional ISBN text input field exists; if absent, add one so users can supply an ISBN for manually-added books (FR-009 / US6 AC3)
+- [x] T018 [P] [US6] In `src/stores/bookPassport.ts`: verify the `generatePassport` call includes `isbn` in the edge function request body — if missing, add `isbn: isbn ?? null` to the payload (already present in `RecapRequest` and `extractFragment`; passport call may have been missed)
+- [x] T019 [P] [US6] In the Add Book manual entry form (`src/pages/AddBookPage.vue` or equivalent): verify an optional ISBN text input field exists; if absent, add one so users can supply an ISBN for manually-added books (FR-009 / US6 AC3)
 
 **Checkpoint**: US6 complete. ISBN is forwarded in all three AI call paths: recap, fragment extraction, and passport generation.
 
@@ -150,7 +150,7 @@ description: "Task list for AI Recap & Progress Tracking Fixes"
 **Purpose**: Final validation, deploy, and cross-story checks.
 
 - [ ] T020 [P] Run Quickstart Scenario 1 through 10 manually per `specs/004-ai-recap-fixes/quickstart.md` and confirm all acceptance criteria pass
-- [ ] T021 [P] Verify no TypeScript build errors: run `npm run build` or `tsc --noEmit` and resolve any type errors introduced by the `from_page?: number` field addition or the `>= 1` guard change
+- [x] T021 [P] Verify no TypeScript build errors: run `npm run build` or `tsc --noEmit` and resolve any type errors introduced by the `from_page?: number` field addition or the `>= 1` guard change
 
 ---
 

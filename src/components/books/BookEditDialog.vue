@@ -18,7 +18,7 @@ const emit = defineEmits<{
 const booksStore = useBooksStore()
 const saving = ref(false)
 
-const onSave = async (data: { title: string; author: string; totalPages: number | null; genre: string | null; coverUrl: string | null }) => {
+const onSave = async (data: { title: string; author: string; totalPages: number | null; genre: string | null; coverUrl: string | null; isbn: string | null }) => {
   saving.value = true
   try {
     await booksStore.updateBook(props.book.id, {

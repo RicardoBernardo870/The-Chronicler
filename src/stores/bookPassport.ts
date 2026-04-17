@@ -49,7 +49,8 @@ export const useBookPassportStore = defineStore('bookPassport', () => {
       let peakDay: string | null = null
       let peakDayPages: number | null = null
 
-      if (histRows && histRows.length >= 2) {
+      // >= 1 so single-session readers get totalDays = 1 (Decision 6)
+      if (histRows && histRows.length >= 1) {
         const first = new Date(histRows[0].recorded_at)
         const last = new Date(histRows[histRows.length - 1].recorded_at)
         totalDays = Math.max(1, Math.ceil((last.getTime() - first.getTime()) / (1000 * 60 * 60 * 24)))
@@ -76,7 +77,7 @@ export const useBookPassportStore = defineStore('bookPassport', () => {
       await lexiconStore.fetchEntriesForBook(bookId)
       const vocabularyCount = lexiconStore.entriesByBook[bookId]?.length ?? 0
 
-      // ── Stream AI summary (full_summary mode) ────────────────────
+      // ── Stream AI summary (passport_summary mode — narrative prose, not JSON) ─
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) throw new Error('Not authenticated')
 
@@ -89,11 +90,11 @@ export const useBookPassportStore = defineStore('bookPassport', () => {
         body: JSON.stringify({
           title: bookTitle,
           author: bookAuthor,
-          isbn,
+          isbn: isbn ?? null,
           percentage: 100,
           currentPage: totalPages,
           totalPages,
-          mode: 'full_summary',
+          mode: 'passport_summary',
         }),
       })
 

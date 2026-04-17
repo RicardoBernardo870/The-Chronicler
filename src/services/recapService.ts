@@ -8,17 +8,10 @@ export interface RecapRequest {
   percentage: number
   currentPage: number
   totalPages: number
+  /** Start of the incremental recap range. AI covers from_page+1 → currentPage only. Omit for full recap from page 1. */
+  from_page?: number
 }
 
-export interface FragmentRequest {
-  bookId: string
-  bookTitle: string
-  bookAuthor: string
-  isbn?: string | null
-  currentPage: number
-  totalPages: number
-  percentage: number
-}
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-recap`
 
@@ -95,35 +88,3 @@ export async function streamRecap(
   }
 }
 
-/**
- * Calls the edge function in extract_only mode (Pass 1 only).
- * Returns the raw extraction JSON, or null on any error (fire-and-forget safe).
- */
-export const extractFragment = async (req: FragmentRequest): Promise<Record<string, unknown> | null> => {
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) return null
-
-    const response = await fetch(EDGE_FUNCTION_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        title: req.bookTitle,
-        author: req.bookAuthor,
-        isbn: req.isbn,
-        percentage: req.percentage,
-        currentPage: req.currentPage,
-        totalPages: req.totalPages,
-        mode: 'extract_only',
-      }),
-    })
-
-    if (!response.ok) return null
-    return await response.json()
-  } catch {
-    return null
-  }
-}
