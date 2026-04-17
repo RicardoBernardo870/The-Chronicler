@@ -109,7 +109,9 @@
       "Bash(npm i *)",
       "Bash(pnpm run *)",
       "Bash(node -e \"const s = require\\('C:/Users/ricar_nf02dr4/Desktop/BookHero/BookHero/node_modules/@primeuix/styles/menu/index.cjs'\\); console.log\\(typeof s.style === 'function' ? s.style\\({}\\) : JSON.stringify\\(s\\).slice\\(0,2000\\)\\)\")",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "mcp__4c7c02b6-653b-457c-b08b-d3a1461ae2c2__execute_sql",
+      "Bash(powershell.exe -File \".specify/scripts/powershell/update-agent-context.ps1\" -AgentType claude)"
     ]
   }
 }
