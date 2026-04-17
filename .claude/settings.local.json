@@ -123,7 +123,10 @@
       "Bash(npx vue-tsc *)",
       "Bash(npx vitest *)",
       "Bash(where supabase *)",
-      "Bash(powershell -Command \"Get-Command supabase -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")"
+      "Bash(powershell -Command \"Get-Command supabase -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(pwsh -NoProfile -Command \".specify/scripts/powershell/check-prerequisites.ps1 -Json\")",
+      "Bash(powershell.exe -NoProfile -Command \"& '.specify/scripts/powershell/check-prerequisites.ps1' -Json\")",
+      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"& '.specify/scripts/powershell/check-prerequisites.ps1' -Json\")"
     ]
   }
 }
