@@ -53,6 +53,8 @@ const isGenerating = computed(() => recapsStore.generationStatus === 'streaming'
 const recapCount = computed(() => recapsStore.recapHistoryForBook(bookId.value).length)
 
 // Milestone recap lock
+const RECAP_TIME_UNLOCK_DAYS = 3
+
 const lastRecapPct = computed(() =>
   recapsStore.latestRecapForBook(bookId.value)?.progressSnapshot ?? 0
 )
@@ -60,8 +62,16 @@ const unlockPage = computed(() => {
   if (!book.value || lastRecapPct.value === 0) return 0
   return Math.ceil((lastRecapPct.value + 5) / 100 * book.value.totalPages)
 })
-const recapLocked = computed(() =>
+const recapLockedByPages = computed(() =>
   lastRecapPct.value > 0 && (progress.value?.currentPage ?? 0) < unlockPage.value
+)
+const daysSinceLastSession = computed(() => {
+  const updatedAt = progress.value?.updatedAt
+  if (!updatedAt) return 0
+  return (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24)
+})
+const recapLocked = computed(() =>
+  recapLockedByPages.value && daysSinceLastSession.value < RECAP_TIME_UNLOCK_DAYS
 )
 const pagesUntilUnlock = computed(() =>
   Math.max(0, unlockPage.value - (progress.value?.currentPage ?? 0))
