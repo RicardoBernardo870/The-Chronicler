@@ -61,7 +61,7 @@ const flipped = ref(false)
 .lc-inner {
   position: relative;
   width: 100%;
-  min-height: 140px;
+  min-height: 160px;
   transform-style: preserve-3d;
   transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
 }

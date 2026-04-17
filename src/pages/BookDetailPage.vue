@@ -250,17 +250,18 @@ const coverFallback = (e: Event) => {
         <Skeleton height="1rem" width="40%" style="margin-top: 0.5rem" />
       </div>
     </template>
-  </div>
 
-  <!-- Add Word Dialog — book locked to current book, page defaults to current progress -->
-  <AddWordDialog
-    v-if="addWordVisible"
-    :visible="addWordVisible"
-    :book-id="bookId"
-    :default-page-found="progress?.currentPage"
-    @update:visible="addWordVisible = $event"
-    @saved="addWordVisible = false"
-  />
+    <!-- Add Word Dialog — book locked to current book, page defaults to current progress -->
+    <!-- Placed inside the root div so the page keeps a single root element (required for <Transition>) -->
+    <AddWordDialog
+      v-if="addWordVisible"
+      :visible="addWordVisible"
+      :book-id="bookId"
+      :default-page-found="progress?.currentPage"
+      @update:visible="addWordVisible = $event"
+      @saved="addWordVisible = false"
+    />
+  </div>
 </template>
 
 <style scoped>
