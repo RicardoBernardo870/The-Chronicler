@@ -5,6 +5,8 @@ import { mapReadingProgress, type ReadingProgress, type ReadingProgressRow } fro
 import { useBooksStore } from '@/stores/books'
 import { useAuthStore } from '@/stores/auth'
 import { useOfflineSync } from '@/composables/useOfflineSync'
+import { useRecapFragmentsStore } from '@/stores/recapFragments'
+import { useBookPassportStore } from '@/stores/bookPassport'
 
 export const useProgressStore = defineStore('progress', () => {
   // Keyed by bookId
@@ -78,6 +80,12 @@ export const useProgressStore = defineStore('progress', () => {
     if (!book) throw new Error('Book not found')
     if (!authStore.user) throw new Error('Not authenticated')
 
+    // Capture previous percentage BEFORE optimistic update for milestone detection
+    const prevPct = progress.value[bookId]?.percentage ?? 0
+    const newPct = book.totalPages > 0
+      ? Math.round((currentPage / book.totalPages) * 10000) / 100
+      : 0
+
     // Always apply optimistic update immediately
     progress.value[bookId] = {
       id: progress.value[bookId]?.id ?? '',
@@ -98,6 +106,25 @@ export const useProgressStore = defineStore('progress', () => {
         page: currentPage,
         recorded_at: new Date().toISOString(),
       })
+
+      // Fire-and-forget: trigger fragment extraction if a 10% milestone was crossed
+      if (Math.floor(newPct / 10) > Math.floor(prevPct / 10)) {
+        const recapFragmentsStore = useRecapFragmentsStore()
+        recapFragmentsStore.triggerExtraction(
+          bookId, currentPage, newPct,
+          book.title, book.author, book.totalPages, book.isbn
+        )
+      }
+
+      // Fire-and-forget: auto-generate Book Passport when first reaching 100%
+      if (newPct >= 100 && prevPct < 100) {
+        const passportStore = useBookPassportStore()
+        passportStore.fetchPassport(bookId).then(() => {
+          if (!passportStore.passportFor(bookId)) {
+            passportStore.generatePassport(bookId, book.title, book.author, book.totalPages, book.isbn)
+          }
+        })
+      }
     } else {
       // Offline: queue for later sync
       await enqueue({

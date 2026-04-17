@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const { title, author, isbn, percentage, currentPage, totalPages } = await req.json()
+    const { title, author, isbn, percentage, currentPage, totalPages, mode, fragments } = await req.json()
 
     if (!title || !author || percentage === undefined || !totalPages) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -92,39 +92,60 @@ Deno.serve(async (req: Request) => {
     const ai = new GoogleGenAI({ apiKey: geminiApiKey })
     const isbnLine = isbn ? `ISBN: ${isbn}\n` : ''
 
+    // ========== Merge cached fragments if provided ==========
+    let mergedFragmentContent: string | null = null
+    if (fragments && Array.isArray(fragments) && fragments.length > 0) {
+      const merged = fragments
+        .map((f: any) => (typeof f.extracted_json === 'object' ? JSON.stringify(f.extracted_json) : String(f.extracted_json)))
+        .join('\n\n---\n\n')
+      mergedFragmentContent = merged
+    }
+
     // ========== PASS 1: Extract content up to current page ==========
-    const extractionMessage = `Book: "${title}" by ${author}
+    // Skip if we already have fragment content from cache
+    let extractedContent = mergedFragmentContent
+
+    if (!extractedContent) {
+      const extractionMessage = `Book: "${title}" by ${author}
 ${isbnLine}Total pages: ${totalPages}
 Reader progress: page ${currentPage} of ${totalPages} (${percentage}%).
 
 List ONLY what happens in pages 1 through ${currentPage}. Nothing after page ${currentPage}.`
 
-    const extractionResult = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [{ role: "user", parts: [{ text: extractionMessage }] }],
-      config: {
-        systemInstruction: buildExtractionPrompt(currentPage, totalPages),
-        temperature: 0.4,
-        maxOutputTokens: 4096,
-      },
-    })
+      const extractionResult = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [{ role: "user", parts: [{ text: extractionMessage }] }],
+        config: {
+          systemInstruction: buildExtractionPrompt(currentPage, totalPages),
+          temperature: 0.4,
+          maxOutputTokens: 4096,
+        },
+      })
 
-    const rawExtraction = extractionResult.text ?? ''
+      const rawExtraction = extractionResult.text ?? ''
+      extractedContent = rawExtraction.trim()
+      const fenceMatch = extractedContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+      if (fenceMatch) extractedContent = fenceMatch[1].trim()
 
-    // Clean up the extraction (strip fences if present)
-    let extractedContent = rawExtraction.trim()
-    const fenceMatch = extractedContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
-    if (fenceMatch) extractedContent = fenceMatch[1].trim()
-
-    // Validate JSON, fall back to raw text
-    try {
-      JSON.parse(extractedContent)
-    } catch {
-      extractedContent = rawExtraction
+      // Validate JSON, fall back to raw text
+      try { JSON.parse(extractedContent) } catch { extractedContent = rawExtraction }
     }
 
-    // ========== PASS 2: Generate recap from extracted content only ==========
-    const recapMessage = `Here is the extracted content from pages 1 to ${currentPage} of "${title}" by ${author}:
+    // ========== extract_only mode: return Pass 1 JSON without streaming ==========
+    if (mode === 'extract_only') {
+      let jsonResult: any = {}
+      try { jsonResult = JSON.parse(extractedContent!) } catch { jsonResult = { raw: extractedContent } }
+      return new Response(JSON.stringify(jsonResult), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
+
+    // ========== PASS 2: Generate recap from extracted content ==========
+    // full_summary mode: no spoiler constraints (used by Reading Odyssey / Book Passport)
+    const isFull = mode === 'full_summary'
+    const recapMessage = isFull
+      ? `Generate a complete reading journey summary for "${title}" by ${author}. Cover the full arc, major themes, character development, and most memorable moments.`
+      : `Here is the extracted content from pages 1 to ${currentPage} of "${title}" by ${author}:
 
 ${extractedContent}
 

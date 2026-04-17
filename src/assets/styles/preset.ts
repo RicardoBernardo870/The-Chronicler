@@ -39,12 +39,20 @@ const ChroniclerPreset = definePreset(Lara, {
           900: 'rgba(255, 255, 255, 0.55)',
           950: 'rgba(255, 255, 255, 0.70)',
         },
+        // Explicit text tokens — surface.0 is near-transparent for glass,
+        // so we must break the chain here instead of letting text.color → surface.0
+        text: {
+          color: 'rgba(255, 255, 255, 0.90)',
+          hoverColor: 'rgba(255, 255, 255, 0.95)',
+          mutedColor: 'rgba(255, 255, 255, 0.55)',
+          hoverMutedColor: 'rgba(255, 255, 255, 0.70)',
+        },
         content: {
           background: 'rgba(18, 18, 28, 0.55)',
           hoverBackground: 'rgba(255, 255, 255, 0.05)',
           borderColor: 'rgba(255, 255, 255, 0.10)',
-          color: '{text.color}',
-          hoverColor: '{text.hover.color}',
+          color: 'rgba(255, 255, 255, 0.90)',
+          hoverColor: 'rgba(255, 255, 255, 0.90)',
         },
         // Explicit form field tokens — ensures input text is always legible
         // against our near-transparent glass surfaces in dark mode.
@@ -85,12 +93,20 @@ const ChroniclerPreset = definePreset(Lara, {
           900: 'rgba(15, 23, 42, 0.35)',
           950: 'rgba(2, 6, 23, 0.30)',
         },
+        // Explicit text tokens — surface.700 is semi-transparent for glass,
+        // so we must break the chain here instead of letting text.color → surface.700
+        text: {
+          color: 'rgba(15, 15, 30, 0.90)',
+          hoverColor: 'rgba(15, 15, 30, 0.95)',
+          mutedColor: 'rgba(15, 15, 30, 0.55)',
+          hoverMutedColor: 'rgba(15, 15, 30, 0.70)',
+        },
         content: {
           background: 'rgba(255, 255, 255, 0.65)',
           hoverBackground: 'rgba(0, 0, 0, 0.04)',
           borderColor: 'rgba(0, 0, 0, 0.08)',
-          color: '{text.color}',
-          hoverColor: '{text.hover.color}',
+          color: 'rgba(15, 15, 30, 0.90)',
+          hoverColor: 'rgba(15, 15, 30, 0.90)',
         },
         formField: {
           background: 'rgba(255, 255, 255, 0.75)',

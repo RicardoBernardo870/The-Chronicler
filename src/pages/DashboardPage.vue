@@ -3,15 +3,22 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
+import { useUpNextStore } from '@/stores/upNext'
+import { useLexiconStore } from '@/stores/lexicon'
+import { useReadingPulse } from '@/composables/useReadingPulse'
 import Button from 'primevue/button'
 import ProgressBar from 'primevue/progressbar'
 import InputNumber from 'primevue/inputnumber'
 import Skeleton from 'primevue/skeleton'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import WordOfTheDay from '@/components/dashboard/WordOfTheDay.vue'
+import draggable from 'vuedraggable'
 
 const router = useRouter()
 const booksStore = useBooksStore()
 const progressStore = useProgressStore()
+const upNextStore = useUpNextStore()
+const lexiconStore = useLexiconStore()
 
 const loading = ref(true)
 const pageInput = ref<number>(0)
@@ -23,6 +30,11 @@ onMounted(async () => {
   try {
     await booksStore.fetchLibrary()
     await progressStore.fetchProgress()
+    await upNextStore.fetchOrder()
+    // Load lexicon entries for all books (powers WordOfTheDay computed)
+    booksStore.books.forEach(b => lexiconStore.fetchEntriesForBook(b.id))
+    // Load reading pulse for hero card
+    if (currentBook.value) heroPulse.value?.fetchHistory()
     if (currentBook.value) {
       pageInput.value = progressStore.progressForBook(currentBook.value.id)?.currentPage ?? 0
     }
@@ -56,11 +68,35 @@ const inProgressOthers = computed(() =>
   )
 )
 
+// Up Next: 0%-progress books sorted by up-next order
+const upNextBooks = computed(() => {
+  const zeroBooks = booksStore.books.filter(b => progressStore.percentageForBook(b.id) === 0)
+  const orderedIds = upNextStore.sortedBookIds()
+  return [
+    ...zeroBooks.filter(b => orderedIds.includes(b.id)).sort((a, b) => orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id)),
+    ...zeroBooks.filter(b => !orderedIds.includes(b.id)),
+  ]
+})
+
+// Mutable list for vuedraggable
+const upNextDraggable = computed({
+  get: () => upNextBooks.value,
+  set: (newOrder) => {
+    upNextStore.saveOrder(newOrder.map(b => b.id))
+  },
+})
+
 // Completed section
 const completedPreview = computed(() => progressStore.completedBooks.slice(0, 2))
 const completedOverflow = computed(() => Math.max(0, progressStore.completedBooks.length - 2))
 
 const pendingSync = computed(() => progressStore.pendingSync)
+
+// Reading Pulse for hero card continuity warning
+const heroPulse = computed(() =>
+  currentBook.value ? useReadingPulse(currentBook.value.id) : null
+)
+const heroWarning = computed(() => (heroPulse.value?.continuityScore.value ?? 100) < 40)
 
 const hasAnyBooks = computed(() => booksStore.books.length > 0)
 
@@ -114,7 +150,7 @@ const coverFallback = (e: Event) => {
 
     <template v-else>
       <!-- Hero: current in-progress book -->
-      <article v-if="currentBook" class="dashboard__current glass-surface">
+      <article v-if="currentBook" class="dashboard__current glass-surface" :class="{ 'dashboard__current--warning': heroWarning }">
         <div class="dashboard__hero">
           <div class="dashboard__cover-wrap">
             <img
@@ -172,6 +208,11 @@ const coverFallback = (e: Event) => {
           <i class="pi pi-exclamation-triangle" /> {{ saveError }}
         </p>
 
+        <div v-if="heroWarning" class="dashboard__continuity-warning">
+          <i class="pi pi-exclamation-triangle" />
+          It's been a while — time for a Memory Jogger?
+        </div>
+
         <div v-if="pendingSync" class="dashboard__offline-badge">
           <i class="pi pi-wifi" style="opacity: 0.5" />
           Progress will sync when you're back online
@@ -193,6 +234,9 @@ const coverFallback = (e: Event) => {
           />
         </div>
       </article>
+
+      <!-- Word of the Day -->
+      <WordOfTheDay />
 
       <!-- In Progress list (all other in-progress books) -->
       <section v-if="inProgressOthers.length > 0" class="dashboard__section glass-surface">
@@ -226,6 +270,44 @@ const coverFallback = (e: Event) => {
             </div>
           </li>
         </ul>
+      </section>
+
+      <!-- Up Next section -->
+      <section v-if="upNextBooks.length > 0" class="dashboard__section glass-surface">
+        <h3 class="dashboard__section-title">
+          <i class="pi pi-clock" /> Up Next
+        </h3>
+        <draggable
+          v-model="upNextDraggable"
+          item-key="id"
+          handle=".up-next__handle"
+          :animation="150"
+          tag="ul"
+          class="dashboard__book-list"
+        >
+          <template #item="{ element: book }">
+            <li
+              class="dashboard__book-item glass-subtle up-next__item"
+              @click="router.push({ name: 'book-detail', params: { id: book.id } })"
+            >
+              <span class="up-next__handle" @click.stop title="Drag to reorder">⠿</span>
+              <img
+                v-if="book.coverUrl"
+                :src="book.coverUrl"
+                :alt="book.title"
+                class="dashboard__book-thumb"
+                @error="coverFallback"
+              />
+              <div v-else class="dashboard__book-thumb dashboard__book-thumb--placeholder">
+                <i class="pi pi-book" style="font-size: 1rem; opacity: 0.35" />
+              </div>
+              <div class="dashboard__book-info">
+                <span class="dashboard__book-title">{{ book.title }}</span>
+                <span class="dashboard__book-author">{{ book.author }}</span>
+              </div>
+            </li>
+          </template>
+        </draggable>
       </section>
 
       <!-- Completed section -->
@@ -344,6 +426,33 @@ const coverFallback = (e: Event) => {
 }
 .dashboard__page-hint { margin: 0; font-size: 0.75rem; opacity: 0.7; }
 
+/* Continuity warning state */
+.dashboard__current--warning {
+  background: linear-gradient(135deg, rgba(251,191,36,0.12) 0%, rgba(245,158,11,0.06) 100%),
+              var(--glass-surface-bg, rgba(255,255,255,0.04));
+  border-color: rgba(251, 191, 36, 0.35) !important;
+  animation: pulse-amber 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-amber {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+  50%       { box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.15); }
+}
+
+.dashboard__continuity-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fbbf24;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  align-self: flex-start;
+}
+
 .dashboard__update { display: flex; gap: 0.75rem; align-items: center; }
 .dashboard__page-input { flex: 1; }
 .dashboard__error { margin: 0; font-size: 0.85rem; color: var(--p-red-400); }
@@ -418,6 +527,23 @@ const coverFallback = (e: Event) => {
   color: #34d399; display: inline-flex; align-items: center; gap: 0.25rem;
   margin-top: 0.2rem;
 }
+
+/* Up Next drag handle */
+.up-next__item { touch-action: none; }
+.up-next__handle {
+  font-size: 1.1rem;
+  cursor: grab;
+  opacity: 0.45;
+  padding: 0 0.25rem;
+  flex-shrink: 0;
+  min-width: 28px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+.up-next__handle:active { cursor: grabbing; }
 
 /* Overflow hint */
 .dashboard__overflow-hint {

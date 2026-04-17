@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Book } from '@/types'
 import { useProgressStore } from '@/stores/progress'
+import { useBooksStore } from '@/stores/books'
+import { useConfirm } from 'primevue/useconfirm'
+import { useReadingPulse } from '@/composables/useReadingPulse'
+import Button from 'primevue/button'
+import Menu from 'primevue/menu'
+import BookEditDialog from '@/components/books/BookEditDialog.vue'
 
 const props = defineProps<{
   book: Book
@@ -10,6 +16,8 @@ const props = defineProps<{
 
 const router = useRouter()
 const progressStore = useProgressStore()
+const booksStore = useBooksStore()
+const confirm = useConfirm()
 
 const percentage = computed(() => progressStore.percentageForBook(props.book.id))
 
@@ -27,10 +35,61 @@ const coverFallback = (e: Event) => {
 }
 
 const navigate = () => router.push({ name: 'book-detail', params: { id: props.book.id } })
+
+// Overflow menu
+const menu = ref()
+const editVisible = ref(false)
+
+const menuItems = [
+  {
+    label: 'Edit book',
+    icon: 'pi pi-pencil',
+    command: () => { editVisible.value = true },
+  },
+  {
+    label: 'Remove book',
+    icon: 'pi pi-trash',
+    command: () => {
+      confirm.require({
+        message: 'Remove this book and all its data? This cannot be undone.',
+        header: 'Remove Book',
+        icon: 'pi pi-exclamation-triangle',
+        rejectLabel: 'Cancel',
+        acceptLabel: 'Remove',
+        acceptClass: 'p-button-danger',
+        accept: () => booksStore.removeBook(props.book.id),
+      })
+    },
+  },
+]
+
+const toggleMenu = (event: Event) => {
+  event.stopPropagation()
+  menu.value.toggle(event)
+}
+
+// Reading streak
+const pulse = useReadingPulse(props.book.id)
+pulse.fetchHistory()
+const streak = pulse.streak
 </script>
 
 <template>
+  <BookEditDialog v-if="editVisible" :book="book" :visible="editVisible" @update:visible="editVisible = $event" @close="editVisible = false" />
+
   <article class="book-card glass-surface" role="button" tabindex="0" @click="navigate" @keydown.enter="navigate">
+    <!-- Overflow menu button -->
+    <Menu ref="menu" :model="menuItems" popup />
+    <Button
+      icon="pi pi-ellipsis-v"
+      text
+      rounded
+      size="small"
+      class="book-card__menu-btn"
+      aria-label="Book options"
+      @click="toggleMenu"
+    />
+
     <div class="book-card__cover-wrap">
       <img
         v-if="book.coverUrl"
@@ -55,19 +114,38 @@ const navigate = () => router.push({ name: 'book-detail', params: { id: props.bo
         </div>
         <span class="book-card__progress-pct">{{ percentage.toFixed(0) }}%</span>
       </div>
+
+      <div v-if="streak > 0" class="book-card__streak">
+        🔥 {{ streak }}-day streak
+      </div>
     </div>
   </article>
 </template>
 
 <style scoped>
 .book-card {
+  position: relative;
   display: flex;
   gap: 1rem;
   border-radius: var(--p-border-radius-xl, 16px);
   padding: 1rem;
+  padding-right: 2.5rem; /* room for the ⋮ button */
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
+
+.book-card__menu-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.25rem;
+  width: 32px !important;
+  height: 32px !important;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+
+.book-card:hover .book-card__menu-btn { opacity: 1; }
 
 .book-card:hover {
   transform: translateY(-2px);
@@ -179,5 +257,12 @@ const navigate = () => router.push({ name: 'book-detail', params: { id: props.bo
   color: var(--p-indigo-300);
   min-width: 32px;
   text-align: right;
+}
+
+.book-card__streak {
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-top: 0.3rem;
+  opacity: 0.8;
 }
 </style>

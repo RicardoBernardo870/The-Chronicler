@@ -4,7 +4,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
 import { useRecapsStore } from '@/stores/recaps'
+import { useBookPassportStore } from '@/stores/bookPassport'
 import RecapStream from '@/components/recap/RecapStream.vue'
+import VelocityBadge from '@/components/pulse/VelocityBadge.vue'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
 import ProgressBar from 'primevue/progressbar'
@@ -15,6 +17,7 @@ const router = useRouter()
 const booksStore = useBooksStore()
 const progressStore = useProgressStore()
 const recapsStore = useRecapsStore()
+const passportStore = useBookPassportStore()
 
 const bookId = computed(() => route.params.id as string)
 const book = computed(() => booksStore.bookById(bookId.value))
@@ -30,6 +33,7 @@ onMounted(async () => {
   if (!progress.value) await progressStore.fetchProgress()
   await recapsStore.fetchRecapsForBook(bookId.value)
   if (progress.value) currentPageInput.value = progress.value.currentPage
+  await passportStore.fetchPassport(bookId.value)
 })
 
 watch(progress, (p) => {
@@ -37,8 +41,24 @@ watch(progress, (p) => {
 })
 
 const percentage = computed(() => progress.value?.percentage ?? 0)
+const isComplete = computed(() => percentage.value >= 100)
 const isGenerating = computed(() => recapsStore.generationStatus === 'streaming')
 const recapCount = computed(() => recapsStore.recapHistoryForBook(bookId.value).length)
+
+// Milestone recap lock
+const lastRecapPct = computed(() =>
+  recapsStore.latestRecapForBook(bookId.value)?.progressSnapshot ?? 0
+)
+const unlockPage = computed(() => {
+  if (!book.value || lastRecapPct.value === 0) return 0
+  return Math.ceil((lastRecapPct.value + 10) / 100 * book.value.totalPages)
+})
+const recapLocked = computed(() =>
+  lastRecapPct.value > 0 && (progress.value?.currentPage ?? 0) < unlockPage.value
+)
+const pagesUntilUnlock = computed(() =>
+  Math.max(0, unlockPage.value - (progress.value?.currentPage ?? 0))
+)
 
 const saveProgress = async () => {
   if (!book.value) return
@@ -109,7 +129,7 @@ const coverFallback = (e: Event) => {
         <h2 class="book-detail__section-title">Reading Progress</h2>
 
         <div class="book-detail__progress-bar-wrap">
-          <ProgressBar :value="percentage" class="book-detail__progress-bar" />
+          <ProgressBar :value="percentage" :show-value="false" class="book-detail__progress-bar" />
           <span class="book-detail__progress-pct">{{ percentage.toFixed(1) }}%</span>
         </div>
 
@@ -139,14 +159,38 @@ const coverFallback = (e: Event) => {
         <p class="book-detail__progress-hint">
           Page {{ progress?.currentPage ?? 0 }} of {{ book.totalPages }}
         </p>
+
+        <VelocityBadge
+          v-if="progress && progress.currentPage > 0"
+          :book-id="bookId"
+          :total-pages="book.totalPages"
+          :current-page="progress.currentPage"
+        />
+
+        <Button
+          v-if="isComplete"
+          label="✦ View Reading Journey"
+          icon="pi pi-star"
+          class="book-detail__passport-btn"
+          @click="router.push({ name: 'book-passport', params: { id: bookId } })"
+        />
       </section>
 
       <!-- Recap -->
       <section class="book-detail__recap glass-surface">
         <div class="book-detail__recap-header">
           <h2 class="book-detail__section-title">AI Recap</h2>
+          <!-- Locked state -->
           <Button
-            v-if="!isGenerating"
+            v-if="!isGenerating && recapLocked"
+            :label="`🔒 Read ${pagesUntilUnlock} more pages to unlock`"
+            disabled
+            class="book-detail__recap-locked"
+            v-tooltip.top="'You unlock a new recap every 10% of progress'"
+          />
+          <!-- Unlocked state -->
+          <Button
+            v-else-if="!isGenerating"
             :label="recapTriggered ? 'New Recap' : 'Get Recap'"
             icon="pi pi-sparkles"
             @click="getRecap"
@@ -322,6 +366,14 @@ const coverFallback = (e: Event) => {
   opacity: 0.55;
 }
 
+.book-detail__passport-btn {
+  align-self: center;
+  background: linear-gradient(135deg, #34d399, #a78bfa) !important;
+  border: none !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+
 .book-detail__recap {
   border-radius: var(--p-border-radius-xl, 16px);
   padding: 1.5rem;
@@ -340,6 +392,12 @@ const coverFallback = (e: Event) => {
   margin: 0;
   font-size: 0.85rem;
   opacity: 0.60;
+}
+
+.book-detail__recap-locked {
+  opacity: 0.55;
+  cursor: not-allowed !important;
+  font-size: 0.82rem;
 }
 
 .book-detail__history-link {

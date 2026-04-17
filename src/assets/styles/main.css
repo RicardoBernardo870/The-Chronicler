@@ -15,34 +15,39 @@
 }
 
 html {
-  height: 100%;
+  min-height: 100%;
+  min-height: 100dvh;
   -webkit-text-size-adjust: 100%;
   font-size: 16px;
+  /* Gradient on html so it fills behind iOS status bar / notch */
+  background: radial-gradient(ellipse at 20% 20%, #1a1040 0%, transparent 60%),
+              radial-gradient(ellipse at 80% 80%, #0d1a3a 0%, transparent 60%),
+              #0a0a14;
+  color: rgba(255, 255, 255, 0.90);
+  /* Push content below the notch — gradient still shows behind it */
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Light mode — data-p-theme is set directly on the html element by VueUse */
+html[data-p-theme='light'] {
+  background: radial-gradient(ellipse at 20% 20%, #e8e0f8 0%, transparent 60%),
+              radial-gradient(ellipse at 80% 80%, #dce8f8 0%, transparent 60%),
+              #f0f4ff;
+  color: rgba(15, 15, 30, 0.90);
 }
 
 body {
-  height: 100%;
+  min-height: 100%;
+  min-height: 100dvh;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI',
     system-ui, sans-serif;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
-
-  /* Dark mode default — layered background for glass depth */
-  background: radial-gradient(ellipse at 20% 20%, #1a1040 0%, transparent 60%),
-              radial-gradient(ellipse at 80% 80%, #0d1a3a 0%, transparent 60%),
-              #0a0a14;
-  color: rgba(255, 255, 255, 0.90);
-}
-
-/* Light mode background */
-[data-p-theme='light'] body,
-body.p-light {
-  background: radial-gradient(ellipse at 20% 20%, #e8e0f8 0%, transparent 60%),
-              radial-gradient(ellipse at 80% 80%, #dce8f8 0%, transparent 60%),
-              #f0f4ff;
-  color: rgba(15, 15, 30, 0.90);
+  /* Body is transparent — html element carries the gradient */
+  background: transparent;
+  color: inherit;
 }
 
 #app {
@@ -119,6 +124,51 @@ body.p-light .p-inputnumber-button {
 body.p-light .p-inputnumber-button:hover {
   background: rgba(99, 102, 241, 0.10) !important;
   color: var(--p-primary-700) !important;
+}
+
+/* ── PrimeVue overlay components — opaque backgrounds ────────────────────── */
+/* Menu popups and Dialogs (ConfirmDialog included) must be fully opaque so   */
+/* they don't bleed the page gradient through. Font/icon colors are left to   */
+/* the theme tokens — no color overrides here.                                */
+
+.p-menu {
+  background: #1c1c2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.50) !important;
+}
+
+.p-menu .p-menu-item-content {
+  background: transparent !important;
+}
+
+.p-dialog,
+.p-confirmdialog {
+  background: #1c1c2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.60) !important;
+}
+
+.p-dialog .p-dialog-header,
+.p-dialog .p-dialog-content,
+.p-dialog .p-dialog-footer,
+.p-confirmdialog .p-dialog-header,
+.p-confirmdialog .p-dialog-content,
+.p-confirmdialog .p-dialog-footer {
+  background: transparent !important;
+}
+
+/* Light mode */
+html[data-p-theme='light'] .p-menu {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.10) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
+}
+
+html[data-p-theme='light'] .p-dialog,
+html[data-p-theme='light'] .p-confirmdialog {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.10) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.20) !important;
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
