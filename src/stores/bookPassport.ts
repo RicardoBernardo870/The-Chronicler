@@ -4,6 +4,9 @@ import { supabase } from '@/services/supabase'
 import { mapBookPassport, type BookPassport, type BookPassportRow } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useLexiconStore } from '@/stores/lexicon'
+import { swrStatus, swrRun, swrTouch, registerRevalidator, cacheKeys } from '@/composables/useCache'
+
+const TTL = 60_000 // 60 s
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-recap`
 
@@ -13,13 +16,25 @@ export const useBookPassportStore = defineStore('bookPassport', () => {
   const streamingText = ref<Record<string, string>>({})
 
   const fetchPassport = async (bookId: string) => {
-    const { data, error } = await supabase
-      .from('book_passports')
-      .select('*')
-      .eq('book_id', bookId)
-      .maybeSingle()
-    if (error) throw error
-    if (data) passportByBook.value[bookId] = mapBookPassport(data as BookPassportRow)
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+
+    const key = cacheKeys.bookPassport(authStore.user.id, bookId)
+    const fetcher = async () => {
+      const { data, error } = await supabase
+        .from('book_passports')
+        .select('*')
+        .eq('book_id', bookId)
+        .maybeSingle()
+      if (error) throw error
+      if (data) passportByBook.value[bookId] = mapBookPassport(data as BookPassportRow)
+    }
+    registerRevalidator(key, () => swrRun(key, fetcher).catch(() => {}))
+
+    const status = swrStatus(key, TTL)
+    if (status === 'fresh') return
+    if (status === 'background') { swrRun(key, fetcher).catch(() => {}); return }
+    await swrRun(key, fetcher)
   }
 
   const generatePassport = async (
@@ -132,6 +147,7 @@ export const useBookPassportStore = defineStore('bookPassport', () => {
 
       if (!error && data) {
         passportByBook.value[bookId] = mapBookPassport(data as BookPassportRow)
+        swrTouch(cacheKeys.bookPassport(authStore.user.id, bookId))
       }
     } catch (e) {
       console.error('Passport generation failed:', e)

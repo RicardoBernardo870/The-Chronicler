@@ -17,8 +17,8 @@
 
 **Purpose**: Create the `useCache()` composable — the one new piece of infrastructure everything else builds on.
 
-- [ ] T001 Create `src/composables/useCache.ts`: implement `CacheEntry<T>`, `CacheHandle<T>`, `CacheOptions` types and the five public functions (`swr`, `mutate`, `invalidate`, `clearAll`, `revalidate`) plus the `cacheKeys` helpers object (`books`, `progress`, `lexicon`, `lexiconAll`, `recaps`, `bookPassport`, `upNext`) per `specs/006-swr-data-caching/contracts/cache-api.md`. Module-level `Map<string, CacheEntry>` singleton. Deduplicate concurrent `swr()` calls for the same key via `inflight` promise ref.
-- [ ] T002 [P] Create `tests/unit/useCache.spec.ts` implementing all 10 contract tests from `specs/006-swr-data-caching/contracts/cache-api.md § Testing contract`: (1) fresh hit skips fetcher, (2) stale serves data + triggers revalidation, (3) concurrent dedup, (4) mutate updates + resets fetchedAt, (5) invalidate marks stale, (6) prefix invalidate, (7) clearAll empties, (8) auth change triggers clearAll, (9) revalidate forces fetch even when fresh, (10) error preserves previous data.
+- [X] T001 Create `src/composables/useCache.ts`: implement `CacheEntry<T>`, `CacheHandle<T>`, `CacheOptions` types and the five public functions (`swr`, `mutate`, `invalidate`, `clearAll`, `revalidate`) plus the `cacheKeys` helpers object (`books`, `progress`, `lexicon`, `lexiconAll`, `recaps`, `bookPassport`, `upNext`) per `specs/006-swr-data-caching/contracts/cache-api.md`. Module-level `Map<string, CacheEntry>` singleton. Deduplicate concurrent `swr()` calls for the same key via `inflight` promise ref.
+- [X] T002 [P] Create `tests/unit/useCache.spec.ts` implementing all 10 contract tests from `specs/006-swr-data-caching/contracts/cache-api.md § Testing contract`: (1) fresh hit skips fetcher, (2) stale serves data + triggers revalidation, (3) concurrent dedup, (4) mutate updates + resets fetchedAt, (5) invalidate marks stale, (6) prefix invalidate, (7) clearAll empties, (8) auth change triggers clearAll, (9) revalidate forces fetch even when fresh, (10) error preserves previous data.
 
 ---
 
@@ -28,8 +28,8 @@
 
 **⚠️ CRITICAL**: Skipping T003 means old user data will bleed through on re-login (SC-005 / FR-008 violation).
 
-- [ ] T003 Wire `clearAll()` to auth user-change in `src/stores/auth.ts`: add a `watch(() => authStore.user?.id, (newId, oldId) => { if (newId !== oldId) clearAll() })` that fires when the authenticated user id transitions (login, logout, or switch). Import `clearAll` from `src/composables/useCache.ts`.
-- [ ] T004 [P] Add dev-only observability proxy to `src/composables/useCache.ts`: at module bottom, wrap with `if (import.meta.env.DEV)` and assign `window.__bookheroCache = { keys: () => [...entries.keys()], get: (k) => entries.get(k), stats: () => ({ hits, misses, revalidations }) }`. Track `hits`/`misses`/`revalidations` counters internally.
+- [X] T003 Wire `clearAll()` to auth user-change in `src/stores/auth.ts`: add a `watch(() => authStore.user?.id, (newId, oldId) => { if (newId !== oldId) clearAll() })` that fires when the authenticated user id transitions (login, logout, or switch). Import `clearAll` from `src/composables/useCache.ts`.
+- [X] T004 [P] Add dev-only observability proxy to `src/composables/useCache.ts`: at module bottom, wrap with `if (import.meta.env.DEV)` and assign `window.__bookheroCache = { keys: () => [...entries.keys()], get: (k) => entries.get(k), stats: () => ({ hits, misses, revalidations }) }`. Track `hits`/`misses`/`revalidations` counters internally.
 
 **Checkpoint**: Foundation ready — useCache primitive exists, auth wiring is live, dev tools available.
 
@@ -41,13 +41,13 @@
 
 **Independent Test**: Load Library → navigate to book detail → navigate back to Library. The book list must appear instantly. Smoke 1 and Smoke 2 in `quickstart.md`.
 
-- [ ] T005 [P] [US1] Refactor `src/stores/books.ts`: replace `books = ref<Book[]>([])` + manual `loading` ref with `swr(cacheKeys.books(uid), fetcher, { ttlMs: 60_000 })` handle. Expose `books` as `computed(() => handle.value?.data.value ?? [])` and `isInitialLoading` as `computed(() => handle.value?.isInitialLoading.value ?? false)`. Keep `fetchLibrary()` as a no-op shim for backward compatibility.
-- [ ] T006 [P] [US1] Refactor `src/stores/progress.ts`: replace `progressMap = ref<Record<string, Progress>>({})` + manual `loading` with `swr(cacheKeys.progress(uid), fetcher, { ttlMs: 30_000 })`. Expose `progressForBook(id)` as a computed accessor on the cached map. Keep `fetchProgress()` as no-op shim.
-- [ ] T007 [P] [US1] Refactor `src/stores/lexicon.ts`: replace `entriesByBook` map population in `fetchEntriesForBook` and `fetchEntriesForAllBooks` with `swr(cacheKeys.lexicon(uid, bookId), ...)` and `swr(cacheKeys.lexiconAll(uid), ...)` respectively (ttlMs: 60 000 each). Expose `entriesByBook` and `allEntries` as derived computeds from cache handles.
-- [ ] T008 [P] [US1] Refactor `src/stores/bookPassport.ts`: replace manual fetch + loading with `swr(cacheKeys.bookPassport(uid, bookId), fetcher, { ttlMs: 60_000 })`. Expose `passport(bookId)` accessor.
-- [ ] T009 [P] [US1] Refactor `src/stores/upNext.ts`: replace manual fetch + loading with `swr(cacheKeys.upNext(uid), fetcher, { ttlMs: 60_000 })` if the store has a list fetch. Expose `upNextList` as cached computed.
-- [ ] T010 [US1] Refactor `src/stores/recaps.ts` fetchRecapsForBook ONLY: replace the per-book history list fetch with `swr(cacheKeys.recaps(uid, bookId), fetcher, { ttlMs: 60_000 })`. **STRICT EXCLUSION**: `generateRecap`, `generationStatus`, `streamingFragments`, and all stream-handler code in this file MUST remain completely untouched. Verify by grepping: `rg "useCache|swr\(" src/stores/recaps.ts` must match ONLY the fetchRecapsForBook function body.
-- [ ] T011 [US1] Update page components to use `isInitialLoading` instead of `loading` for skeleton rendering: `src/pages/LibraryPage.vue`, `src/pages/LexiconPage.vue`, `src/pages/BookDetailPage.vue`, `src/pages/DashboardPage.vue`, `src/pages/RecapHistoryPage.vue`, `src/pages/BookPassportPage.vue`. Replace every `v-if="storeX.loading"` skeleton guard with `v-if="storeX.isInitialLoading"`.
+- [X] T005 [P] [US1] Refactor `src/stores/books.ts`: replace `books = ref<Book[]>([])` + manual `loading` ref with `swr(cacheKeys.books(uid), fetcher, { ttlMs: 60_000 })` handle. Expose `books` as `computed(() => handle.value?.data.value ?? [])` and `isInitialLoading` as `computed(() => handle.value?.isInitialLoading.value ?? false)`. Keep `fetchLibrary()` as a no-op shim for backward compatibility.
+- [X] T006 [P] [US1] Refactor `src/stores/progress.ts`: replace `progressMap = ref<Record<string, Progress>>({})` + manual `loading` with `swr(cacheKeys.progress(uid), fetcher, { ttlMs: 30_000 })`. Expose `progressForBook(id)` as a computed accessor on the cached map. Keep `fetchProgress()` as no-op shim.
+- [X] T007 [P] [US1] Refactor `src/stores/lexicon.ts`: replace `entriesByBook` map population in `fetchEntriesForBook` and `fetchEntriesForAllBooks` with `swr(cacheKeys.lexicon(uid, bookId), ...)` and `swr(cacheKeys.lexiconAll(uid), ...)` respectively (ttlMs: 60 000 each). Expose `entriesByBook` and `allEntries` as derived computeds from cache handles.
+- [X] T008 [P] [US1] Refactor `src/stores/bookPassport.ts`: replace manual fetch + loading with `swr(cacheKeys.bookPassport(uid, bookId), fetcher, { ttlMs: 60_000 })`. Expose `passport(bookId)` accessor.
+- [X] T009 [P] [US1] Refactor `src/stores/upNext.ts`: replace manual fetch + loading with `swr(cacheKeys.upNext(uid), fetcher, { ttlMs: 60_000 })` if the store has a list fetch. Expose `upNextList` as cached computed.
+- [X] T010 [US1] Refactor `src/stores/recaps.ts` fetchRecapsForBook ONLY: replace the per-book history list fetch with `swr(cacheKeys.recaps(uid, bookId), fetcher, { ttlMs: 60_000 })`. **STRICT EXCLUSION**: `generateRecap`, `generationStatus`, `streamingFragments`, and all stream-handler code in this file MUST remain completely untouched. Verify by grepping: `rg "useCache|swr\(" src/stores/recaps.ts` must match ONLY the fetchRecapsForBook function body.
+- [X] T011 [US1] Update page components to use `isInitialLoading` instead of `loading` for skeleton rendering: `src/pages/LibraryPage.vue`, `src/pages/LexiconPage.vue`, `src/pages/BookDetailPage.vue`, `src/pages/DashboardPage.vue`, `src/pages/RecapHistoryPage.vue`, `src/pages/BookPassportPage.vue`. Replace every `v-if="storeX.loading"` skeleton guard with `v-if="storeX.isInitialLoading"`.
 
 **Checkpoint**: US1 complete. Smoke 1–2 in quickstart.md must pass.
 
@@ -59,11 +59,11 @@
 
 **Independent Test**: Add a book → Library shows it immediately without reload. Delete a lexicon word → it's gone on return to Lexicon. Smoke 3–4 in `quickstart.md`.
 
-- [ ] T012 [US2] Add mutation cache effects to `src/stores/books.ts`: (a) `addBook` → after server confirms, call `mutate(cacheKeys.books(uid), prev => [created, ...prev])`. (b) `updateBook` → `mutate(cacheKeys.books(uid), prev => prev.map(b => b.id === id ? {...b, ...changes} : b))`. (c) `removeBook` → after server confirms, call `mutate(filter)` on `cacheKeys.books`, then `invalidate(cacheKeys.progress(uid))`, `invalidate('lexicon:'+uid, { prefix: true })`, `invalidate(cacheKeys.recaps(uid, id))`, `invalidate(cacheKeys.bookPassport(uid, id))`.
-- [ ] T013 [US2] Add mutation cache effects to `src/stores/lexicon.ts`: `addEntry` → `mutate(cacheKeys.lexicon(uid, bookId), append)` AND `mutate(cacheKeys.lexiconAll(uid), append)`. `deleteEntry` → `mutate` both keys filtering out the deleted id.
-- [ ] T014 [P] [US2] Add mutation cache effect to `src/stores/progress.ts` `updateProgress`: after server write succeeds, call `mutate(cacheKeys.progress(uid), prev => ({...prev, [bookId]: { ...prev[bookId], currentPage: page, percentage: ... }}))` with the server-confirmed values.
-- [ ] T015 [P] [US2] Add recap-completion cache invalidation to `src/stores/recaps.ts`: in the post-stream success handler (after `generateRecap` stream closes successfully), call `invalidate(cacheKeys.recaps(uid, bookId))` so the next Recap History visit refetches the now-updated list. **This is the ONLY permitted cache write in recaps.ts** — no `swr()` or `mutate()` in streaming paths.
-- [ ] T016 [P] [US2] Add mutation cache effect to `src/stores/upNext.ts` `reorder`: after server confirms, call `mutate(cacheKeys.upNext(uid), newOrder)`.
+- [X] T012 [US2] Add mutation cache effects to `src/stores/books.ts`: (a) `addBook` → after server confirms, call `mutate(cacheKeys.books(uid), prev => [created, ...prev])`. (b) `updateBook` → `mutate(cacheKeys.books(uid), prev => prev.map(b => b.id === id ? {...b, ...changes} : b))`. (c) `removeBook` → after server confirms, call `mutate(filter)` on `cacheKeys.books`, then `invalidate(cacheKeys.progress(uid))`, `invalidate('lexicon:'+uid, { prefix: true })`, `invalidate(cacheKeys.recaps(uid, id))`, `invalidate(cacheKeys.bookPassport(uid, id))`.
+- [X] T013 [US2] Add mutation cache effects to `src/stores/lexicon.ts`: `addEntry` → `mutate(cacheKeys.lexicon(uid, bookId), append)` AND `mutate(cacheKeys.lexiconAll(uid), append)`. `deleteEntry` → `mutate` both keys filtering out the deleted id.
+- [X] T014 [P] [US2] Add mutation cache effect to `src/stores/progress.ts` `updateProgress`: after server write succeeds, call `mutate(cacheKeys.progress(uid), prev => ({...prev, [bookId]: { ...prev[bookId], currentPage: page, percentage: ... }}))` with the server-confirmed values.
+- [X] T015 [P] [US2] Add recap-completion cache invalidation to `src/stores/recaps.ts`: in the post-stream success handler (after `generateRecap` stream closes successfully), call `invalidate(cacheKeys.recaps(uid, bookId))` so the next Recap History visit refetches the now-updated list. **This is the ONLY permitted cache write in recaps.ts** — no `swr()` or `mutate()` in streaming paths.
+- [X] T016 [P] [US2] Add mutation cache effect to `src/stores/upNext.ts` `reorder`: after server confirms, call `mutate(cacheKeys.upNext(uid), newOrder)`.
 
 **Checkpoint**: US1 + US2 complete. Smokes 1–4 must pass.
 
@@ -75,8 +75,8 @@
 
 **Independent Test**: Load Library, wait > 60 s (or temporarily lower TTL), background the tab, re-focus — Network tab shows a background fetch. Smoke 8 in `quickstart.md`.
 
-- [ ] T017 [US3] Add subscriber tracking to `src/composables/useCache.ts` `swr()`: maintain a `subscriberCount: number` field on each `CacheEntry`. Inside `swr()`, use Vue's `getCurrentInstance()` or `onScopeDispose()` to increment on call and decrement on consumer teardown. Subscriber count ≥ 1 means the key is "live".
-- [ ] T018 [US3] Implement `visibilitychange` listener in `src/composables/useCache.ts` (registered once at module init): when `document.visibilityState === 'visible'`, iterate all cache entries where `subscriberCount > 0` AND `now - fetchedAt > ttlMs`; for each, call `revalidate(key)`. Errors from background revalidation are caught silently (FR-005).
+- [X] T017 [US3] Add subscriber tracking to `src/composables/useCache.ts` `swr()`: maintain a `subscriberCount: number` field on each `CacheEntry`. Inside `swr()`, use Vue's `getCurrentInstance()` or `onScopeDispose()` to increment on call and decrement on consumer teardown. Subscriber count ≥ 1 means the key is "live".
+- [X] T018 [US3] Implement `visibilitychange` listener in `src/composables/useCache.ts` (registered once at module init): when `document.visibilityState === 'visible'`, iterate all cache entries where `subscriberCount > 0` AND `now - fetchedAt > ttlMs`; for each, call `revalidate(key)`. Errors from background revalidation are caught silently (FR-005).
 
 **Checkpoint**: US1–US3 complete. Smoke 8 must pass.
 
@@ -88,8 +88,8 @@
 
 **Independent Test**: Disconnect network, click Save on Book Detail progress → UI updates immediately, then rolls back when request fails with error toast. Smoke 5–6 in `quickstart.md`.
 
-- [ ] T019 [US4] Add optimistic update to `src/stores/progress.ts` `updateProgress`: (1) snapshot current cache value `const rollback = cache.get(key)`. (2) `mutate(key, optimisticValue)` immediately. (3) Call server. (4) On error: `mutate(key, rollback)` to restore, surface error (throw or emit). On success: `mutate(key, serverConfirmedValue)` to reconcile.
-- [ ] T020 [US4] Add optimistic update to `src/stores/lexicon.ts` `updateLeitner`: (1) snapshot current entriesByBook entry. (2) `mutate` both lexicon cache keys with box-advanced entry immediately. (3) Call server. (4) On error: restore snapshot via `mutate` and rethrow so callers (WordOfTheDay, LexiconCard) can show error state.
+- [X] T019 [US4] Add optimistic update to `src/stores/progress.ts` `updateProgress`: (1) snapshot current cache value `const rollback = cache.get(key)`. (2) `mutate(key, optimisticValue)` immediately. (3) Call server. (4) On error: `mutate(key, rollback)` to restore, surface error (throw or emit). On success: `mutate(key, serverConfirmedValue)` to reconcile.
+- [X] T020 [US4] Add optimistic update to `src/stores/lexicon.ts` `updateLeitner`: (1) snapshot current entriesByBook entry. (2) `mutate` both lexicon cache keys with box-advanced entry immediately. (3) Call server. (4) On error: restore snapshot via `mutate` and rethrow so callers (WordOfTheDay, LexiconCard) can show error state.
 
 **Checkpoint**: All four user stories complete. Smokes 5–6 must pass.
 
@@ -99,9 +99,9 @@
 
 **Purpose**: Static-asset cache headers, AI exclusion audit, final smoke run.
 
-- [ ] T021 [P] Add `Cache-Control` headers for static assets: create/update `vercel.json` (or `vite.config.ts` `server.headers`) — `/assets/*` → `Cache-Control: public, max-age=31536000, immutable`; `index.html` → `Cache-Control: no-cache`. Per `specs/006-swr-data-caching/research.md § Decision 7`.
-- [ ] T022 [P] Run AI exclusion grep audit as specified in `specs/006-swr-data-caching/quickstart.md § Regression checklist`: `rg "useCache|swr\(|mutate\(|invalidate\(" src/stores/recaps.ts` must show zero hits inside streaming/generation code. `rg "useCache" supabase/functions/` must return zero matches. Document results in a PR comment.
-- [ ] T023 Run all 10 quickstart.md smokes manually and confirm each passes. Check bundle size delta (compare `dist/assets/*.js` sizes before/after; delta must be < 5 KB gz). Confirm `npx vitest run` passes with zero failures.
+- [X] T021 [P] Add `Cache-Control` headers for static assets: create/update `vercel.json` (or `vite.config.ts` `server.headers`) — `/assets/*` → `Cache-Control: public, max-age=31536000, immutable`; `index.html` → `Cache-Control: no-cache`. Per `specs/006-swr-data-caching/research.md § Decision 7`.
+- [X] T022 [P] Run AI exclusion grep audit as specified in `specs/006-swr-data-caching/quickstart.md § Regression checklist`: `rg "useCache|swr\(|mutate\(|invalidate\(" src/stores/recaps.ts` must show zero hits inside streaming/generation code. `rg "useCache" supabase/functions/` must return zero matches. Document results in a PR comment.
+- [X] T023 Run all 10 quickstart.md smokes manually and confirm each passes. Check bundle size delta (compare `dist/assets/*.js` sizes before/after; delta must be < 5 KB gz). Confirm `npx vitest run` passes with zero failures.
 
 ---
 

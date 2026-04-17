@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { AuthUser } from '@/types'
 import { supabase } from '@/services/supabase'
+import { clearAll } from '@/composables/useCache'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null)
@@ -31,9 +32,14 @@ export const useAuthStore = defineStore('auth', () => {
 
       // Subscribe AFTER ready=true so guard won't re-run with stale state
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        user.value = session?.user
+        const newUser = session?.user
           ? { id: session.user.id, email: session.user.email ?? '' }
           : null
+        // Clear the SWR cache on every user identity change (FR-008 / SC-005).
+        // This covers sign-out (id → null), sign-in (null → id), and
+        // account switches (id-A → id-B). Clearing an empty cache is a no-op.
+        if (user.value?.id !== newUser?.id) clearAll()
+        user.value = newUser
       })
       _unsubscribe = () => subscription.unsubscribe()
     })()

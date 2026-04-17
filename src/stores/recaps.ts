@@ -6,6 +6,11 @@ import { mapRecap, type Recap, type RecapRow, type RecapGenerationStatus } from 
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
 import { useAuthStore } from '@/stores/auth'
+// T010: SWR for fetchRecapsForBook (history metadata SELECT only).
+// generateRecap and all streaming code are EXCLUDED from cache (FR-009).
+import { swrStatus, swrRun, invalidate, registerRevalidator, cacheKeys } from '@/composables/useCache'
+
+const TTL = 60_000 // 60 s
 
 export const useRecapsStore = defineStore('recaps', () => {
   const recapsByBook = reactive<Record<string, Recap[]>>({})
@@ -13,14 +18,28 @@ export const useRecapsStore = defineStore('recaps', () => {
   const streamingText = ref('')
   const error = ref<string | null>(null)
 
+  // T010: SWR-aware history list fetch — ONLY this function uses the cache.
+  // Streaming, generationStatus, and streamingText are NOT cached (FR-009).
   async function fetchRecapsForBook(bookId: string) {
-    const { data, error: err } = await supabase
-      .from('recaps')
-      .select('*')
-      .eq('book_id', bookId)
-      .order('created_at', { ascending: false })
-    if (err) throw err
-    recapsByBook[bookId] = (data as RecapRow[]).map(mapRecap)
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+
+    const key = cacheKeys.recaps(authStore.user.id, bookId)
+    const fetcher = async () => {
+      const { data, error: err } = await supabase
+        .from('recaps')
+        .select('*')
+        .eq('book_id', bookId)
+        .order('created_at', { ascending: false })
+      if (err) throw err
+      recapsByBook[bookId] = (data as RecapRow[]).map(mapRecap)
+    }
+    registerRevalidator(key, () => swrRun(key, fetcher).catch(() => {}))
+
+    const status = swrStatus(key, TTL)
+    if (status === 'fresh') return
+    if (status === 'background') { swrRun(key, fetcher).catch(() => {}); return }
+    await swrRun(key, fetcher)
   }
 
   async function generateRecap(bookId: string) {
@@ -80,6 +99,10 @@ export const useRecapsStore = defineStore('recaps', () => {
       const newRecap = mapRecap(data as RecapRow)
       if (!recapsByBook[bookId]) recapsByBook[bookId] = []
       recapsByBook[bookId].unshift(newRecap)
+
+      // T015: invalidate the history cache so the Recap History page refetches
+      // on next visit. Only the history list key — streaming paths untouched.
+      if (authStore.user) invalidate(cacheKeys.recaps(authStore.user.id, bookId))
 
       generationStatus.value = 'complete'
     } catch (e: unknown) {

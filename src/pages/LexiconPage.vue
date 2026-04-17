@@ -14,7 +14,9 @@ const route = useRoute()
 
 const selectedBookId = ref<string | null>(null)
 const addDialogVisible = ref(false)
-const loading = ref(true)
+// T011: only show spinner when there are no entries yet (first load).
+// On return visits the store already has data, so loading starts false.
+const loading = ref(lexiconStore.allEntries.length === 0)
 
 onMounted(async () => {
   await booksStore.fetchLibrary()

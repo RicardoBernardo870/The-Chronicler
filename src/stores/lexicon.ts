@@ -4,6 +4,15 @@ import { supabase } from '@/services/supabase'
 import { mapLexiconEntry, type LexiconEntry, type LexiconEntryRow, type LexiconEntryType } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useLeitner } from '@/composables/useLeitner'
+import {
+  swrStatus,
+  swrRun,
+  swrTouch,
+  registerRevalidator,
+  cacheKeys,
+} from '@/composables/useCache'
+
+const TTL = 60_000 // 60 s
 
 // localStorage key for daily Word of the Day cache
 const wotdCacheKey = (userId: string) => `bookhero_wotd_${userId}`
@@ -15,7 +24,9 @@ export const useLexiconStore = defineStore('lexicon', () => {
   const _wotdEntryId = ref<string | null>(null)
   const _wotdIsPreview = ref(false)
 
-  const fetchEntriesForBook = async (bookId: string) => {
+  // ── Fetchers ───────────────────────────────────────────────────────────────
+
+  const _fetcherForBook = (bookId: string) => async () => {
     const { data, error } = await supabase
       .from('lexicon_entries')
       .select('*')
@@ -25,17 +36,13 @@ export const useLexiconStore = defineStore('lexicon', () => {
     entriesByBook.value[bookId] = (data as LexiconEntryRow[]).map(mapLexiconEntry)
   }
 
-  // Single query for all the user's entries — used by Dashboard to power WordOfTheDay
-  const fetchEntriesForAllBooks = async () => {
-    const authStore = useAuthStore()
-    if (!authStore.user) return
+  const _fetcherAllBooks = (userId: string) => async () => {
     const { data, error } = await supabase
       .from('lexicon_entries')
       .select('*')
-      .eq('user_id', authStore.user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
     if (error) throw error
-    // Group by book_id, replacing any previously loaded per-book entries
     const grouped: Record<string, LexiconEntry[]> = {}
     for (const row of data as LexiconEntryRow[]) {
       const entry = mapLexiconEntry(row)
@@ -44,6 +51,39 @@ export const useLexiconStore = defineStore('lexicon', () => {
     }
     entriesByBook.value = grouped
   }
+
+  // ── SWR-aware fetch methods (T007) ─────────────────────────────────────────
+
+  const fetchEntriesForBook = async (bookId: string) => {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+
+    const key = cacheKeys.lexicon(authStore.user.id, bookId)
+    const fetcher = _fetcherForBook(bookId)
+    registerRevalidator(key, () => swrRun(key, fetcher).catch(() => {}))
+
+    const status = swrStatus(key, TTL)
+    if (status === 'fresh') return
+    if (status === 'background') { swrRun(key, fetcher).catch(() => {}); return }
+    await swrRun(key, fetcher)
+  }
+
+  const fetchEntriesForAllBooks = async () => {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+
+    const uid = authStore.user.id
+    const key = cacheKeys.lexiconAll(uid)
+    const fetcher = _fetcherAllBooks(uid)
+    registerRevalidator(key, () => swrRun(key, fetcher).catch(() => {}))
+
+    const status = swrStatus(key, TTL)
+    if (status === 'fresh') return
+    if (status === 'background') { swrRun(key, fetcher).catch(() => {}); return }
+    await swrRun(key, fetcher)
+  }
+
+  // ── Mutations (T013) ───────────────────────────────────────────────────────
 
   const addEntry = async (input: {
     bookId: string
@@ -72,13 +112,19 @@ export const useLexiconStore = defineStore('lexicon', () => {
     if (error) throw error
 
     const entry = mapLexiconEntry(data as LexiconEntryRow)
+    const uid = authStore.user.id
+
+    // T013: update both per-book and all-books caches directly
     if (!entriesByBook.value[input.bookId]) entriesByBook.value[input.bookId] = []
     entriesByBook.value[input.bookId].unshift(entry)
+    swrTouch(cacheKeys.lexicon(uid, input.bookId))
+    swrTouch(cacheKeys.lexiconAll(uid))
+
     return entry
   }
 
-  // Resolve which entry to show as Word of the Day.
-  // Deterministic per calendar day — reads/writes localStorage cache.
+  // ── Word of the Day ────────────────────────────────────────────────────────
+
   const resolveWordOfTheDay = (userId: string) => {
     const today = new Date().toISOString().split('T')[0]
     const key = wotdCacheKey(userId)
@@ -109,7 +155,6 @@ export const useLexiconStore = defineStore('lexicon', () => {
     let isPreview = false
 
     if (!pick) {
-      // Fallback: show the entry with the soonest upcoming review date
       pick = all.slice().sort((a, b) => a.nextReviewAt.localeCompare(b.nextReviewAt))[0]
       isPreview = true
     }
@@ -126,39 +171,51 @@ export const useLexiconStore = defineStore('lexicon', () => {
     }
   }
 
+  // ── Optimistic Leitner update (T013 + T020) ────────────────────────────────
+
   const updateLeitner = async (entryId: string, action: 'advance' | 'reset') => {
+    const authStore = useAuthStore()
     const { advanceBox, resetBox } = useLeitner()
 
-    // Find the entry across all books
+    // Locate entry across all books
     let entry: LexiconEntry | undefined
     let bookId: string | undefined
-    for (const [bId, entries] of Object.entries(entriesByBook.value)) {
-      entry = entries.find(e => e.id === entryId)
+    for (const [bId, bEntries] of Object.entries(entriesByBook.value)) {
+      entry = bEntries.find(e => e.id === entryId)
       if (entry) { bookId = bId; break }
     }
     if (!entry || !bookId) return
 
     const update = action === 'advance' ? advanceBox(entry) : resetBox(entry)
 
-    const { error } = await supabase
-      .from('lexicon_entries')
-      .update({ leitner_box: update.leitnerBox, next_review_at: update.nextReviewAt })
-      .eq('id', entryId)
-    if (error) throw error
+    // T020: snapshot for rollback
+    const snapshotEntry = { ...entry }
+    const snapshotIdx = entriesByBook.value[bookId].findIndex(e => e.id === entryId)
 
-    // Update local state
-    const idx = entriesByBook.value[bookId].findIndex(e => e.id === entryId)
-    if (idx !== -1) {
-      entriesByBook.value[bookId][idx] = {
-        ...entriesByBook.value[bookId][idx],
-        leitnerBox: update.leitnerBox,
-        nextReviewAt: update.nextReviewAt,
+    // Optimistic: apply update immediately
+    const optimistic = { ...entry, leitnerBox: update.leitnerBox, nextReviewAt: update.nextReviewAt }
+    if (snapshotIdx !== -1) entriesByBook.value[bookId][snapshotIdx] = optimistic
+
+    try {
+      const { error } = await supabase
+        .from('lexicon_entries')
+        .update({ leitner_box: update.leitnerBox, next_review_at: update.nextReviewAt })
+        .eq('id', entryId)
+      if (error) throw error
+
+      // Server confirmed — touch both caches
+      if (authStore.user) {
+        swrTouch(cacheKeys.lexicon(authStore.user.id, bookId))
+        swrTouch(cacheKeys.lexiconAll(authStore.user.id))
       }
+    } catch (e) {
+      // T020: rollback on server error
+      if (snapshotIdx !== -1) entriesByBook.value[bookId][snapshotIdx] = snapshotEntry
+      throw e
     }
 
     // After advancing/resetting the current WotD, clear today's cache and re-pick
     if (_wotdEntryId.value === entryId) {
-      const authStore = useAuthStore()
       if (authStore.user) {
         try { localStorage.removeItem(wotdCacheKey(authStore.user.id)) } catch { /* non-fatal */ }
         resolveWordOfTheDay(authStore.user.id)
@@ -166,7 +223,8 @@ export const useLexiconStore = defineStore('lexicon', () => {
     }
   }
 
-  // Word of the Day — resolves from cached entryId (stable per day)
+  // ── Computed ───────────────────────────────────────────────────────────────
+
   const wordOfTheDay = computed(() => {
     if (!_wotdEntryId.value) return null
     return Object.values(entriesByBook.value).flat().find(e => e.id === _wotdEntryId.value) ?? null
