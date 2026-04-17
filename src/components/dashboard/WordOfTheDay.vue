@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLexiconStore } from '@/stores/lexicon'
 import { useBooksStore } from '@/stores/books'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const lexiconStore = useLexiconStore()
 const booksStore = useBooksStore()
+const authStore = useAuthStore()
 
 const entry = computed(() => lexiconStore.wordOfTheDay)
+const isPreview = computed(() => lexiconStore.isWordOfTheDayPreview)
 
 const bookTitle = computed(() => {
   if (!entry.value) return ''
-  return booksStore.bookById(entry.value.bookId)?.title ?? ''
+  return booksStore.bookById(entry.value.bookId)?.title ?? '(removed book)'
 })
 
 const navigateToLexicon = () => {
@@ -23,12 +26,20 @@ const markReviewed = () => {
   if (!entry.value) return
   lexiconStore.updateLeitner(entry.value.id, 'advance')
 }
+
+onMounted(() => {
+  // Seed WotD selection once entries are available (DashboardPage calls fetchEntriesForAllBooks first)
+  if (authStore.user) {
+    lexiconStore.resolveWordOfTheDay(authStore.user.id)
+  }
+})
 </script>
 
 <template>
   <article v-if="entry" class="wotd glass-surface" @click="navigateToLexicon">
     <div class="wotd__header">
       <span class="wotd__label"><i class="pi pi-book" /> Word of the Day</span>
+      <span v-if="isPreview" class="wotd__preview-badge">Coming up</span>
     </div>
 
     <div class="wotd__body">
@@ -65,6 +76,7 @@ const markReviewed = () => {
 .wotd__header {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
 }
 
 .wotd__label {
@@ -76,6 +88,19 @@ const markReviewed = () => {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  flex: 1;
+}
+
+.wotd__preview-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--p-amber-300);
+  background: rgba(245, 158, 11, 0.15);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  flex-shrink: 0;
 }
 
 .wotd__body {

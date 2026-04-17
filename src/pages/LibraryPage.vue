@@ -151,7 +151,7 @@ const sortedBooks = computed(() => {
 .library {
   max-width: 680px;
   margin: 0 auto;
-  padding: 1.5rem 1rem 4rem;
+  padding: 1.5rem 1rem var(--app-nav-bottom-clearance);
   display: flex;
   flex-direction: column;
   gap: 1.25rem;

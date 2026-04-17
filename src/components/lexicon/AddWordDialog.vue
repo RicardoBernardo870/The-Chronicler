@@ -1,19 +1,29 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import type { LexiconEntryType } from '@/types'
+import { ref, computed, watch } from 'vue'
+import type { LexiconEntry, LexiconEntryType } from '@/types'
 import { useLexiconStore } from '@/stores/lexicon'
+import { useBooksStore } from '@/stores/books'
 import { useLexicon } from '@/composables/useLexicon'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import InputNumber from 'primevue/inputnumber'
 import SelectButton from 'primevue/selectbutton'
+import Select from 'primevue/select'
 import Button from 'primevue/button'
 
-const props = defineProps<{ visible: boolean; bookId: string }>()
-const emit = defineEmits<{ 'update:visible': [value: boolean]; saved: [] }>()
+const props = defineProps<{
+  visible: boolean
+  bookId?: string          // optional — when absent, dialog renders a book selector
+  defaultPageFound?: number // pre-fills pageFound when opened from BookDetailPage
+}>()
+const emit = defineEmits<{
+  'update:visible': [value: boolean]
+  saved: [entry: LexiconEntry]
+}>()
 
 const lexiconStore = useLexiconStore()
+const booksStore = useBooksStore()
 const { lookupWord } = useLexicon()
 
 const term = ref('')
@@ -21,7 +31,8 @@ const definition = ref('')
 const phonetic = ref<string | null>(null)
 const entryType = ref<LexiconEntryType>('dictionary')
 const contextSentence = ref('')
-const pageFound = ref<number | null>(null)
+const pageFound = ref<number | null>(props.defaultPageFound ?? null)
+const selectedBookId = ref<string | null>(null)  // used when bookId prop is absent
 
 const fetchingDef = ref(false)
 const saving = ref(false)
@@ -31,6 +42,14 @@ const typeOptions = [
   { label: 'Dictionary', value: 'dictionary' },
   { label: 'Lore', value: 'lore' },
 ]
+
+// The effective book to save against — prop takes priority over internal selection
+const effectiveBookId = computed(() => props.bookId ?? selectedBookId.value ?? '')
+
+// Book options for the selector (only shown when bookId prop is absent)
+const bookOptions = computed(() =>
+  booksStore.books.map(b => ({ label: b.title, value: b.id }))
+)
 
 // Auto-fetch definition on blur (dictionary only)
 const onTermBlur = async () => {
@@ -59,7 +78,8 @@ const reset = () => {
   phonetic.value = null
   entryType.value = 'dictionary'
   contextSentence.value = ''
-  pageFound.value = null
+  pageFound.value = props.defaultPageFound ?? null
+  selectedBookId.value = null
   errors.value = {}
 }
 
@@ -70,21 +90,22 @@ const close = () => {
 
 const onSave = async () => {
   errors.value = {}
+  if (!props.bookId && !selectedBookId.value) errors.value.book = 'Please select a book'
   if (!term.value.trim()) errors.value.term = 'Word is required'
   if (!definition.value.trim()) errors.value.definition = 'Definition is required'
   if (Object.keys(errors.value).length) return
 
   saving.value = true
   try {
-    await lexiconStore.addEntry({
-      bookId: props.bookId,
+    const entry = await lexiconStore.addEntry({
+      bookId: effectiveBookId.value,
       term: term.value.trim(),
       definition: definition.value.trim(),
       entryType: entryType.value,
       contextSentence: contextSentence.value.trim() || null,
       pageFound: pageFound.value,
     })
-    emit('saved')
+    emit('saved', entry)
     close()
   } finally {
     saving.value = false
@@ -102,6 +123,21 @@ const onSave = async () => {
     :style="{ width: '92vw', maxWidth: '460px' }"
   >
     <div class="add-word">
+      <!-- Book selector — only shown when bookId prop is absent -->
+      <div v-if="!props.bookId" class="add-word__field">
+        <label class="add-word__label">Book *</label>
+        <Select
+          v-model="selectedBookId"
+          :options="bookOptions"
+          option-label="label"
+          option-value="value"
+          placeholder="Select a book"
+          :invalid="!!errors.book"
+          fluid
+        />
+        <small v-if="errors.book" class="add-word__error">{{ errors.book }}</small>
+      </div>
+
       <!-- Word -->
       <div class="add-word__field">
         <label class="add-word__label">Word *</label>

@@ -39,10 +39,6 @@ const filteredEntries = computed(() =>
     : lexiconStore.allEntries
 )
 
-const activeBookId = computed(() =>
-  selectedBookId.value ?? booksStore.books[0]?.id ?? ''
-)
-
 const onAdvance = (entryId: string) => lexiconStore.updateLeitner(entryId, 'advance')
 const onReset = (entryId: string) => lexiconStore.updateLeitner(entryId, 'reset')
 </script>
@@ -91,7 +87,7 @@ const onReset = (entryId: string) => lexiconStore.updateLeitner(entryId, 'reset'
     <AddWordDialog
       v-if="addDialogVisible"
       :visible="addDialogVisible"
-      :book-id="activeBookId"
+      :book-id="selectedBookId ?? undefined"
       @update:visible="addDialogVisible = $event"
       @saved="addDialogVisible = false"
     />
@@ -102,7 +98,7 @@ const onReset = (entryId: string) => lexiconStore.updateLeitner(entryId, 'reset'
 .lexicon {
   max-width: 680px;
   margin: 0 auto;
-  padding: 1.5rem 1rem 4rem;
+  padding: 1.5rem 1rem var(--app-nav-bottom-clearance);
   display: flex;
   flex-direction: column;
   gap: 1.25rem;

@@ -5,6 +5,7 @@ import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
 import { useUpNextStore } from '@/stores/upNext'
 import { useLexiconStore } from '@/stores/lexicon'
+import { useAuthStore } from '@/stores/auth'
 import { useReadingPulse } from '@/composables/useReadingPulse'
 import Button from 'primevue/button'
 import ProgressBar from 'primevue/progressbar'
@@ -19,6 +20,7 @@ const booksStore = useBooksStore()
 const progressStore = useProgressStore()
 const upNextStore = useUpNextStore()
 const lexiconStore = useLexiconStore()
+const authStore = useAuthStore()
 
 const loading = ref(true)
 const pageInput = ref<number>(0)
@@ -31,8 +33,10 @@ onMounted(async () => {
     await booksStore.fetchLibrary()
     await progressStore.fetchProgress()
     await upNextStore.fetchOrder()
-    // Load lexicon entries for all books (powers WordOfTheDay computed)
-    booksStore.books.forEach(b => lexiconStore.fetchEntriesForBook(b.id))
+    // Load all lexicon entries in a single query (powers WordOfTheDay)
+    await lexiconStore.fetchEntriesForAllBooks()
+    // Seed the per-day Word of the Day selection
+    if (authStore.user) lexiconStore.resolveWordOfTheDay(authStore.user.id)
     // Load reading pulse for hero card
     if (currentBook.value) heroPulse.value?.fetchHistory()
     if (currentBook.value) {
@@ -358,7 +362,7 @@ const coverFallback = (e: Event) => {
 .dashboard {
   max-width: 680px;
   margin: 0 auto;
-  padding: 1.5rem 1rem 4rem;
+  padding: 1.5rem 1rem var(--app-nav-bottom-clearance);
   display: flex;
   flex-direction: column;
   gap: 1.25rem;

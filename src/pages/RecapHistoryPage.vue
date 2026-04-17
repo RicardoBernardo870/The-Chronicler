@@ -81,7 +81,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  padding: 1rem 1rem 4rem;
+  padding: 1rem 1rem var(--app-nav-bottom-clearance);
 }
 
 .recap-history-page__header {
