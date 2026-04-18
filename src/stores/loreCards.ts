@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { reactive, computed } from 'vue'
+import { reactive, computed, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { supabase } from '@/services/supabase'
 import { loreService } from '@/services/loreService'
@@ -27,6 +27,15 @@ export const useLoreCardsStore = defineStore('loreCards', () => {
   // ── State ──────────────────────────────────────────────────────────────────
   // keyed by bookId; values sorted by unlocked_at_milestone asc
   const loreByBook = reactive<Record<string, LoreCard[]>>({})
+
+  // Set of bookIds currently generating lore (for the global "generating" banner).
+  // Using a ref<Set> keeps reactivity simple — we reassign on mutation.
+  const generatingBookIds = ref<Set<string>>(new Set())
+
+  const isGenerating = computed<boolean>(() => generatingBookIds.value.size > 0)
+
+  const isGeneratingForBook = (bookId: string): boolean =>
+    generatingBookIds.value.has(bookId)
 
   // ── fetchLoreForBook ───────────────────────────────────────────────────────
   const fetchLoreForBook = async (bookId: string): Promise<void> => {
@@ -122,17 +131,27 @@ export const useLoreCardsStore = defineStore('loreCards', () => {
         : 0
 
       // 4. Call edge function — pass existing titles so AI won't repeat topics
-      const card = await loreService.generate({
-        title: book.title,
-        author: book.author,
-        isbn: book.isbn,
-        currentPage,
-        totalPages: book.totalPages,
-        percentage,
-        milestone,
-        masterRecap,
-        existingTopics: (loreByBook[bookId] ?? []).map(c => c.title),
-      })
+      // Mark this book as generating so the global banner shows
+      generatingBookIds.value = new Set(generatingBookIds.value).add(bookId)
+
+      let card
+      try {
+        card = await loreService.generate({
+          title: book.title,
+          author: book.author,
+          isbn: book.isbn,
+          currentPage,
+          totalPages: book.totalPages,
+          percentage,
+          milestone,
+          masterRecap,
+          existingTopics: (loreByBook[bookId] ?? []).map(c => c.title),
+        })
+      } finally {
+        const next = new Set(generatingBookIds.value)
+        next.delete(bookId)
+        generatingBookIds.value = next
+      }
 
       // 5. Persist
       const { data, error: insertErr } = await supabase
@@ -217,6 +236,9 @@ export const useLoreCardsStore = defineStore('loreCards', () => {
 
   return {
     loreByBook,
+    generatingBookIds,
+    isGenerating,
+    isGeneratingForBook,
     fetchLoreForBook,
     fetchLoreForAllBooks,
     maybeUnlockForMilestone,

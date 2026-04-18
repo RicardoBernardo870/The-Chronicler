@@ -234,6 +234,21 @@ const parsedRecap = computed(() => {
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* Light theme — white-on-white is invisible; use dark overlays instead */
+html[data-p-theme='light'] .shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 0%,
+    rgba(0, 0, 0, 0.11) 50%,
+    rgba(0, 0, 0, 0.04) 100%
+  );
+  background-size: 400% 100%;
+}
+
+html[data-p-theme='light'] .recap-section__title {
+  background: rgba(0, 0, 0, 0.08);
+}
+
 @keyframes shimmer-sweep {
   0%   { background-position: 100% 0; }
   100% { background-position: -100% 0; }

@@ -75,7 +75,7 @@ Return a raw JSON object ONLY. No markdown, no code fences, no backticks, no com
 
 {
   "title": "<3–8 word evocative title>",
-  "content": "<150–300 words of expanded lore/context, not a recap>",
+  "content": "<90–160 words of expanded lore/context, not a recap>",
   "type": "<one of: History | Culture | Geography | Technology | Lore>",
   "linked_entities": ["<up to 5 specific names drawn only from the Master Recap>"]
 }`;
@@ -255,7 +255,11 @@ Deno.serve(async (req: Request) => {
       config: {
         systemInstruction: SYSTEM_PROMPT,
         temperature: 0.85,
-        maxOutputTokens: 2048,
+        maxOutputTokens: 4096,
+        // Gemini 2.5 Flash uses "thinking" tokens that count against
+        // maxOutputTokens. Lore generation doesn't need reasoning — skip it
+        // so the whole budget is available for visible text.
+        thinkingConfig: { thinkingBudget: 0 },
       },
       contents: [{ role: "user", parts: [{ text: userMessage }] }],
     })
@@ -264,9 +268,29 @@ Deno.serve(async (req: Request) => {
     const jsonStr = extractJson(rawText)
 
     if (!jsonStr) {
-      console.error("[generate-lore] No JSON block found in AI output. Raw:", rawText)
+      // Diagnostic dump — tells us WHY .text was empty next time this fires.
+      const candidate  = (response as any).candidates?.[0]
+      const finishReason = candidate?.finishReason ?? "<unknown>"
+      const safetyRatings = candidate?.safetyRatings ?? null
+      const blockReason = (response as any).promptFeedback?.blockReason ?? null
+      const usage = (response as any).usageMetadata ?? null
+
+      console.error("[generate-lore] No JSON block found. Diagnostics:", JSON.stringify({
+        finishReason,
+        blockReason,
+        safetyRatings,
+        usage,
+        rawTextLength: rawText.length,
+        rawTextPreview: rawText.slice(0, 500),
+      }))
+
       return new Response(
-        JSON.stringify({ error: "AI output invalid", detail: "No JSON block found in response" }),
+        JSON.stringify({
+          error: "AI output invalid",
+          detail: "No JSON block found in response",
+          finishReason,
+          blockReason,
+        }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       )
     }
