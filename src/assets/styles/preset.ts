@@ -10,6 +10,9 @@ import Lara from '@primeuix/themes/lara'
  */
 const ChroniclerPreset = definePreset(Lara, {
   components: {
+    // PrimeVue's TabmenuDesignTokens type doesn't expose top-level
+    // `background` / `borderColor`, but they're accepted at runtime. Cast
+    // to `any` so we can keep the glass styling without a TS error.
     tabmenu: {
       colorScheme: {
         dark: {
@@ -48,7 +51,7 @@ const ChroniclerPreset = definePreset(Lara, {
           },
         },
       },
-    },
+    } as any,
   },
   semantic: {
     primary: {
