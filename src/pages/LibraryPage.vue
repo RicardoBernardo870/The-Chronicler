@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
 import { useUpNextStore } from '@/stores/upNext'
+import { useLoreCardsStore } from '@/stores/loreCards'
 import BookCard from '@/components/books/BookCard.vue'
 import BookGridCard from '@/components/books/BookGridCard.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -14,6 +15,7 @@ const router = useRouter()
 const booksStore = useBooksStore()
 const progressStore = useProgressStore()
 const upNextStore = useUpNextStore()
+const loreStore = useLoreCardsStore()
 
 // View mode — persisted to localStorage
 const viewMode = ref<'list' | 'grid'>(
@@ -25,6 +27,8 @@ onMounted(async () => {
   await booksStore.fetchLibrary()
   await progressStore.fetchProgress()
   await upNextStore.fetchOrder()
+  // Fetch all lore so hasUnseenLore() is reactive on every BookCard (FR-026, T035)
+  loreStore.fetchLoreForAllBooks().catch(() => { /* silent — Library is best-effort for chips */ })
 })
 
 // 4-tier sort:

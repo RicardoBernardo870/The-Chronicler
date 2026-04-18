@@ -190,6 +190,8 @@ export const cacheKeys = {
   recaps:       (uid: string, bookId: string)  => `recaps:${uid}:${bookId}`,
   bookPassport: (uid: string, bookId: string)  => `bookPassport:${uid}:${bookId}`,
   upNext:       (uid: string)                  => `upNext:${uid}`,
+  lore:         (uid: string, bookId: string)  => `lore:${uid}:${bookId}`,
+  loreAll:      (uid: string)                  => `lore:${uid}:all`,
 } as const
 
 // ── Dev-only observability (T004 / data-model.md § Observability) ─────────────

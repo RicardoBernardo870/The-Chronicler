@@ -6,7 +6,9 @@ import { useProgressStore } from '@/stores/progress'
 import { useRecapsStore } from '@/stores/recaps'
 import { useBookPassportStore } from '@/stores/bookPassport'
 import { useLexiconStore } from '@/stores/lexicon'
+import { useLoreCardsStore } from '@/stores/loreCards'
 import RecapStream from '@/components/recap/RecapStream.vue'
+import LoreChronoscopeCard from '@/components/lore/LoreChronoscopeCard.vue'
 import VelocityBadge from '@/components/pulse/VelocityBadge.vue'
 import AddWordDialog from '@/components/lexicon/AddWordDialog.vue'
 import Button from 'primevue/button'
@@ -21,6 +23,7 @@ const progressStore = useProgressStore()
 const recapsStore = useRecapsStore()
 const passportStore = useBookPassportStore()
 const lexiconStore = useLexiconStore()
+const loreStore = useLoreCardsStore()
 
 const bookId = computed(() => route.params.id as string)
 const book = computed(() => booksStore.bookById(bookId.value))
@@ -41,6 +44,8 @@ onMounted(async () => {
   if (progress.value) currentPageInput.value = progress.value.currentPage
   await passportStore.fetchPassport(bookId.value)
   await lexiconStore.fetchEntriesForBook(bookId.value)
+  // Mark lore as seen — clears "New Lore" chip (FR-027, FR-028, T033)
+  await loreStore.markBookLoreSeen(bookId.value)
 })
 
 watch(progress, (p) => {
@@ -209,6 +214,9 @@ const coverFallback = (e: Event) => {
           @click="router.push({ name: 'book-passport', params: { id: bookId } })"
         />
       </section>
+
+      <!-- Lore Chronoscope discovery card (between Progress and Recap, FR-019) -->
+      <LoreChronoscopeCard :book-id="bookId" />
 
       <!-- Recap — hidden when book is complete (use Book Passport instead) -->
       <section v-if="!isComplete" class="book-detail__recap glass-surface">

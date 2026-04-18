@@ -161,7 +161,6 @@ function formatDate(iso: string): string {
 .recap-accordion {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
 }
 
 .recap-accordion :deep(.p-accordionpanel) {

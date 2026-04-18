@@ -123,7 +123,15 @@
       "Bash(npx vue-tsc *)",
       "Bash(npx vitest *)",
       "Bash(where supabase *)",
-      "Bash(powershell -Command \"Get-Command supabase -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")"
+      "Bash(powershell -Command \"Get-Command supabase -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(pwsh -NoProfile -Command \".specify/scripts/powershell/check-prerequisites.ps1 -Json\")",
+      "Bash(powershell.exe -NoProfile -Command \"& '.specify/scripts/powershell/check-prerequisites.ps1' -Json\")",
+      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"& '.specify/scripts/powershell/check-prerequisites.ps1' -Json\")",
+      "mcp__4c7c02b6-653b-457c-b08b-d3a1461ae2c2__list_migrations",
+      "mcp__supabase__deploy_edge_function",
+      "mcp__supabase__get_logs",
+      "Bash(node -e \"const fs = require\\('fs'\\); const s = fs.readFileSync\\('C:/Users/ricar_nf02dr4/Desktop/BookHero/BookHero/supabase/functions/generate-lore/index.ts', 'utf8'\\); const payload = [{name:'index.ts', content: s}]; fs.writeFileSync\\('C:/Users/ricar_nf02dr4/AppData/Local/Temp/lore-payload.json', JSON.stringify\\(payload\\)\\);\")",
+      "Bash(node -e \"const fs = require\\('fs'\\); const p = fs.readFileSync\\('C:/Users/ricar_nf02dr4/AppData/Local/Temp/lore-payload.json', 'utf8'\\); console.log\\('payload length:', p.length, 'first 100:', p.slice\\(0,100\\)\\);\")"
     ]
   }
 }
