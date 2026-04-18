@@ -9,6 +9,47 @@ import Lara from '@primeuix/themes/lara'
  * --glass-brightness are consumed by glass.css utilities.
  */
 const ChroniclerPreset = definePreset(Lara, {
+  components: {
+    tabmenu: {
+      colorScheme: {
+        dark: {
+          // Nav container — transparent so the page background shows through
+          background:  'transparent',
+          borderColor: 'transparent',
+          item: {
+            // Inactive pill — very subtle glass fill
+            background:        'rgba(255, 255, 255, 0.06)',
+            hoverBackground:   'rgba(255, 255, 255, 0.11)',
+            // Active pill — indigo-tinted glass
+            activeBackground:  'rgba(99, 102, 241, 0.20)',
+            // Border on each pill (set to transparent here; drawn via CSS for radius)
+            borderColor:       'transparent',
+            hoverBorderColor:  'transparent',
+            // Keep activeBorderColor transparent — we use background, not underline
+            activeBorderColor: 'transparent',
+            color:             'rgba(255, 255, 255, 0.50)',
+            hoverColor:        'rgba(255, 255, 255, 0.88)',
+            activeColor:       '{primary.300}',
+          },
+        },
+        light: {
+          background:  'transparent',
+          borderColor: 'transparent',
+          item: {
+            background:        'rgba(0, 0, 0, 0.05)',
+            hoverBackground:   'rgba(0, 0, 0, 0.09)',
+            activeBackground:  'rgba(99, 102, 241, 0.13)',
+            borderColor:       'transparent',
+            hoverBorderColor:  'transparent',
+            activeBorderColor: 'transparent',
+            color:             'rgba(15, 15, 30, 0.50)',
+            hoverColor:        'rgba(15, 15, 30, 0.88)',
+            activeColor:       '{primary.600}',
+          },
+        },
+      },
+    },
+  },
   semantic: {
     primary: {
       50:  '{indigo.50}',

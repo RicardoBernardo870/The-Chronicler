@@ -19,10 +19,10 @@
 
 **Purpose**: Types, cache keys, and pure helpers that every user story depends on.
 
-- [ ] T001 [P] Add `LoreType`, `LoreCardRow`, `LoreCard`, and `mapLoreCard` to `src/types/index.ts` (per data-model.md § TypeScript types).
-- [ ] T002 [P] Extend `cacheKeys` in `src/composables/useCache.ts` with `lore(uid, bookId)` and `loreAll(uid)` builders (per lore-api.md § Cache key contract).
-- [ ] T003 [P] Create pure helper `buildMasterRecap(recaps, currentPage): string` in `src/utils/masterRecap.ts` — filter `progress_snapshot > 0`, filter `page_snapshot <= currentPage`, sort ascending, format per data-model.md § MasterRecap.
-- [ ] T004 [P] Create pure helper `detectCrossedMilestone(previousPercentage, newPercentage): number | null` in `src/utils/milestoneDetect.ts` — returns 10..90 multiple of 10 only when a new 10% bucket is crossed forward; null otherwise.
+- [X] T001 [P] Add `LoreType`, `LoreCardRow`, `LoreCard`, and `mapLoreCard` to `src/types/index.ts` (per data-model.md § TypeScript types).
+- [X] T00X [P] Extend `cacheKeys` in `src/composables/useCache.ts` with `lore(uid, bookId)` and `loreAll(uid)` builders (per lore-api.md § Cache key contract).
+- [X] T00X [P] Create pure helper `buildMasterRecap(recaps, currentPage): string` in `src/utils/masterRecap.ts` — filter `progress_snapshot > 0`, filter `page_snapshot <= currentPage`, sort ascending, format per data-model.md § MasterRecap.
+- [X] T00X [P] Create pure helper `detectCrossedMilestone(previousPercentage, newPercentage): number | null` in `src/utils/milestoneDetect.ts` — returns 10..90 multiple of 10 only when a new 10% bucket is crossed forward; null otherwise.
 
 ---
 
@@ -32,11 +32,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T005 Create migration `supabase/migrations/20260417_lore_cards.sql`: `lore_cards` table with all columns, `UNIQUE(user_id, book_id, unlocked_at_milestone)`, index on `(user_id, book_id)`, RLS policies (SELECT/INSERT/UPDATE/DELETE gated on `auth.uid() = user_id`), FK cascades to `auth.users` and `books` (per data-model.md).
-- [ ] T006 [P] Scaffold edge function directory `supabase/functions/generate-lore/` with `index.ts` (Deno entry) and `config.toml` with `verify_jwt = false` (mirrors `generate-recap` pattern).
-- [ ] T007 [P] Create `src/services/loreService.ts` exporting `loreService.generate(req): Promise<LoreGenerateResponse>` — fetch wrapper with Bearer token attach, error-throw on non-2xx (per lore-api.md § Service).
-- [ ] T008 Create empty Pinia store `src/stores/loreCards.ts` with state `loreByBook: Record<string, LoreCard[]>`, `useLoreCardsStore` export, and a `clearAll()` action wired into auth-signout path (FR-031). Register in any existing store-clear orchestration.
-- [ ] T009 Hook `clearAll()` of loreCardsStore into the existing sign-out/user-switch flow so caches are wiped on identity change (FR-031).
+- [X] T00X Create migration `supabase/migrations/20260417_lore_cards.sql`: `lore_cards` table with all columns, `UNIQUE(user_id, book_id, unlocked_at_milestone)`, index on `(user_id, book_id)`, RLS policies (SELECT/INSERT/UPDATE/DELETE gated on `auth.uid() = user_id`), FK cascades to `auth.users` and `books` (per data-model.md).
+- [X] T00X [P] Scaffold edge function directory `supabase/functions/generate-lore/` with `index.ts` (Deno entry) and `config.toml` with `verify_jwt = false` (mirrors `generate-recap` pattern).
+- [X] T00X [P] Create `src/services/loreService.ts` exporting `loreService.generate(req): Promise<LoreGenerateResponse>` — fetch wrapper with Bearer token attach, error-throw on non-2xx (per lore-api.md § Service).
+- [X] T00X Create empty Pinia store `src/stores/loreCards.ts` with state `loreByBook: Record<string, LoreCard[]>`, `useLoreCardsStore` export, and a `clearAll()` action wired into auth-signout path (FR-031). Register in any existing store-clear orchestration.
+- [X] T00X Hook `clearAll()` of loreCardsStore into the existing sign-out/user-switch flow so caches are wiped on identity change (FR-031).
 
 **Checkpoint**: DB table live, edge function scaffold deployable, service + store skeletons ready. User stories can now begin in parallel.
 
@@ -50,17 +50,17 @@
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T010 [P] [US1] Unit tests `tests/unit/masterRecap.spec.ts` covering: empty list, single item, multi-item sort ascending, filters out `progress_snapshot === 0`, filters out `page_snapshot > currentPage` (per quickstart.md § Unit test targets).
-- [ ] T011 [P] [US1] Unit tests `tests/unit/milestoneDetect.spec.ts` covering 0→5 (null), 5→10 (10), 18→22 (20), 8→35 (30 — latest crossed), 95→100 (null, outside [10..90]), negative moves (null), same-value saves (null).
+- [X] T0XX [P] [US1] Unit tests `tests/unit/masterRecap.spec.ts` covering: empty list, single item, multi-item sort ascending, filters out `progress_snapshot === 0`, filters out `page_snapshot > currentPage` (per quickstart.md § Unit test targets).
+- [X] T0XX [P] [US1] Unit tests `tests/unit/milestoneDetect.spec.ts` covering 0→5 (null), 5→10 (10), 18→22 (20), 8→35 (30 — latest crossed), 95→100 (null, outside [10..90]), negative moves (null), same-value saves (null).
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Implement `generate-lore` edge function in `supabase/functions/generate-lore/index.ts`: JWT decode (atob), body validation (reject 400 on missing fields or empty masterRecap, 400 on milestone ∉ {10..90 step 10}), call Gemini 2.5 Flash (`temperature 0.6`, `maxOutputTokens 2048`) with the Chronicler Historian system prompt from research.md § Decision 4, strip code fences, `JSON.parse`, validate shape (title/content non-empty strings; type ∈ History|Myth|Geography; linked_entities string[] ≤ 5), return validated JSON. Error table per lore-api.md § Error shapes.
-- [ ] T013 [US1] Deploy edge function: `supabase functions deploy generate-lore` (requires `GEMINI_API_KEY` set in project env).
-- [ ] T014 [US1] Implement `fetchLoreForBook(bookId)` action in `src/stores/loreCards.ts` using SWR (`useCache` + `cacheKeys.lore`, TTL 120_000 ms) — fetcher queries `lore_cards` filtered by `book_id`, sorts by `unlocked_at_milestone` asc, maps with `mapLoreCard`, writes to `loreByBook[bookId]`. Register revalidator for tab-focus (per lore-api.md).
-- [ ] T015 [US1] Implement `maybeUnlockForMilestone(bookId, milestone, currentPage)` in `src/stores/loreCards.ts` per lore-api.md § maybeUnlockForMilestone: cost gate (check existing card), ensure recaps fetched (reuse `useRecapsStore.fetchRecapsForBook`), build Master Recap via `buildMasterRecap`, short-circuit on empty (FR-004), fetch book metadata, call `loreService.generate`, insert row, update local cache, `swrTouch` both keys, fire success toast. MUST wrap entire body in `try/catch` that only `console.error`s (FR-008).
-- [ ] T016 [US1] Wire milestone detection into `src/stores/progress.ts` `updateProgress` action: after a server-confirmed save, compute `detectCrossedMilestone(prevPct, newPct)`; if non-null, fire-and-forget `loreCardsStore.maybeUnlockForMilestone(bookId, milestone, currentPage)` via Promise chain — must never await in the UI path (FR-009, FR-010).
-- [ ] T017 [US1] Add `loreForBook`, `hasUnseenLore`, `randomLoreForBook`, `allLore` read helpers to `src/stores/loreCards.ts` (per lore-api.md § Read helpers).
+- [X] T0XX [US1] Implement `generate-lore` edge function in `supabase/functions/generate-lore/index.ts`: JWT decode (atob), body validation (reject 400 on missing fields or empty masterRecap, 400 on milestone ∉ {10..90 step 10}), call Gemini 2.5 Flash (`temperature 0.6`, `maxOutputTokens 2048`) with the Chronicler Historian system prompt from research.md § Decision 4, strip code fences, `JSON.parse`, validate shape (title/content non-empty strings; type ∈ History|Myth|Geography; linked_entities string[] ≤ 5), return validated JSON. Error table per lore-api.md § Error shapes.
+- [X] T0XX [US1] Deploy edge function: `supabase functions deploy generate-lore` (requires `GEMINI_API_KEY` set in project env).
+- [X] T0XX [US1] Implement `fetchLoreForBook(bookId)` action in `src/stores/loreCards.ts` using SWR (`useCache` + `cacheKeys.lore`, TTL 120_000 ms) — fetcher queries `lore_cards` filtered by `book_id`, sorts by `unlocked_at_milestone` asc, maps with `mapLoreCard`, writes to `loreByBook[bookId]`. Register revalidator for tab-focus (per lore-api.md).
+- [X] T0XX [US1] Implement `maybeUnlockForMilestone(bookId, milestone, currentPage)` in `src/stores/loreCards.ts` per lore-api.md § maybeUnlockForMilestone: cost gate (check existing card), ensure recaps fetched (reuse `useRecapsStore.fetchRecapsForBook`), build Master Recap via `buildMasterRecap`, short-circuit on empty (FR-004), fetch book metadata, call `loreService.generate`, insert row, update local cache, `swrTouch` both keys, fire success toast. MUST wrap entire body in `try/catch` that only `console.error`s (FR-008).
+- [X] T0XX [US1] Wire milestone detection into `src/stores/progress.ts` `updateProgress` action: after a server-confirmed save, compute `detectCrossedMilestone(prevPct, newPct)`; if non-null, fire-and-forget `loreCardsStore.maybeUnlockForMilestone(bookId, milestone, currentPage)` via Promise chain — must never await in the UI path (FR-009, FR-010).
+- [X] T0XX [US1] Add `loreForBook`, `hasUnseenLore`, `randomLoreForBook`, `allLore` read helpers to `src/stores/loreCards.ts` (per lore-api.md § Read helpers).
 
 **Checkpoint**: Milestone crossing generates a DB row end-to-end with zero UI surfaces yet. Verifiable via Supabase Studio + DevTools Network tab. Smokes 1, 3, 4, 5, 6 pass.
 
@@ -74,14 +74,14 @@
 
 ### Implementation for User Story 2
 
-- [ ] T018 [P] [US2] Change the bottom-nav label in `src/components/shared/AppBottomNav.vue` line ~73 from "Lexicon" to "Great Library" (icon/path/active-detection unchanged — FR-012, FR-018).
-- [ ] T019 [US2] Rename `src/pages/LexiconPage.vue` → `src/pages/GreatLibraryPage.vue`; update the route definition in `src/router/index.ts` to import the new filename while keeping `path: '/lexicon'` and `name: 'lexicon'` unchanged (URL stability — per ui-contracts.md § 2).
-- [ ] T020 [US2] Refactor `GreatLibraryPage.vue` to render PrimeVue `<Tabs>` with "Lexicon" and "Lore Cards" panels; book-filter dropdown lifted above both panels; honour `?tab=lexicon|lore` query param for initial selection (default `lexicon`); preserve `?bookId` on tab switch (FR-013, FR-014).
-- [ ] T021 [US2] Ensure the existing Lexicon UI is moved verbatim into the first TabPanel with zero behavioural changes (add/edit/delete/Leitner all still wired — Smoke 7 step 4).
-- [ ] T022 [P] [US2] Implement `fetchLoreForAllBooks()` action in `src/stores/loreCards.ts` with SWR via `cacheKeys.loreAll`, TTL 120_000 ms, partition results into `loreByBook` by `book_id` (per lore-api.md).
-- [ ] T023 [US2] Create `src/components/lore/LoreCardList.vue` with prop `{ bookId?: string }`: on mount calls `fetchLoreForBook` or `fetchLoreForAllBooks`; renders cards sorted by `createdAt` desc; each card shows title, type badge, milestone chip, 120-char excerpt; inline-expand (no modal) to show `<LoreCardDetail>`; empty-state message "Keep reading to unlock your first lore card." (FR-015, FR-016, FR-017).
-- [ ] T024 [P] [US2] Create `src/components/lore/LoreCardDetail.vue` with prop `{ card: LoreCard }` — pure presentational: prominent title, colour-coded type badge (History indigo, Myth amber, Geography emerald), body with line-height 1.6 max 680px, "Mentions:" chip row, "Unlocked on {date} at {milestone}%" footer (per ui-contracts.md § 4).
-- [ ] T025 [US2] Wire `<LoreCardList :book-id="selectedBookId" />` into the Lore Cards TabPanel of `GreatLibraryPage.vue`.
+- [X] T0XX [P] [US2] Change the bottom-nav label in `src/components/shared/AppBottomNav.vue` line ~73 from "Lexicon" to "Great Library" (icon/path/active-detection unchanged — FR-012, FR-018).
+- [X] T0XX [US2] Rename `src/pages/LexiconPage.vue` → `src/pages/GreatLibraryPage.vue`; update the route definition in `src/router/index.ts` to import the new filename while keeping `path: '/lexicon'` and `name: 'lexicon'` unchanged (URL stability — per ui-contracts.md § 2).
+- [X] T0XX [US2] Refactor `GreatLibraryPage.vue` to render PrimeVue `<Tabs>` with "Lexicon" and "Lore Cards" panels; book-filter dropdown lifted above both panels; honour `?tab=lexicon|lore` query param for initial selection (default `lexicon`); preserve `?bookId` on tab switch (FR-013, FR-014).
+- [X] T0XX [US2] Ensure the existing Lexicon UI is moved verbatim into the first TabPanel with zero behavioural changes (add/edit/delete/Leitner all still wired — Smoke 7 step 4).
+- [X] T0XX [P] [US2] Implement `fetchLoreForAllBooks()` action in `src/stores/loreCards.ts` with SWR via `cacheKeys.loreAll`, TTL 120_000 ms, partition results into `loreByBook` by `book_id` (per lore-api.md).
+- [X] T0XX [US2] Create `src/components/lore/LoreCardList.vue` with prop `{ bookId?: string }`: on mount calls `fetchLoreForBook` or `fetchLoreForAllBooks`; renders cards sorted by `createdAt` desc; each card shows title, type badge, milestone chip, 120-char excerpt; inline-expand (no modal) to show `<LoreCardDetail>`; empty-state message "Keep reading to unlock your first lore card." (FR-015, FR-016, FR-017).
+- [X] T0XX [P] [US2] Create `src/components/lore/LoreCardDetail.vue` with prop `{ card: LoreCard }` — pure presentational: prominent title, colour-coded type badge (History indigo, Myth amber, Geography emerald), body with line-height 1.6 max 680px, "Mentions:" chip row, "Unlocked on {date} at {milestone}%" footer (per ui-contracts.md § 4).
+- [X] T0XX [US2] Wire `<LoreCardList :book-id="selectedBookId" />` into the Lore Cards TabPanel of `GreatLibraryPage.vue`.
 
 **Checkpoint**: Users can browse all unlocked lore via the renamed library. Smokes 7, 8, 9 pass. Lore generated in Phase 3 is now visible.
 
@@ -95,11 +95,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T026 [P] [US3] Create `src/components/lore/LoreChronoscopeCard.vue` with prop `{ bookId: string }`: on mount calls `loreCardsStore.fetchLoreForBook(bookId)` (SWR — cheap on return); local `ref` holds currently displayed card seeded from `randomLoreForBook`; render skeleton only when store is `loading` AND no cache (one-time); hide entirely when no lore exists; show title + type badge + 120-char ellipsised excerpt + refresh icon (per ui-contracts.md § 1).
-- [ ] T027 [US3] Refresh-icon behaviour in `LoreChronoscopeCard.vue`: disabled when exactly 1 card; `@click.stop` picks a different random card from `loreForBook(bookId)` (never the current one when >1 exist); must NOT navigate.
-- [ ] T028 [US3] Card-body click handler in `LoreChronoscopeCard.vue`: navigates to `/lexicon?bookId=<bookId>&tab=lore` via `router.push` (FR-023).
-- [ ] T029 [US3] Integrate `<LoreChronoscopeCard :book-id="bookId" />` in `src/pages/BookDetailPage.vue` between the Progress section and the Recap section (per ui-contracts.md § 8).
-- [ ] T030 [US3] Verify return-navigation instant render (SC-005): card must mount within 100 ms when cache is fresh. Validate via DevTools perf trace during Smoke 15.
+- [X] T0XX [P] [US3] Create `src/components/lore/LoreChronoscopeCard.vue` with prop `{ bookId: string }`: on mount calls `loreCardsStore.fetchLoreForBook(bookId)` (SWR — cheap on return); local `ref` holds currently displayed card seeded from `randomLoreForBook`; render skeleton only when store is `loading` AND no cache (one-time); hide entirely when no lore exists; show title + type badge + 120-char ellipsised excerpt + refresh icon (per ui-contracts.md § 1).
+- [X] T0XX [US3] Refresh-icon behaviour in `LoreChronoscopeCard.vue`: disabled when exactly 1 card; `@click.stop` picks a different random card from `loreForBook(bookId)` (never the current one when >1 exist); must NOT navigate.
+- [X] T0XX [US3] Card-body click handler in `LoreChronoscopeCard.vue`: navigates to `/lexicon?bookId=<bookId>&tab=lore` via `router.push` (FR-023).
+- [X] T0XX [US3] Integrate `<LoreChronoscopeCard :book-id="bookId" />` in `src/pages/BookDetailPage.vue` between the Progress section and the Recap section (per ui-contracts.md § 8).
+- [X] T0XX [US3] Verify return-navigation instant render (SC-005): card must mount within 100 ms when cache is fresh. Validate via DevTools perf trace during Smoke 15.
 
 **Checkpoint**: Discovery surface is live. Smokes 10, 15 pass.
 
@@ -113,12 +113,12 @@
 
 ### Implementation for User Story 4
 
-- [ ] T031 [US4] Confirm toast fires inside `maybeUnlockForMilestone` (added in T015) with `{severity: 'success', summary: 'New Lore Unlocked', detail: book.title, life: 4000}` — only on successful insert, never on error/duplicate/no-recap branches (FR-025, ui-contracts.md § 6).
-- [ ] T032 [US4] Implement `markBookLoreSeen(bookId)` action in `src/stores/loreCards.ts` per lore-api.md § markBookLoreSeen: short-circuit if no unseen cards; `UPDATE lore_cards SET seen = TRUE WHERE book_id = ? AND seen = FALSE` (RLS handles `user_id`); on success mutate local `c.seen = true` for those rows; `swrTouch` both keys (FR-027, FR-028).
-- [ ] T033 [US4] Call `loreCardsStore.markBookLoreSeen(bookId)` inside `onMounted` of `src/pages/BookDetailPage.vue` (idempotent — safe on every mount).
-- [ ] T034 [P] [US4] Add "New Lore" chip overlay to `src/components/library/BookCard.vue`: top-right sparkle chip bound to `loreCardsStore.hasUnseenLore(book.id)`; clicking chip does `stopPropagation` + navigates to Book Detail Page; disappears reactively when `markBookLoreSeen` flips state (FR-026, ui-contracts.md § 5).
-- [ ] T035 [US4] Ensure `fetchLoreForAllBooks` is called on Library page mount (or reused from cache) so `hasUnseenLore` is computable for every visible book card. If not already fetched elsewhere, add a cheap SWR call on `LibraryPage.vue` mount.
-- [ ] T036 [US4] Verify book-deletion cascade (FR-032): confirm the existing delete-book flow does not require changes because DB FK `ON DELETE CASCADE` handles `lore_cards` automatically. Smoke 14 validates.
+- [X] T0XX [US4] Confirm toast fires inside `maybeUnlockForMilestone` (added in T015) with `{severity: 'success', summary: 'New Lore Unlocked', detail: book.title, life: 4000}` — only on successful insert, never on error/duplicate/no-recap branches (FR-025, ui-contracts.md § 6).
+- [X] T0XX [US4] Implement `markBookLoreSeen(bookId)` action in `src/stores/loreCards.ts` per lore-api.md § markBookLoreSeen: short-circuit if no unseen cards; `UPDATE lore_cards SET seen = TRUE WHERE book_id = ? AND seen = FALSE` (RLS handles `user_id`); on success mutate local `c.seen = true` for those rows; `swrTouch` both keys (FR-027, FR-028).
+- [X] T0XX [US4] Call `loreCardsStore.markBookLoreSeen(bookId)` inside `onMounted` of `src/pages/BookDetailPage.vue` (idempotent — safe on every mount).
+- [X] T0XX [P] [US4] Add "New Lore" chip overlay to `src/components/library/BookCard.vue`: top-right sparkle chip bound to `loreCardsStore.hasUnseenLore(book.id)`; clicking chip does `stopPropagation` + navigates to Book Detail Page; disappears reactively when `markBookLoreSeen` flips state (FR-026, ui-contracts.md § 5).
+- [X] T0XX [US4] Ensure `fetchLoreForAllBooks` is called on Library page mount (or reused from cache) so `hasUnseenLore` is computable for every visible book card. If not already fetched elsewhere, add a cheap SWR call on `LibraryPage.vue` mount.
+- [X] T0XX [US4] Verify book-deletion cascade (FR-032): confirm the existing delete-book flow does not require changes because DB FK `ON DELETE CASCADE` handles `lore_cards` automatically. Smoke 14 validates.
 
 **Checkpoint**: Full discovery loop complete. Smokes 11, 12, 13, 14 pass. All four user stories shipped.
 
@@ -126,12 +126,12 @@
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T037 [P] Run `npx vitest run tests/unit/masterRecap.spec.ts tests/unit/milestoneDetect.spec.ts` — must be zero failures (quickstart.md § Unit test targets).
-- [ ] T038 [P] Execute full quickstart.md smoke playbook (Smokes 1–15) and tick off in a checklist; file any regressions immediately.
-- [ ] T039 [P] Verify regression checklist: feature 006 smokes still pass; `generate-recap` edge function untouched; `rg "useCache|swr\(|mutate\(|invalidate\(" src/stores/recaps.ts` confirms streaming paths unchanged.
+- [X] T0XX [P] Run `npx vitest run tests/unit/masterRecap.spec.ts tests/unit/milestoneDetect.spec.ts` — must be zero failures (quickstart.md § Unit test targets).
+- [X] T0XX [P] Execute full quickstart.md smoke playbook (Smokes 1–15) and tick off in a checklist; file any regressions immediately.
+- [X] T0XX [P] Verify regression checklist: feature 006 smokes still pass; `generate-recap` edge function untouched; `rg "useCache|swr\(|mutate\(|invalidate\(" src/stores/recaps.ts` confirms streaming paths unchanged.
 - [ ] T040 Check bundle-size delta: `npm run build` then confirm gzipped `dist/assets/*.js` delta < 10 KB vs. baseline (constitution gate).
 - [ ] T041 Run Lighthouse PWA audit — score must be ≥ 90 (constitution gate V).
-- [ ] T042 [P] Grep audit for FR-009 (AI only called from edge function): `rg "gemini|generativeai" src/` must yield zero hits — AI exclusion holds.
+- [X] T042 [P] Grep audit for FR-009 (AI only called from edge function): `rg "gemini|generativeai" src/` must yield zero hits — AI exclusion holds.
 
 ---
 

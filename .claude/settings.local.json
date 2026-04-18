@@ -126,7 +126,9 @@
       "Bash(powershell -Command \"Get-Command supabase -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
       "Bash(pwsh -NoProfile -Command \".specify/scripts/powershell/check-prerequisites.ps1 -Json\")",
       "Bash(powershell.exe -NoProfile -Command \"& '.specify/scripts/powershell/check-prerequisites.ps1' -Json\")",
-      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"& '.specify/scripts/powershell/check-prerequisites.ps1' -Json\")"
+      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"& '.specify/scripts/powershell/check-prerequisites.ps1' -Json\")",
+      "mcp__4c7c02b6-653b-457c-b08b-d3a1461ae2c2__list_migrations",
+      "mcp__supabase__deploy_edge_function"
     ]
   }
 }

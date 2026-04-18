@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import type { Book } from '@/types'
 import { useProgressStore } from '@/stores/progress'
 import { useBooksStore } from '@/stores/books'
+import { useLoreCardsStore } from '@/stores/loreCards'
 import { useConfirm } from 'primevue/useconfirm'
 import { useReadingPulse } from '@/composables/useReadingPulse'
 import Button from 'primevue/button'
@@ -17,9 +18,11 @@ const props = defineProps<{
 const router = useRouter()
 const progressStore = useProgressStore()
 const booksStore = useBooksStore()
+const loreStore = useLoreCardsStore()
 const confirm = useConfirm()
 
 const percentage = computed(() => progressStore.percentageForBook(props.book.id))
+const hasNewLore  = computed(() => loreStore.hasUnseenLore(props.book.id))
 
 const initials = computed(() =>
   props.book.title
@@ -35,6 +38,13 @@ const coverFallback = (e: Event) => {
 }
 
 const navigate = () => router.push({ name: 'book-detail', params: { id: props.book.id } })
+
+// "New Lore" chip tap — stopPropagation, then navigate to book detail
+// (markBookLoreSeen fires on BookDetailPage mount, clearing the chip)
+const onNewLoreChip = (e: Event) => {
+  e.stopPropagation()
+  navigate()
+}
 
 // Overflow menu
 const menu = ref()
@@ -78,6 +88,17 @@ const streak = pulse.streak
   <BookEditDialog v-if="editVisible" :book="book" :visible="editVisible" @update:visible="editVisible = $event" @close="editVisible = false" />
 
   <article class="book-card glass-surface" role="button" tabindex="0" @click="navigate" @keydown.enter="navigate">
+    <!-- "New Lore" chip (FR-026, FR-027) -->
+    <button
+      v-if="hasNewLore"
+      class="book-card__new-lore-chip"
+      aria-label="New lore unlocked — tap to view"
+      @click="onNewLoreChip"
+    >
+      <i class="pi pi-sparkles" />
+      New Lore
+    </button>
+
     <!-- Overflow menu button -->
     <Menu ref="menu" :model="menuItems" popup />
     <Button
@@ -264,5 +285,38 @@ const streak = pulse.streak
   font-weight: 600;
   margin-top: 0.3rem;
   opacity: 0.8;
+}
+
+/* ── New Lore chip (FR-026) ───────────────────────────────────────────────── */
+
+.book-card__new-lore-chip {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem 0.25rem 0.45rem;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.85), rgba(167, 139, 250, 0.85));
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.book-card__new-lore-chip:hover {
+  opacity: 0.9;
+  transform: scale(1.04);
+}
+
+.book-card__new-lore-chip .pi {
+  font-size: 0.65rem;
 }
 </style>

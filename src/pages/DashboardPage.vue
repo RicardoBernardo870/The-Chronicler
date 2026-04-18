@@ -7,6 +7,7 @@ import { useUpNextStore } from '@/stores/upNext'
 import { useLexiconStore } from '@/stores/lexicon'
 import { useAuthStore } from '@/stores/auth'
 import { useReadingPulse } from '@/composables/useReadingPulse'
+import { useLoreCardsStore } from '@/stores/loreCards'
 import Button from 'primevue/button'
 import ProgressBar from 'primevue/progressbar'
 import InputNumber from 'primevue/inputnumber'
@@ -21,6 +22,7 @@ const progressStore = useProgressStore()
 const upNextStore = useUpNextStore()
 const lexiconStore = useLexiconStore()
 const authStore = useAuthStore()
+const loreStore = useLoreCardsStore()
 
 const loading = ref(true)
 const pageInput = ref<number>(0)
@@ -37,6 +39,8 @@ onMounted(async () => {
     await lexiconStore.fetchEntriesForAllBooks()
     // Seed the per-day Word of the Day selection
     if (authStore.user) lexiconStore.resolveWordOfTheDay(authStore.user.id)
+    // Fetch lore so chips are reactive on all visible book cards
+    loreStore.fetchLoreForAllBooks().catch(() => {})
     // Load reading pulse for hero card
     if (currentBook.value) heroPulse.value?.fetchHistory()
     if (currentBook.value) {
@@ -155,6 +159,17 @@ const coverFallback = (e: Event) => {
     <template v-else>
       <!-- Hero: current in-progress book -->
       <article v-if="currentBook" class="dashboard__current glass-surface" :class="{ 'dashboard__current--warning': heroWarning }">
+        <!-- New Lore chip -->
+        <button
+          v-if="loreStore.hasUnseenLore(currentBook.id)"
+          class="dashboard__new-lore-chip"
+          aria-label="New lore unlocked — tap to view"
+          @click.stop="router.push({ name: 'book-detail', params: { id: currentBook.id } })"
+        >
+          <i class="pi pi-sparkles" />
+          New Lore
+        </button>
+
         <div class="dashboard__hero">
           <div class="dashboard__cover-wrap">
             <img
@@ -177,6 +192,7 @@ const coverFallback = (e: Event) => {
             <div class="dashboard__progress-row">
               <ProgressBar
                 :value="currentProgress?.percentage ?? 0"
+                :show-value="false"
                 class="dashboard__progress-bar"
               />
               <span class="dashboard__pct">{{ (currentProgress?.percentage ?? 0).toFixed(1) }}%</span>
@@ -254,6 +270,15 @@ const coverFallback = (e: Event) => {
             class="dashboard__book-item glass-subtle"
             @click="router.push({ name: 'book-detail', params: { id: item.book.id } })"
           >
+            <button
+              v-if="loreStore.hasUnseenLore(item.book.id)"
+              class="dashboard__new-lore-chip dashboard__new-lore-chip--sm"
+              aria-label="New lore unlocked — tap to view"
+              @click.stop="router.push({ name: 'book-detail', params: { id: item.book.id } })"
+            >
+              <i class="pi pi-sparkles" />
+              New Lore
+            </button>
             <img
               v-if="item.book.coverUrl"
               :src="item.book.coverUrl"
@@ -268,7 +293,7 @@ const coverFallback = (e: Event) => {
               <span class="dashboard__book-title">{{ item.book.title }}</span>
               <span class="dashboard__book-author">{{ item.book.author }}</span>
               <div class="dashboard__book-progress-row">
-                <ProgressBar :value="item.progress.percentage" class="dashboard__book-bar" />
+                <ProgressBar :value="item.progress.percentage" :show-value="false" class="dashboard__book-bar" />
                 <span class="dashboard__book-pct">{{ item.progress.percentage.toFixed(0) }}%</span>
               </div>
             </div>
@@ -377,6 +402,7 @@ const coverFallback = (e: Event) => {
 
 /* ── Hero card ────────────────────────────────────────────────── */
 .dashboard__current {
+  position: relative;
   border-radius: var(--p-border-radius-xl, 16px);
   padding: 1.5rem;
   display: flex;
@@ -491,6 +517,7 @@ const coverFallback = (e: Event) => {
 }
 
 .dashboard__book-item {
+  position: relative;
   display: flex; align-items: center; gap: 0.875rem;
   padding: 0.75rem; border-radius: 12px; cursor: pointer;
   transition: opacity 0.15s ease;
@@ -548,6 +575,43 @@ const coverFallback = (e: Event) => {
   user-select: none;
 }
 .up-next__handle:active { cursor: grabbing; }
+
+/* ── New Lore chip ────────────────────────────────────────────── */
+.dashboard__new-lore-chip {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem 0.25rem 0.45rem;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.85), rgba(167, 139, 250, 0.85));
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+  transition: opacity 0.15s, transform 0.15s;
+}
+.dashboard__new-lore-chip:hover {
+  opacity: 0.9;
+  transform: scale(1.04);
+}
+.dashboard__new-lore-chip .pi {
+  font-size: 0.65rem;
+}
+/* Smaller variant for list items */
+.dashboard__new-lore-chip--sm {
+  top: 0.4rem;
+  right: 0.4rem;
+  font-size: 0.6rem;
+  padding: 0.2rem 0.45rem 0.2rem 0.35rem;
+}
 
 /* Overflow hint */
 .dashboard__overflow-hint {

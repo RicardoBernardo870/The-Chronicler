@@ -6,6 +6,8 @@ import { useBooksStore } from '@/stores/books'
 import { useAuthStore } from '@/stores/auth'
 import { useOfflineSync } from '@/composables/useOfflineSync'
 import { useBookPassportStore } from '@/stores/bookPassport'
+import { useLoreCardsStore } from '@/stores/loreCards'
+import { detectCrossedMilestone } from '@/utils/milestoneDetect'
 import {
   swrStatus,
   swrRun,
@@ -154,6 +156,15 @@ export const useProgressStore = defineStore('progress', () => {
               passportStore.generatePassport(bookId, book.title, book.author, book.totalPages, book.isbn)
             }
           })
+        }
+
+        // Fire-and-forget: check if a lore milestone was crossed (FR-001, FR-009, FR-010).
+        // Runs after server-confirmed save only — rollback path below never reaches this.
+        const crossedMilestone = detectCrossedMilestone(prevPct, newPct)
+        if (crossedMilestone !== null) {
+          const loreStore = useLoreCardsStore()
+          loreStore.maybeUnlockForMilestone(bookId, crossedMilestone, currentPage)
+            .catch(() => { /* maybeUnlockForMilestone already swallows all errors */ })
         }
       } catch (e) {
         // T019: rollback optimistic update on server error

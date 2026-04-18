@@ -288,3 +288,51 @@ export const mapBookPassport = (row: BookPassportRow): BookPassport => ({
   aiSummary: row.ai_summary,
   generatedAt: row.generated_at,
 })
+
+// ─────────────────────────────────────────────────────────────
+// Lore Chronoscope (007)
+// ─────────────────────────────────────────────────────────────
+
+export type LoreType = 'History' | 'Culture' | 'Geography' | 'Technology' | 'Lore'
+
+export interface LoreCardRow {
+  id: string
+  user_id: string
+  book_id: string
+  title: string
+  content: string
+  type: LoreType
+  linked_entities: string[]
+  unlocked_at_page: number
+  unlocked_at_milestone: number
+  seen: boolean
+  created_at: string
+}
+
+export interface LoreCard {
+  id: string
+  userId: string
+  bookId: string
+  title: string
+  content: string
+  type: LoreType
+  linkedEntities: string[]
+  unlockedAtPage: number
+  unlockedAtMilestone: number
+  seen: boolean
+  createdAt: string
+}
+
+export const mapLoreCard = (row: LoreCardRow): LoreCard => ({
+  id: row.id,
+  userId: row.user_id,
+  bookId: row.book_id,
+  title: row.title,
+  content: row.content,
+  type: row.type,
+  linkedEntities: row.linked_entities ?? [],
+  unlockedAtPage: row.unlocked_at_page,
+  unlockedAtMilestone: row.unlocked_at_milestone,
+  seen: row.seen,
+  createdAt: row.created_at,
+})

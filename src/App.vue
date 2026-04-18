@@ -2,6 +2,7 @@
   <LoadingSpinner v-if="initializing" full-page label="Loading..." />
   <RouterView v-else />
   <ConfirmDialog />
+  <Toast position="bottom-center" :pt="{ root: { style: 'margin-bottom: var(--app-nav-bottom-clearance, 4rem)' } }" />
 </template>
 
 <script setup lang="ts">
@@ -10,6 +11,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useProgressStore } from '@/stores/progress'
 import LoadingSpinner from '@/components/shared/LoadingSpinner.vue'
 import ConfirmDialog from 'primevue/confirmdialog'
+import Toast from 'primevue/toast'
 
 const authStore = useAuthStore()
 const progressStore = useProgressStore()

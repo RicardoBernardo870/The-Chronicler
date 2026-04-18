@@ -70,7 +70,7 @@ const handleAddBook = () => {
     </RouterLink>
     <RouterLink to="/lexicon" class="app-bottom-nav__item" :class="{ active: isLexicon }">
       <i class="pi pi-language" />
-      <span class="app-bottom-nav__label">Lexicon</span>
+      <span class="app-bottom-nav__label">Great Library</span>
     </RouterLink>
     <button
       class="app-bottom-nav__item"

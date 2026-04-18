@@ -40,7 +40,7 @@ const router = createRouter({
         {
           path: 'lexicon',
           name: 'lexicon',
-          component: () => import('@/pages/LexiconPage.vue'),
+          component: () => import('@/pages/GreatLibraryPage.vue'),
         },
         {
           path: 'books/:id/passport',
