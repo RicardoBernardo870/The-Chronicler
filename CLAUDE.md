@@ -1,6 +1,6 @@
 ﻿# BookHero Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-18
+Auto-generated from all feature plans. Last updated: 2026-04-19
 
 ## Active Technologies
 - TypeScript 6 + Vue 3.5+ + PrimeVue 4 (Accordion component), Pinia 3, Supabase JS v2, Vue Router 4 (master)
@@ -16,6 +16,7 @@ Auto-generated from all feature plans. Last updated: 2026-04-18
 - TypeScript 6 + Vue 3.5 (Composition API) + PrimeVue 4 (Tabs, Toast, Chip), Pinia 3, Supabase JS v2, Vue Router 4 (006-swr-data-caching)
 - Client-side SWR cache primitive (`src/composables/useCache.ts`); module-singleton `Map<key,CacheEntry>`; auth-clear on user change (006-swr-data-caching)
 - TypeScript 6 + Deno (edge function: `generate-lore`) + Gemini 2.5 Flash (AI); new Supabase table `lore_cards` (007-lore-chronoscope)
+- TypeScript + Deno (edge function: `generate-recap` refactor) + Gemini 2.5 Flash; multi-module layout (prompts/, handlers/, extraction/, utils/); confidence-based retry for mid-book Recap only (008-recap-hardening)
 
 - TypeScript 5.x + Vue 3.5+ + PrimeVue 4.x, Pinia 2.x, Vue Router 4.x, Supabase JS v2, (001-the-chronicler)
 
@@ -36,6 +37,7 @@ npm test; npm run lint
 TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 ## Recent Changes
+- 008-recap-hardening: Refactored `generate-recap` edge function into multi-file modules (prompts/, handlers/, extraction/, utils/); replaced extractor + recap prompts with stricter anti-spoiler variants; added confidence-based retry (max 2 attempts, 5-page buffer) for mid-book Recap mode only — Book Blurb and Passport Summary relocated without behavioral changes
 - 007-lore-chronoscope: Added new edge function `generate-lore`, new Supabase table `lore_cards`, new Pinia store `loreCards.ts`, renamed Lexicon nav label → "Great Library" with tabs (Lexicon + Lore Cards)
 - 006-swr-data-caching: Added client-side SWR primitive (`useCache.ts`), auth-lifecycle cache-clear, visibility-focus revalidation, optimistic updates with rollback for progress/lexicon
 - 005-lexicon-nav-ux: Added TypeScript 6.x + Vue 3.5 (Composition API) + Pinia 3, Vue Router 4, Supabase JS v2, PrimeVue 4

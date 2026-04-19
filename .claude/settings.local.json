@@ -131,7 +131,12 @@
       "mcp__supabase__deploy_edge_function",
       "mcp__supabase__get_logs",
       "Bash(node -e \"const fs = require\\('fs'\\); const s = fs.readFileSync\\('C:/Users/ricar_nf02dr4/Desktop/BookHero/BookHero/supabase/functions/generate-lore/index.ts', 'utf8'\\); const payload = [{name:'index.ts', content: s}]; fs.writeFileSync\\('C:/Users/ricar_nf02dr4/AppData/Local/Temp/lore-payload.json', JSON.stringify\\(payload\\)\\);\")",
-      "Bash(node -e \"const fs = require\\('fs'\\); const p = fs.readFileSync\\('C:/Users/ricar_nf02dr4/AppData/Local/Temp/lore-payload.json', 'utf8'\\); console.log\\('payload length:', p.length, 'first 100:', p.slice\\(0,100\\)\\);\")"
+      "Bash(node -e \"const fs = require\\('fs'\\); const p = fs.readFileSync\\('C:/Users/ricar_nf02dr4/AppData/Local/Temp/lore-payload.json', 'utf8'\\); console.log\\('payload length:', p.length, 'first 100:', p.slice\\(0,100\\)\\);\")",
+      "Bash(pwsh -NoProfile -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly)",
+      "Bash(deno check *)",
+      "Bash(node -e ' *)",
+      "Bash(node fix-tasks.mjs)",
+      "WebFetch(domain:googleapis.github.io)"
     ]
   }
 }
