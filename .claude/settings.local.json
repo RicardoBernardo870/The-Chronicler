@@ -138,7 +138,11 @@
       "Bash(node fix-tasks.mjs)",
       "WebFetch(domain:googleapis.github.io)",
       "Bash(powershell -Command \"Select-String -Path 'C:/Users/ricar_nf02dr4/Desktop/BookHero/BookHero/src/pages/DashboardPage.vue' -Pattern '<style scoped>' | Select-Object LineNumber\")",
-      "Bash(powershell -Command \"Select-String -Path 'C:/Users/ricar_nf02dr4/Desktop/BookHero/BookHero/src/pages/DashboardPage.vue' -Pattern '</style>' | Select-Object LineNumber\")"
+      "Bash(powershell -Command \"Select-String -Path 'C:/Users/ricar_nf02dr4/Desktop/BookHero/BookHero/src/pages/DashboardPage.vue' -Pattern '</style>' | Select-Object LineNumber\")",
+      "Bash(powershell.exe -NoProfile -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly)",
+      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly)",
+      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File .specify/scripts/powershell/setup-plan.ps1 -Json)",
+      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File .specify/scripts/powershell/update-agent-context.ps1 -AgentType claude)"
     ]
   }
 }

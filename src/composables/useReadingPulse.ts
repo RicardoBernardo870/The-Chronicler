@@ -44,7 +44,8 @@ export const useReadingPulse = (bookId: string) => {
         // Close previous session if it had meaningful duration
         const dur = (new Date(sessionPrev.recordedAt).getTime() - new Date(sessionStart.recordedAt).getTime()) / MS_PER_HOUR
         const pages = sessionPrev.page - sessionStart.page
-        if (dur > 0 && pages > 0) result.push({ pages, durationHours: dur })
+        // Minimum 60 seconds (1/60 hours) required — guards against near-zero denominators
+        if (dur >= 1 / 60 && pages > 0) result.push({ pages, durationHours: dur })
         sessionStart = curr
       }
       sessionPrev = curr
@@ -52,16 +53,19 @@ export const useReadingPulse = (bookId: string) => {
 
     // Close final open session
     const dur = (new Date(sessionPrev.recordedAt).getTime() - new Date(sessionStart.recordedAt).getTime()) / MS_PER_HOUR
+
     const pages = sessionPrev.page - sessionStart.page
-    if (dur > 0 && pages > 0) result.push({ pages, durationHours: dur })
+    // Minimum 60 seconds (1/60 hours) required — guards against near-zero denominators
+    if (dur >= 1 / 60 && pages > 0) result.push({ pages, durationHours: dur })
 
     return result
   })
 
-  // Average PPH of last 3 sessions, excluding outliers
+  // Average PPH of last 3 sessions, excluding outliers.
+  // Requires at least 1 qualifying session (was previously 2 — too strict for new users).
   const velocity = computed((): number | null => {
     const s = sessions.value
-    if (s.length < 2) return null
+    if (s.length < 1) return null
     const last3 = s.slice(-3)
     const pphs = last3
       .map(s => s.pages / s.durationHours)

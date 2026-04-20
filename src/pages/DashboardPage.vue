@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
@@ -7,10 +7,12 @@ import { useUpNextStore } from '@/stores/upNext'
 import { useLexiconStore } from '@/stores/lexicon'
 import { useAuthStore } from '@/stores/auth'
 import { useReadingPulse } from '@/composables/useReadingPulse'
+import { useActiveBook } from '@/composables/useActiveBook'
 import { useLoreCardsStore } from '@/stores/loreCards'
 import { useRecapsStore } from '@/stores/recaps'
 import { useRecapLock } from '@/composables/useRecapLock'
 import RecapStream from '@/components/recap/RecapStream.vue'
+import LastSessionCard from '@/components/dashboard/LastSessionCard.vue'
 import Button from 'primevue/button'
 import ProgressBar from 'primevue/progressbar'
 import InputNumber from 'primevue/inputnumber'
@@ -28,6 +30,17 @@ const authStore = useAuthStore()
 const loreStore = useLoreCardsStore()
 const recapsStore = useRecapsStore()
 
+// ── Active hero book (US1, US2, 011-dashboard-state-refactor) ────────────────
+const { activeBookId, activeBook, upNext: inProgressUpNext, setActive, onBookCompleted, initializeIfNeeded } = useActiveBook()
+
+// currentBook alias for readability in the template
+const currentBook = activeBook
+
+// ── Progress — always derived from activeBookId, never from a stale local ref ─
+const currentProgress = computed(() =>
+  activeBookId.value ? progressStore.progressForBook(activeBookId.value) : null
+)
+
 const loading = ref(true)
 const pageInput = ref<number>(0)
 const saving = ref(false)
@@ -40,7 +53,7 @@ const recapAbortController = ref<AbortController | null>(null)
 
 // ── Recap lock (shared composable, FR-013) ───────────────────────────────────
 const { recapLocked, pagesUntilUnlock } = useRecapLock(
-  computed(() => currentBook.value?.id ?? ''),
+  computed(() => activeBookId.value ?? ''),
 )
 
 // ── Recap handlers ────────────────────────────────────────────────────────────
@@ -64,6 +77,52 @@ onUnmounted(() => {
   if (recapTriggered.value) handleRecapDismiss()
 })
 
+// ── Watch hero bookId changes — reset local state + abort in-flight recap ────
+// Uses onCleanup form so any pending abort fires before the next effect (FR-010)
+watch(activeBookId, (newId, _oldId, onCleanup) => {
+  // Abort any in-flight recap stream when the hero changes
+  const ctrl = recapAbortController.value
+  onCleanup(() => { ctrl?.abort() })
+
+  if (newId) {
+    // Reset UI inputs to the new book's current progress
+    pageInput.value = progressStore.progressForBook(newId)?.currentPage ?? 0
+    // Dismiss any open recap panel for the old book
+    if (recapTriggered.value) {
+      recapTriggered.value = false
+      recapsStore.resetStatus()
+    }
+    // Reload pulse history for new hero
+    nextHeroPulse(newId)
+    // Hydrate recap history for lock state
+    recapsStore.fetchRecapsForBook(newId).catch(() => {})
+  }
+})
+
+// ── Reading pulse for hero continuity warning ─────────────────────────────────
+// Keep a pulse instance per bookId; refresh fetchHistory when hero changes.
+let _pulseBookId: string | null = null
+let _pulse: ReturnType<typeof useReadingPulse> | null = null
+
+const nextHeroPulse = (bookId: string) => {
+  if (_pulseBookId !== bookId) {
+    _pulseBookId = bookId
+    _pulse = useReadingPulse(bookId)
+  }
+  _pulse?.fetchHistory()
+}
+
+const heroPulse = computed(() => {
+  if (!activeBookId.value) return null
+  if (_pulseBookId !== activeBookId.value) {
+    _pulseBookId = activeBookId.value
+    _pulse = useReadingPulse(activeBookId.value)
+  }
+  return _pulse
+})
+
+const heroWarning = computed(() => (heroPulse.value?.continuityScore.value ?? 100) < 40)
+
 onMounted(async () => {
   try {
     await booksStore.fetchLibrary()
@@ -75,44 +134,28 @@ onMounted(async () => {
     if (authStore.user) lexiconStore.resolveWordOfTheDay(authStore.user.id)
     // Fetch lore so chips are reactive on all visible book cards
     loreStore.fetchLoreForAllBooks().catch(() => {})
+
+    // ── Initialize hero after stores are hydrated ──
+    initializeIfNeeded()
+
     // Hydrate recap history so recap lock state is accurate on mount
-    if (currentBook.value) recapsStore.fetchRecapsForBook(currentBook.value.id).catch(() => {})
+    if (activeBookId.value) recapsStore.fetchRecapsForBook(activeBookId.value).catch(() => {})
     // Load reading pulse for hero card
-    if (currentBook.value) heroPulse.value?.fetchHistory()
-    if (currentBook.value) {
-      pageInput.value = progressStore.progressForBook(currentBook.value.id)?.currentPage ?? 0
+    if (activeBookId.value) nextHeroPulse(activeBookId.value)
+    // Seed page input from hero's current progress
+    if (activeBookId.value) {
+      pageInput.value = progressStore.progressForBook(activeBookId.value)?.currentPage ?? 0
     }
   } finally {
     loading.value = false
   }
 })
 
-// Hero card: most recently updated in-progress book (< 100%).
-// Falls back to most recently updated book of any % if none are in-progress.
-const currentBook = computed(() => {
-  const allProgress = Object.values(progressStore.progress)
-  if (allProgress.length === 0) return null
-  const inProgress = allProgress.filter(p => p.percentage < 100)
-  const source = inProgress.length > 0 ? inProgress : []
-  if (source.length === 0) return null
-  const latest = [...source].sort((a, b) =>
-    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  )[0]
-  return booksStore.bookById(latest.bookId) ?? null
-})
+// ── In Progress Others (swap candidates) ─────────────────────────────────────
+// inProgressUpNext from useActiveBook = in-progress books excluding the hero.
+// T021: shown only when there are items; otherwise section is hidden.
 
-const currentProgress = computed(() =>
-  currentBook.value ? progressStore.progressForBook(currentBook.value.id) : null
-)
-
-// In-progress list: all books between 0–99%, excluding the hero card book
-const inProgressOthers = computed(() =>
-  progressStore.inProgressBooks.filter(
-    item => item.book.id !== currentBook.value?.id
-  )
-)
-
-// Up Next: 0%-progress books sorted by up-next order
+// ── Up Next section (0%-progress books, drag-to-reorder — unchanged) ─────────
 const upNextBooks = computed(() => {
   const zeroBooks = booksStore.books.filter(b => progressStore.percentageForBook(b.id) === 0)
   const orderedIds = upNextStore.sortedBookIds()
@@ -136,12 +179,6 @@ const completedOverflow = computed(() => Math.max(0, progressStore.completedBook
 
 const pendingSync = computed(() => progressStore.pendingSync)
 
-// Reading Pulse for hero card continuity warning
-const heroPulse = computed(() =>
-  currentBook.value ? useReadingPulse(currentBook.value.id) : null
-)
-const heroWarning = computed(() => (heroPulse.value?.continuityScore.value ?? 100) < 40)
-
 const hasAnyBooks = computed(() => booksStore.books.length > 0)
 
 const saveProgress = async () => {
@@ -151,9 +188,19 @@ const saveProgress = async () => {
   saveError.value = null
   justSaved.value = false
   try {
-    await progressStore.updateProgress(currentBook.value.id, page)
+    const heroId = currentBook.value.id
+    const prevPct = progressStore.progressForBook(heroId)?.percentage ?? 0
+    await progressStore.updateProgress(heroId, page)
     justSaved.value = true
     setTimeout(() => { justSaved.value = false }, 2000)
+
+    // Trigger hero promotion if current book was just completed (FR-005)
+    const newPct = currentBook.value.totalPages > 0
+      ? (page / currentBook.value.totalPages) * 100
+      : 0
+    if (newPct >= 100 && prevPct < 100) {
+      onBookCompleted(heroId)
+    }
   } catch (e: unknown) {
     saveError.value = e instanceof Error ? e.message : 'Failed to save'
   } finally {
@@ -193,7 +240,7 @@ const coverFallback = (e: Event) => {
     </EmptyState>
 
     <template v-else>
-      <!-- Hero: current in-progress book -->
+      <!-- Hero: currently-active book (useActiveBook) -->
       <article v-if="currentBook" class="dashboard__current glass-surface" :class="{ 'dashboard__current--warning': heroWarning }">
         <!-- New Lore chip -->
         <button
@@ -290,6 +337,7 @@ const coverFallback = (e: Event) => {
             :disabled="recapTriggered"
             @click="handleGetRecap"
           />
+          <!-- View Book: only navigation path to BookDetailsPage (FR-004) -->
           <Button
             label="View Book"
             icon="pi pi-book"
@@ -315,34 +363,41 @@ const coverFallback = (e: Event) => {
         <RecapStream :bookId="currentBook!.id" />
       </div>
 
+      <!-- Last Session Card (US4, 011-dashboard-state-refactor) -->
+      <LastSessionCard />
+
       <!-- Word of the Day -->
       <WordOfTheDay />
 
-      <!-- In Progress list (all other in-progress books) -->
-      <section v-if="inProgressOthers.length > 0" class="dashboard__section glass-surface">
+      <!-- In Progress section — other in-progress books, swap-capable (US2) -->
+      <section v-if="inProgressUpNext.length > 0" class="dashboard__section glass-surface">
         <h3 class="dashboard__section-title">
           <i class="pi pi-book-open" /> In Progress
         </h3>
         <ul class="dashboard__book-list">
           <li
-            v-for="item in inProgressOthers"
-            :key="item.book.id"
+            v-for="book in inProgressUpNext"
+            :key="book.id"
             class="dashboard__book-item glass-subtle"
-            @click="router.push({ name: 'book-detail', params: { id: item.book.id } })"
+            role="button"
+            tabindex="0"
+            :aria-label="`Switch to ${book.title}`"
+            @click="setActive(book.id)"
+            @keydown.enter="setActive(book.id)"
           >
             <button
-              v-if="loreStore.hasUnseenLore(item.book.id)"
+              v-if="loreStore.hasUnseenLore(book.id)"
               class="dashboard__new-lore-chip dashboard__new-lore-chip--sm"
               aria-label="New lore unlocked — tap to view"
-              @click.stop="router.push({ name: 'book-detail', params: { id: item.book.id } })"
+              @click.stop="router.push({ name: 'book-detail', params: { id: book.id } })"
             >
               <i class="pi pi-sparkles" />
               New Lore
             </button>
             <img
-              v-if="item.book.coverUrl"
-              :src="item.book.coverUrl"
-              :alt="item.book.title"
+              v-if="book.coverUrl"
+              :src="book.coverUrl"
+              :alt="book.title"
               class="dashboard__book-thumb"
               @error="coverFallback"
             />
@@ -350,18 +405,22 @@ const coverFallback = (e: Event) => {
               <i class="pi pi-book" style="font-size: 1rem; opacity: 0.35" />
             </div>
             <div class="dashboard__book-info">
-              <span class="dashboard__book-title">{{ item.book.title }}</span>
-              <span class="dashboard__book-author">{{ item.book.author }}</span>
+              <span class="dashboard__book-title">{{ book.title }}</span>
+              <span class="dashboard__book-author">{{ book.author }}</span>
               <div class="dashboard__book-progress-row">
-                <ProgressBar :value="item.progress.percentage" :show-value="false" class="dashboard__book-bar" />
-                <span class="dashboard__book-pct">{{ item.progress.percentage.toFixed(0) }}%</span>
+                <ProgressBar
+                  :value="progressStore.percentageForBook(book.id)"
+                  :show-value="false"
+                  class="dashboard__book-bar"
+                />
+                <span class="dashboard__book-pct">{{ progressStore.percentageForBook(book.id).toFixed(0) }}%</span>
               </div>
             </div>
           </li>
         </ul>
       </section>
 
-      <!-- Up Next section -->
+      <!-- Up Next section (0%-progress books, drag-to-reorder — unchanged) -->
       <section v-if="upNextBooks.length > 0" class="dashboard__section glass-surface">
         <h3 class="dashboard__section-title">
           <i class="pi pi-clock" /> Up Next
@@ -377,7 +436,8 @@ const coverFallback = (e: Event) => {
           <template #item="{ element: book }">
             <li
               class="dashboard__book-item glass-subtle up-next__item"
-              @click="router.push({ name: 'book-detail', params: { id: book.id } })"
+              @click="setActive(book.id)"
+              @keydown.enter="setActive(book.id)"
             >
               <span class="up-next__handle" @click.stop title="Drag to reorder">⠿</span>
               <img

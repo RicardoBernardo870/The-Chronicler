@@ -1,125 +1,150 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useBooksStore } from '@/stores/books'
-import { useProgressStore } from '@/stores/progress'
-import { useRecapsStore } from '@/stores/recaps'
-import { useBookPassportStore } from '@/stores/bookPassport'
-import { useLexiconStore } from '@/stores/lexicon'
-import { useLoreCardsStore } from '@/stores/loreCards'
-import RecapStream from '@/components/recap/RecapStream.vue'
-import LoreChronoscopeCard from '@/components/lore/LoreChronoscopeCard.vue'
-import VelocityBadge from '@/components/pulse/VelocityBadge.vue'
-import AddWordDialog from '@/components/lexicon/AddWordDialog.vue'
-import Button from 'primevue/button'
-import InputNumber from 'primevue/inputnumber'
-import ProgressBar from 'primevue/progressbar'
-import Skeleton from 'primevue/skeleton'
+import { ref, computed, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useBooksStore } from "@/stores/books";
+import { useProgressStore } from "@/stores/progress";
+import { useRecapsStore } from "@/stores/recaps";
+import { useBookPassportStore } from "@/stores/bookPassport";
+import { useLexiconStore } from "@/stores/lexicon";
+import { useLoreCardsStore } from "@/stores/loreCards";
+import RecapStream from "@/components/recap/RecapStream.vue";
+import LoreChronoscopeCard from "@/components/lore/LoreChronoscopeCard.vue";
+import VelocityBadge from "@/components/pulse/VelocityBadge.vue";
+import AddWordDialog from "@/components/lexicon/AddWordDialog.vue";
+import Button from "primevue/button";
+import InputNumber from "primevue/inputnumber";
+import ProgressBar from "primevue/progressbar";
+import Skeleton from "primevue/skeleton";
 
-const route = useRoute()
-const router = useRouter()
-const booksStore = useBooksStore()
-const progressStore = useProgressStore()
-const recapsStore = useRecapsStore()
-const passportStore = useBookPassportStore()
-const lexiconStore = useLexiconStore()
-const loreStore = useLoreCardsStore()
+const route = useRoute();
+const router = useRouter();
+const booksStore = useBooksStore();
+const progressStore = useProgressStore();
+const recapsStore = useRecapsStore();
+const passportStore = useBookPassportStore();
+const lexiconStore = useLexiconStore();
+const loreStore = useLoreCardsStore();
 
-const bookId = computed(() => route.params.id as string)
-const book = computed(() => booksStore.bookById(bookId.value))
-const progress = computed(() => progressStore.progressForBook(bookId.value))
+const bookId = computed(() => route.params.id as string);
+const book = computed(() => booksStore.bookById(bookId.value));
+const progress = computed(() => progressStore.progressForBook(bookId.value));
 
-const currentPageInput = ref<number>(0)
-const progressLoading = ref(false)
-const progressError = ref<string | null>(null)
-const recapTriggered = ref(false)
-const addWordVisible = ref(false)
+const currentPageInput = ref<number>(0);
+const progressLoading = ref(false);
+const progressError = ref<string | null>(null);
+const recapTriggered = ref(false);
+const addWordVisible = ref(false);
 
-const lexiconCount = computed(() => lexiconStore.entriesByBook[bookId.value]?.length ?? 0)
+const lexiconCount = computed(
+  () => lexiconStore.entriesByBook[bookId.value]?.length ?? 0,
+);
 
 onMounted(async () => {
-  if (!book.value) await booksStore.fetchLibrary()
-  if (!progress.value) await progressStore.fetchProgress()
-  await recapsStore.fetchRecapsForBook(bookId.value)
-  if (progress.value) currentPageInput.value = progress.value.currentPage
-  await passportStore.fetchPassport(bookId.value)
-  await lexiconStore.fetchEntriesForBook(bookId.value)
+  if (!book.value) await booksStore.fetchLibrary();
+  if (!progress.value) await progressStore.fetchProgress();
+  await recapsStore.fetchRecapsForBook(bookId.value);
+  if (progress.value) currentPageInput.value = progress.value.currentPage;
+  await passportStore.fetchPassport(bookId.value);
+  await lexiconStore.fetchEntriesForBook(bookId.value);
   // Mark lore as seen — clears "New Lore" chip (FR-027, FR-028, T033)
-  await loreStore.markBookLoreSeen(bookId.value)
-})
+  await loreStore.markBookLoreSeen(bookId.value);
+});
 
 watch(progress, (p) => {
-  if (p && !progressLoading.value) currentPageInput.value = p.currentPage
-})
+  if (p && !progressLoading.value) currentPageInput.value = p.currentPage;
+});
 
-const percentage = computed(() => progress.value?.percentage ?? 0)
-const isComplete = computed(() => percentage.value >= 100)
-const isGenerating = computed(() => recapsStore.generationStatus === 'streaming')
-const recapCount = computed(() => recapsStore.recapHistoryForBook(bookId.value).length)
+const percentage = computed(() => progress.value?.percentage ?? 0);
+const isComplete = computed(() => percentage.value >= 100);
+const isGenerating = computed(
+  () => recapsStore.generationStatus === "streaming",
+);
+const recapCount = computed(
+  () => recapsStore.recapHistoryForBook(bookId.value).length,
+);
 
 // Milestone recap lock
-const RECAP_TIME_UNLOCK_DAYS = 3
+const RECAP_TIME_UNLOCK_DAYS = 3;
 
-const lastRecapPct = computed(() =>
-  recapsStore.latestRecapForBook(bookId.value)?.progressSnapshot ?? 0
-)
+const lastRecapPct = computed(
+  () => recapsStore.latestRecapForBook(bookId.value)?.progressSnapshot ?? 0,
+);
 const unlockPage = computed(() => {
-  if (!book.value || lastRecapPct.value === 0) return 0
-  return Math.ceil((lastRecapPct.value + 5) / 100 * book.value.totalPages)
-})
-const recapLockedByPages = computed(() =>
-  lastRecapPct.value > 0 && (progress.value?.currentPage ?? 0) < unlockPage.value
-)
+  if (!book.value || lastRecapPct.value === 0) return 0;
+  return Math.ceil(((lastRecapPct.value + 5) / 100) * book.value.totalPages);
+});
+const recapLockedByPages = computed(
+  () =>
+    lastRecapPct.value > 0 &&
+    (progress.value?.currentPage ?? 0) < unlockPage.value,
+);
 const daysSinceLastSession = computed(() => {
-  const updatedAt = progress.value?.updatedAt
-  if (!updatedAt) return 0
-  return (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24)
-})
-const recapLocked = computed(() =>
-  recapLockedByPages.value && daysSinceLastSession.value < RECAP_TIME_UNLOCK_DAYS
-)
+  const updatedAt = progress.value?.updatedAt;
+  if (!updatedAt) return 0;
+  return (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24);
+});
+const recapLocked = computed(
+  () =>
+    recapLockedByPages.value &&
+    daysSinceLastSession.value < RECAP_TIME_UNLOCK_DAYS,
+);
 const pagesUntilUnlock = computed(() =>
-  Math.max(0, unlockPage.value - (progress.value?.currentPage ?? 0))
-)
+  Math.max(0, unlockPage.value - (progress.value?.currentPage ?? 0)),
+);
 
 const saveProgress = async () => {
-  if (!book.value) return
-  const page = Math.max(0, Math.min(currentPageInput.value ?? 0, book.value.totalPages))
-  progressLoading.value = true
-  progressError.value = null
+  if (!book.value) return;
+  const page = Math.max(
+    0,
+    Math.min(currentPageInput.value ?? 0, book.value.totalPages),
+  );
+  progressLoading.value = true;
+  progressError.value = null;
   try {
-    await progressStore.updateProgress(bookId.value, page)
+    await progressStore.updateProgress(bookId.value, page);
   } catch (e: unknown) {
-    progressError.value = e instanceof Error ? e.message : 'Failed to save progress'
+    progressError.value =
+      e instanceof Error ? e.message : "Failed to save progress";
   } finally {
-    progressLoading.value = false
+    progressLoading.value = false;
   }
-}
+};
 
 const getRecap = async () => {
-  recapTriggered.value = true
-  recapsStore.resetStatus()
-  await recapsStore.generateRecap(bookId.value)
-}
+  recapTriggered.value = true;
+  recapsStore.resetStatus();
+  await recapsStore.generateRecap(bookId.value);
+};
 
 const retryRecap = () => {
-  recapsStore.resetStatus()
-  getRecap()
-}
+  recapsStore.resetStatus();
+  getRecap();
+};
 
 const coverFallback = (e: Event) => {
-  const img = e.target as HTMLImageElement
-  img.style.display = 'none'
-}
+  const img = e.target as HTMLImageElement;
+  img.style.display = "none";
+};
 </script>
 
 <template>
   <div class="book-detail">
     <!-- Not found -->
-    <div v-if="!book && !booksStore.loading" class="book-detail__not-found glass-surface">
-      <i class="pi pi-exclamation-circle" style="font-size: 3rem; opacity: 0.4" />
+    <div
+      v-if="!book && !booksStore.loading"
+      class="book-detail__not-found glass-surface"
+    >
+      <i
+        class="pi pi-exclamation-circle"
+        style="font-size: 3rem; opacity: 0.4"
+      />
       <p>Book not found.</p>
-      <Button label="Back to Library" icon="pi pi-arrow-left" outlined @click="router.push('/library')" />
+      <Button
+        label="Back to Library"
+        icon="pi pi-arrow-left"
+        outlined
+        @click="router.push('/library')"
+      />
     </div>
 
     <template v-else-if="book">
@@ -139,7 +164,9 @@ const coverFallback = (e: Event) => {
         </div>
 
         <div class="book-detail__meta">
-          <span v-if="book.genre" class="book-detail__genre">{{ book.genre }}</span>
+          <span v-if="book.genre" class="book-detail__genre">{{
+            book.genre
+          }}</span>
           <h1 class="book-detail__title">{{ book.title }}</h1>
           <p class="book-detail__author">{{ book.author }}</p>
           <p class="book-detail__pages">{{ book.totalPages }} pages</p>
@@ -151,8 +178,14 @@ const coverFallback = (e: Event) => {
         <h2 class="book-detail__section-title">Reading Progress</h2>
 
         <div class="book-detail__progress-bar-wrap">
-          <ProgressBar :value="percentage" :show-value="false" class="book-detail__progress-bar" />
-          <span class="book-detail__progress-pct">{{ percentage.toFixed(1) }}%</span>
+          <ProgressBar
+            :value="percentage"
+            :show-value="false"
+            class="book-detail__progress-bar"
+          />
+          <span class="book-detail__progress-pct"
+            >{{ percentage.toFixed(1) }}%</span
+          >
         </div>
 
         <div class="book-detail__progress-input">
@@ -182,28 +215,31 @@ const coverFallback = (e: Event) => {
           Page {{ progress?.currentPage ?? 0 }} of {{ book.totalPages }}
         </p>
 
-        <VelocityBadge
-          v-if="progress && progress.currentPage > 0 && !isComplete"
-          :book-id="bookId"
-          :total-pages="book.totalPages"
-          :current-page="progress.currentPage"
-        />
-
         <div class="book-detail__vocab-row">
-          <Button
-            label="Add Word"
-            icon="pi pi-plus"
-            size="small"
-            outlined
-            @click="addWordVisible = true"
+          <div class="book-detail__vocab-row-count">
+            <Button
+              label="Add Word"
+              icon="pi pi-plus"
+              size="small"
+              outlined
+              @click="addWordVisible = true"
+            />
+            <RouterLink
+              v-if="lexiconCount > 0"
+              :to="{ name: 'lexicon', query: { bookId: bookId } }"
+              class="book-detail__vocab-count"
+            >
+              {{ lexiconCount }}
+              {{ lexiconCount === 1 ? "word" : "words" }} saved
+            </RouterLink>
+          </div>
+
+          <VelocityBadge
+            v-if="progress && progress.currentPage > 0 && !isComplete"
+            :book-id="bookId"
+            :total-pages="book.totalPages"
+            :current-page="progress.currentPage"
           />
-          <RouterLink
-            v-if="lexiconCount > 0"
-            :to="{ name: 'lexicon', query: { bookId: bookId } }"
-            class="book-detail__vocab-count"
-          >
-            {{ lexiconCount }} {{ lexiconCount === 1 ? 'word' : 'words' }} saved
-          </RouterLink>
         </div>
 
         <Button
@@ -211,12 +247,18 @@ const coverFallback = (e: Event) => {
           label="✦ View Reading Journey"
           icon="pi pi-star"
           class="book-detail__passport-btn"
-          @click="router.push({ name: 'book-passport', params: { id: bookId } })"
+          @click="
+            router.push({ name: 'book-passport', params: { id: bookId } })
+          "
         />
       </section>
 
       <!-- Lore Chronoscope discovery card (between Progress and Recap, FR-019) -->
-      <LoreChronoscopeCard :book-id="bookId" :collapsible="true" :initial-collapsed="true"/>
+      <LoreChronoscopeCard
+        :book-id="bookId"
+        :collapsible="true"
+        :initial-collapsed="true"
+      />
 
       <!-- Recap — hidden when book is complete (use Book Passport instead) -->
       <section v-if="!isComplete" class="book-detail__recap glass-surface">
@@ -239,7 +281,10 @@ const coverFallback = (e: Event) => {
           />
         </div>
 
-        <p v-if="!recapTriggered && !isGenerating" class="book-detail__recap-hint">
+        <p
+          v-if="!recapTriggered && !isGenerating"
+          class="book-detail__recap-hint"
+        >
           Get a spoiler-free summary of your progress so far.
         </p>
 
@@ -254,7 +299,9 @@ const coverFallback = (e: Event) => {
             :label="`View Recap History (${recapCount})`"
             icon="pi pi-history"
             link
-            @click="router.push({ name: 'recap-history', params: { id: bookId } })"
+            @click="
+              router.push({ name: 'recap-history', params: { id: bookId } })
+            "
           />
         </div>
       </section>
@@ -311,21 +358,23 @@ const coverFallback = (e: Event) => {
   align-items: flex-start;
 }
 
-.book-detail__cover-wrap { flex-shrink: 0; }
+.book-detail__cover-wrap {
+  flex-shrink: 0;
+}
 
 .book-detail__cover {
   width: 96px;
   height: 140px;
   object-fit: cover;
   border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .book-detail__cover-placeholder {
   width: 96px;
   height: 140px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.06);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -346,7 +395,7 @@ const coverFallback = (e: Event) => {
   color: var(--p-indigo-300);
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
-  background: rgba(99,102,241,0.15);
+  background: rgba(99, 102, 241, 0.15);
   align-self: flex-start;
   margin-bottom: 0.25rem;
 }
@@ -389,7 +438,9 @@ const coverFallback = (e: Event) => {
   gap: 0.75rem;
 }
 
-.book-detail__progress-bar { flex: 1; }
+.book-detail__progress-bar {
+  flex: 1;
+}
 
 .book-detail__progress-pct {
   font-size: 0.85rem;
@@ -405,7 +456,9 @@ const coverFallback = (e: Event) => {
   align-items: center;
 }
 
-.book-detail__page-input { flex: 1; }
+.book-detail__page-input {
+  flex: 1;
+}
 
 .book-detail__progress-error {
   margin: 0;
@@ -444,7 +497,7 @@ const coverFallback = (e: Event) => {
 .book-detail__recap-hint {
   margin: 0;
   font-size: 0.85rem;
-  opacity: 0.60;
+  opacity: 0.6;
 }
 
 .book-detail__recap-locked {
@@ -468,6 +521,18 @@ const coverFallback = (e: Event) => {
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+  justify-content: space-between;
+
+   .velocity-badge {
+    margin-bottom: 3px;
+
+   }
+}
+
+.book-detail__vocab-row-count {
+  display: inherit;
+  gap: 0.75rem;
+  align-items: center;
 }
 
 .book-detail__vocab-count {
