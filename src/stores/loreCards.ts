@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { reactive, computed, ref } from 'vue'
-import { useToast } from 'primevue/usetoast'
 import { supabase } from '@/services/supabase'
 import { loreService } from '@/services/loreService'
 import { mapLoreCard, type LoreCard, type LoreCardRow } from '@/types'
@@ -19,11 +18,6 @@ import {
 const TTL = 120_000 // 2 minutes per lore-api.md
 
 export const useLoreCardsStore = defineStore('loreCards', () => {
-  // Hoisted at setup time — useToast() relies on Vue's inject() which is only
-  // available synchronously during component/store initialisation, not inside
-  // async actions.
-  const toast = useToast()
-
   // ── State ──────────────────────────────────────────────────────────────────
   // keyed by bookId; values sorted by unlocked_at_milestone asc
   const loreByBook = reactive<Record<string, LoreCard[]>>({})
@@ -180,13 +174,8 @@ export const useLoreCardsStore = defineStore('loreCards', () => {
       swrTouch(cacheKeys.lore(authStore.user.id, bookId))
       swrTouch(cacheKeys.loreAll(authStore.user.id))
 
-      // 7. Toast notification (FR-025)
-      toast.add({
-        severity: 'success',
-        summary: 'New Lore Unlocked',
-        detail: book.title,
-        life: 4000,
-      })
+      // FR-010 (010-dashboard-ux-sync): success toast removed.
+      // The dashboard inline lore card handles arrival display.
     } catch (e) {
       // FR-008: silent failure — never surface to the user
       console.error('[loreCards] maybeUnlockForMilestone failed:', e)

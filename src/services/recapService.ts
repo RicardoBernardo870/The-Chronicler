@@ -1,6 +1,8 @@
 import { supabase } from '@/services/supabase'
 import type { StreamingRecap } from '@/types'
 
+export type StreamRecapResult = StreamingRecap & { aborted: boolean }
+
 export interface RecapRequest {
   title: string
   author: string
@@ -20,12 +22,22 @@ const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gen
  * `onToken` is called with each decoded chunk as it arrives.
  * Returns the fully parsed StreamingRecap on completion.
  */
+const ABORTED_RESULT: StreamRecapResult = {
+  memoryJogger: '',
+  conceptWatchlist: '',
+  thematicBridge: '',
+  aborted: true,
+}
+
 export async function streamRecap(
   request: RecapRequest,
   onToken: (text: string) => void,
-): Promise<StreamingRecap> {
+  signal?: AbortSignal,
+): Promise<StreamRecapResult> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) throw new Error('Not authenticated')
+
+  if (signal?.aborted) return ABORTED_RESULT
 
   const response = await fetch(EDGE_FUNCTION_URL, {
     method: 'POST',
@@ -34,6 +46,7 @@ export async function streamRecap(
       'Authorization': `Bearer ${session.access_token}`,
     },
     body: JSON.stringify(request),
+    signal,
   })
 
   if (!response.ok) {
@@ -51,12 +64,19 @@ export async function streamRecap(
   const decoder = new TextDecoder()
   let accumulated = ''
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    const chunk = decoder.decode(value, { stream: true })
-    accumulated += chunk
-    onToken(chunk)
+  try {
+    while (true) {
+      if (signal?.aborted) return ABORTED_RESULT
+      const { done, value } = await reader.read()
+      if (done) break
+      if (signal?.aborted) return ABORTED_RESULT
+      const chunk = decoder.decode(value, { stream: true })
+      accumulated += chunk
+      onToken(chunk)
+    }
+  } catch (err: unknown) {
+    if ((err as Error)?.name === 'AbortError' || signal?.aborted) return ABORTED_RESULT
+    throw err
   }
 
   // Extract and parse JSON — strip markdown fences if the model added them
@@ -85,6 +105,7 @@ export async function streamRecap(
     memoryJogger: memory_jogger,
     conceptWatchlist: concept_watchlist,
     thematicBridge: thematic_bridge,
+    aborted: false,
   }
 }
 

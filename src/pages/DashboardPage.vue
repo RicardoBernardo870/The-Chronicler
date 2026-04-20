@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
@@ -8,6 +8,9 @@ import { useLexiconStore } from '@/stores/lexicon'
 import { useAuthStore } from '@/stores/auth'
 import { useReadingPulse } from '@/composables/useReadingPulse'
 import { useLoreCardsStore } from '@/stores/loreCards'
+import { useRecapsStore } from '@/stores/recaps'
+import { useRecapLock } from '@/composables/useRecapLock'
+import RecapStream from '@/components/recap/RecapStream.vue'
 import Button from 'primevue/button'
 import ProgressBar from 'primevue/progressbar'
 import InputNumber from 'primevue/inputnumber'
@@ -23,12 +26,43 @@ const upNextStore = useUpNextStore()
 const lexiconStore = useLexiconStore()
 const authStore = useAuthStore()
 const loreStore = useLoreCardsStore()
+const recapsStore = useRecapsStore()
 
 const loading = ref(true)
 const pageInput = ref<number>(0)
 const saving = ref(false)
 const saveError = ref<string | null>(null)
 const justSaved = ref(false)
+
+// ── Inline Recap session state (US2, 010-dashboard-ux-sync) ──────────────────
+const recapTriggered = ref<boolean>(false)
+const recapAbortController = ref<AbortController | null>(null)
+
+// ── Recap lock (shared composable, FR-013) ───────────────────────────────────
+const { recapLocked, pagesUntilUnlock } = useRecapLock(
+  computed(() => currentBook.value?.id ?? ''),
+)
+
+// ── Recap handlers ────────────────────────────────────────────────────────────
+const handleGetRecap = async () => {
+  if (!currentBook.value) return
+  const abort = new AbortController()
+  recapAbortController.value = abort
+  recapTriggered.value = true
+  recapsStore.resetStatus()
+  await recapsStore.generateRecap(currentBook.value.id, abort.signal)
+}
+
+const handleRecapDismiss = () => {
+  recapAbortController.value?.abort()
+  recapAbortController.value = null
+  recapTriggered.value = false
+  recapsStore.resetStatus()
+}
+
+onUnmounted(() => {
+  if (recapTriggered.value) handleRecapDismiss()
+})
 
 onMounted(async () => {
   try {
@@ -41,6 +75,8 @@ onMounted(async () => {
     if (authStore.user) lexiconStore.resolveWordOfTheDay(authStore.user.id)
     // Fetch lore so chips are reactive on all visible book cards
     loreStore.fetchLoreForAllBooks().catch(() => {})
+    // Hydrate recap history so recap lock state is accurate on mount
+    if (currentBook.value) recapsStore.fetchRecapsForBook(currentBook.value.id).catch(() => {})
     // Load reading pulse for hero card
     if (currentBook.value) heroPulse.value?.fetchHistory()
     if (currentBook.value) {
@@ -240,20 +276,44 @@ const coverFallback = (e: Event) => {
 
         <div class="dashboard__actions">
           <Button
-            label="Get Recap"
-            icon="pi pi-sparkles"
-            class="dashboard__action-btn"
-            @click="router.push({ name: 'book-detail', params: { id: currentBook!.id } })"
+            v-if="!recapTriggered && recapLocked"
+            :label="`🔒 ${pagesUntilUnlock} more pages`"
+            disabled
+            class="dashboard__action-btn dashboard__action-btn--locked"
+            v-tooltip.top="'You unlock a new recap every 5% of progress, or after 3 days away'"
           />
           <Button
-            label="View Library"
-            icon="pi pi-th-large"
+            v-else
+            :label="recapTriggered ? 'Recap open' : 'Get Recap'"
+            icon="pi pi-sparkles"
+            class="dashboard__action-btn"
+            :disabled="recapTriggered"
+            @click="handleGetRecap"
+          />
+          <Button
+            label="View Book"
+            icon="pi pi-book"
             class="glass-surface dashboard__action-btn"
             outlined
-            @click="router.push('/library')"
+            @click="router.push({ name: 'book-detail', params: { id: currentBook!.id } })"
           />
         </div>
       </article>
+
+      <!-- Inline Recap Panel (US2, 010-dashboard-ux-sync) -->
+      <div v-if="recapTriggered" class="dashboard__inline-panel glass-surface">
+        <div class="dashboard__inline-panel-header">
+          <span class="dashboard__inline-panel-title">AI Recap</span>
+          <button
+            class="dashboard__inline-dismiss"
+            aria-label="Dismiss recap"
+            @click="handleRecapDismiss"
+          >
+            <i class="pi pi-times" />
+          </button>
+        </div>
+        <RecapStream :bookId="currentBook!.id" />
+      </div>
 
       <!-- Word of the Day -->
       <WordOfTheDay />
@@ -622,5 +682,50 @@ const coverFallback = (e: Event) => {
   background: none; border: none; padding: 0; cursor: pointer;
   color: var(--p-indigo-300); font-size: inherit; font-weight: 600;
   text-decoration: underline;
+}
+
+/* ── Inline panels (recap + lore, 010-dashboard-ux-sync) ─────────── */
+.dashboard__inline-panel {
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dashboard__inline-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dashboard__inline-panel-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.dashboard__inline-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.45;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.15s;
+}
+
+.dashboard__inline-dismiss:hover { opacity: 0.9; }
+
+.dashboard__inline-dismiss .pi { font-size: 0.8rem; }
+
+/* Locked recap button */
+.dashboard__action-btn--locked {
+  opacity: 0.55;
+  cursor: not-allowed !important;
+  font-size: 0.82rem;
 }
 </style>
