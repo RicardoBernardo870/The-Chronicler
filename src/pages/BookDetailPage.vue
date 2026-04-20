@@ -216,7 +216,7 @@ const coverFallback = (e: Event) => {
       </section>
 
       <!-- Lore Chronoscope discovery card (between Progress and Recap, FR-019) -->
-      <LoreChronoscopeCard :book-id="bookId" />
+      <LoreChronoscopeCard :book-id="bookId" :collapsible="true" :initial-collapsed="true"/>
 
       <!-- Recap — hidden when book is complete (use Book Passport instead) -->
       <section v-if="!isComplete" class="book-detail__recap glass-surface">
