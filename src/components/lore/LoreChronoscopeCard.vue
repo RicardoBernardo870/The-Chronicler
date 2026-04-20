@@ -1,35 +1,59 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLoreCardsStore } from '@/stores/loreCards'
 import type { LoreCard } from '@/types'
 import Skeleton from 'primevue/skeleton'
+import LoreCardDetail from '@/components/lore/LoreCardDetail.vue'
 
-const props = defineProps<{ bookId: string }>()
+const props = defineProps<{
+  bookId: string
+  /** When true, renders as a click-to-expand card (same pattern as LoreCardList). */
+  collapsible?: boolean
+  /** Only consulted when collapsible is true — renders collapsed on first paint. */
+  initialCollapsed?: boolean
+}>()
 
-const router     = useRouter()
-const loreStore  = useLoreCardsStore()
+const router    = useRouter()
+const loreStore = useLoreCardsStore()
 
-// Track whether this is the initial loading state (skeleton only shown once)
 const initialLoading = ref(true)
-const currentCard    = ref<LoreCard | null>(null)
 
-// Returns the most recently created card for this book
-const latestCard = (): LoreCard | null => {
-  const all = loreStore.loreForBook(props.bookId)
-  if (all.length === 0) return null
-  return [...all].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
-}
-
-onMounted(async () => {
-  await loreStore.fetchLoreForBook(props.bookId)
-  currentCard.value = latestCard()
-  initialLoading.value = false
-})
+// ── Reactivity (FR-018, 010-dashboard-ux-sync) ────────────────────────────
+const currentCardIndex = ref<number>(0)
 
 const cards = computed(() => loreStore.loreForBook(props.bookId))
 const hasMultiple = computed(() => cards.value.length > 1)
 const hasLore     = computed(() => cards.value.length > 0)
+
+const currentCard = computed<LoreCard | null>(() => {
+  const all = cards.value
+  if (all.length === 0) return null
+  const clamped = Math.min(Math.max(currentCardIndex.value, 0), all.length - 1)
+  return all[clamped]
+})
+
+onMounted(async () => {
+  await loreStore.fetchLoreForBook(props.bookId)
+  if (cards.value.length > 0) currentCardIndex.value = cards.value.length - 1
+  initialLoading.value = false
+})
+
+// Jump to newly arrived card (FR-018, 010-dashboard-ux-sync)
+watch(
+  () => cards.value.length,
+  (newLen, oldLen) => {
+    if (newLen > (oldLen ?? 0)) currentCardIndex.value = newLen - 1
+  },
+)
+
+// ── Collapsible expand state ───────────────────────────────────────────────
+// Starts expanded unless initialCollapsed is explicitly true
+const isExpanded = ref<boolean>(!(props.initialCollapsed ?? false))
+
+const toggleExpand = () => {
+  isExpanded.value = !isExpanded.value
+}
 
 const typeColour = (type: LoreCard['type']): string => {
   switch (type) {
@@ -45,37 +69,81 @@ const typeColour = (type: LoreCard['type']): string => {
 const excerpt = (text: string): string =>
   text.length > 120 ? text.slice(0, 120).trimEnd() + '…' : text
 
-// T027 — refresh cycles to a different card (stopPropagation, FR-022)
-// On first refresh, revert to the latest card if we're already showing it — otherwise pick randomly from the rest
+// Cycle to a random different card
 const onRefresh = (e: Event): void => {
   e.stopPropagation()
   if (!hasMultiple.value) return
-
-  const available = cards.value.filter(c => c.id !== currentCard.value?.id)
+  const available = cards.value
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => c.id !== currentCard.value?.id)
   if (available.length === 0) return
-  currentCard.value = available[Math.floor(Math.random() * available.length)]
+  const chosen = available[Math.floor(Math.random() * available.length)]
+  currentCardIndex.value = chosen.i
+  // Expand when cycling so the new card is immediately visible
+  isExpanded.value = true
 }
 
-// T028 — card body click navigates to Great Library lore tab (FR-023)
+// Non-collapsible card click: navigate to Great Library lore tab
 const onCardClick = (): void => {
   router.push({ name: 'lexicon', query: { bookId: props.bookId, tab: 'lore' } })
 }
 </script>
 
 <template>
-  <!-- Skeleton: only on first load when there is no cached data -->
+  <!-- Skeleton: only on first load -->
   <template v-if="initialLoading">
-    <div class="chronoscope-skeleton glass-surface">
+    <div class="lore-card-skeleton glass-surface">
       <Skeleton width="40%" height="0.75rem" border-radius="6px" />
       <Skeleton width="100%" height="0.85rem" border-radius="6px" style="margin-top: 0.5rem" />
       <Skeleton width="80%" height="0.85rem" border-radius="6px" />
     </div>
   </template>
 
-  <!-- Hidden if no lore exists (FR-024) -->
+  <!-- Collapsible mode: same card pattern as LoreCardList (lines 68-86) -->
+  <template v-else-if="collapsible && hasLore && currentCard">
+    <div
+      class="lore-card glass-surface"
+      @click="toggleExpand"
+    >
+      <!-- Header (always visible) — mirrors LoreCardList item-header -->
+      <div class="lore-card__header">
+        <div class="lore-card__meta">
+          <span :class="['lore-card__badge', typeColour(currentCard.type)]">{{ currentCard.type }}</span>
+          <span class="lore-card__milestone">Unlocked at {{ currentCard.unlockedAtMilestone }}%</span>
+        </div>
+        <div class="lore-card__controls">
+          <!-- Cycle button (only when multiple cards exist) -->
+          <button
+            v-if="hasMultiple"
+            class="lore-card__cycle"
+            :title="`Card ${currentCardIndex + 1} of ${cards.length} — click to cycle`"
+            @click.stop="onRefresh"
+          >
+            <i class="pi pi-refresh" />
+          </button>
+          <i :class="['pi', isExpanded ? 'pi-chevron-up' : 'pi-chevron-down', 'lore-card__chevron']" />
+        </div>
+      </div>
+
+      <!-- Title (always visible) -->
+      <h3 class="lore-card__title">{{ currentCard.title }}</h3>
+
+      <!-- Excerpt when collapsed -->
+      <p v-if="!isExpanded" class="lore-card__excerpt">
+        {{ excerpt(currentCard.content) }}
+      </p>
+
+      <!-- Expanded detail — same component used by LoreCardList -->
+      <Transition name="expand">
+        <LoreCardDetail v-if="isExpanded" :card="currentCard" />
+      </Transition>
+    </div>
+  </template>
+
+  <!-- Non-collapsible mode: original compact card (click → Great Library) -->
   <template v-else-if="hasLore && currentCard">
     <div
-      class="chronoscope glass-surface"
+      class="lore-card-compact glass-surface"
       role="button"
       tabindex="0"
       aria-label="Lore Chronoscope — tap to open Great Library"
@@ -83,42 +151,32 @@ const onCardClick = (): void => {
       @keydown.enter="onCardClick"
       @keydown.space.prevent="onCardClick"
     >
-      <!-- Header row -->
-      <div class="chronoscope__header">
-        <div class="chronoscope__label-row">
-          <i class="pi pi-sparkles chronoscope__icon" />
-          <span class="chronoscope__label">Lore Chronoscope</span>
-          <span :class="['chronoscope__badge', typeColour(currentCard.type)]">
-            {{ currentCard.type }}
-          </span>
+      <div class="lore-card-compact__header">
+        <div class="lore-card-compact__label-row">
+          <i class="pi pi-sparkles lore-card-compact__icon" />
+          <span class="lore-card-compact__label">Lore Chronoscope</span>
+          <span :class="['lore-card__badge', typeColour(currentCard.type)]">{{ currentCard.type }}</span>
         </div>
-
-        <!-- Refresh icon (T027 / FR-022) -->
         <button
-          class="chronoscope__refresh"
+          class="lore-card__cycle"
           :disabled="!hasMultiple"
-          :aria-disabled="!hasMultiple"
           :title="hasMultiple ? 'Show another lore card' : 'Only one lore card unlocked'"
-          @click="onRefresh"
+          @click.stop="onRefresh"
         >
           <i class="pi pi-refresh" />
         </button>
       </div>
-
-      <!-- Title -->
-      <h3 class="chronoscope__title">{{ currentCard.title }}</h3>
-
-      <!-- Excerpt -->
-      <p class="chronoscope__excerpt">{{ excerpt(currentCard.content) }}</p>
+      <h3 class="lore-card__title">{{ currentCard.title }}</h3>
+      <p class="lore-card__excerpt">{{ excerpt(currentCard.content) }}</p>
     </div>
   </template>
 
-  <!-- No lore: render nothing (fully hidden per ui-contracts.md) -->
   <template v-else />
 </template>
 
 <style scoped>
-.chronoscope-skeleton {
+/* ── Skeleton ─────────────────────────────────────────────────────────── */
+.lore-card-skeleton {
   border-radius: 14px;
   padding: 1rem 1.1rem;
   display: flex;
@@ -126,7 +184,8 @@ const onCardClick = (): void => {
   gap: 0.4rem;
 }
 
-.chronoscope {
+/* ── Collapsible card (LoreCardList pattern) ────────────────────────── */
+.lore-card {
   border-radius: 14px;
   padding: 1rem 1.1rem;
   cursor: pointer;
@@ -134,39 +193,25 @@ const onCardClick = (): void => {
   flex-direction: column;
   gap: 0.45rem;
   transition: opacity 0.15s;
-  user-select: none;
 }
 
-.chronoscope:hover {
+.lore-card:hover {
   opacity: 0.88;
 }
 
-.chronoscope__header {
+.lore-card__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.chronoscope__label-row {
+.lore-card__meta {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
-.chronoscope__icon {
-  font-size: 0.8rem;
-  opacity: 0.5;
-}
-
-.chronoscope__label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  opacity: 0.5;
-}
-
-.chronoscope__badge {
+.lore-card__badge {
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -181,44 +226,111 @@ const onCardClick = (): void => {
 .type-technology { background: rgba(6, 182, 212, 0.18);   color: var(--p-cyan-400); }
 .type-lore       { background: rgba(167, 139, 250, 0.18); color: var(--p-violet-400); }
 
-.chronoscope__refresh {
-  padding: 0.3rem;
+.lore-card__milestone {
+  font-size: 0.72rem;
+  opacity: 0.5;
+  font-weight: 500;
+}
+
+.lore-card__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.lore-card__chevron {
+  font-size: 0.75rem;
+  opacity: 0.45;
+  flex-shrink: 0;
+}
+
+.lore-card__cycle {
+  padding: 0.25rem 0.35rem;
   border: none;
   background: transparent;
   color: inherit;
   cursor: pointer;
   border-radius: 6px;
-  opacity: 0.45;
+  opacity: 0.4;
   transition: opacity 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.chronoscope__refresh:hover:not(:disabled) {
+.lore-card__cycle:hover:not(:disabled) {
   opacity: 0.9;
 }
 
-.chronoscope__refresh:disabled {
-  opacity: 0.2;
+.lore-card__cycle:disabled {
+  opacity: 0.15;
   cursor: default;
 }
 
-.chronoscope__refresh .pi {
-  font-size: 0.85rem;
+.lore-card__cycle .pi {
+  font-size: 0.8rem;
 }
 
-.chronoscope__title {
+.lore-card__title {
   margin: 0;
   font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
-.chronoscope__excerpt {
+.lore-card__excerpt {
   margin: 0;
   font-size: 0.85rem;
   opacity: 0.65;
   line-height: 1.5;
+}
+
+/* Expand/collapse transition */
+.expand-enter-active,
+.expand-leave-active {
+  transition: opacity 0.2s ease;
+}
+.expand-enter-from,
+.expand-leave-to {
+  opacity: 0;
+}
+
+/* ── Non-collapsible compact card (unchanged behaviour) ─────────────── */
+.lore-card-compact {
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  transition: opacity 0.15s;
+  user-select: none;
+}
+
+.lore-card-compact:hover { opacity: 0.88; }
+
+.lore-card-compact__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lore-card-compact__label-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.lore-card-compact__icon {
+  font-size: 0.8rem;
+  opacity: 0.5;
+}
+
+.lore-card-compact__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.5;
 }
 </style>

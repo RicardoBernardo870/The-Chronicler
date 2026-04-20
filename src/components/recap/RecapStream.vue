@@ -294,7 +294,6 @@ html[data-p-theme='light'] .recap-section__title {
 
 .recap-accordion :deep(.p-accordionheader) {
   background: none !important;
-  border: none;
   padding: 0.75rem 1rem;
   cursor: pointer;
   display: flex;
@@ -304,7 +303,7 @@ html[data-p-theme='light'] .recap-section__title {
 
 /* Kill PrimeVue's ugly gray hover */
 .recap-accordion :deep(.p-accordionpanel:not(.p-accordionpanel-active):not(.p-disabled) > .p-accordionheader:hover) {
-  background: none !important;
+  background-color: none !important;
 }
 
 /* Toggle chevron — locked to indigo in every state */

@@ -136,7 +136,9 @@
       "Bash(deno check *)",
       "Bash(node -e ' *)",
       "Bash(node fix-tasks.mjs)",
-      "WebFetch(domain:googleapis.github.io)"
+      "WebFetch(domain:googleapis.github.io)",
+      "Bash(powershell -Command \"Select-String -Path 'C:/Users/ricar_nf02dr4/Desktop/BookHero/BookHero/src/pages/DashboardPage.vue' -Pattern '<style scoped>' | Select-Object LineNumber\")",
+      "Bash(powershell -Command \"Select-String -Path 'C:/Users/ricar_nf02dr4/Desktop/BookHero/BookHero/src/pages/DashboardPage.vue' -Pattern '</style>' | Select-Object LineNumber\")"
     ]
   }
 }

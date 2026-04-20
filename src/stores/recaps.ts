@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 import { supabase } from '@/services/supabase'
-import { streamRecap } from '@/services/recapService'
+import { streamRecap, type StreamRecapResult } from '@/services/recapService'
 import { mapRecap, type Recap, type RecapRow, type RecapGenerationStatus } from '@/types'
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
@@ -42,7 +42,7 @@ export const useRecapsStore = defineStore('recaps', () => {
     await swrRun(key, fetcher)
   }
 
-  async function generateRecap(bookId: string) {
+  async function generateRecap(bookId: string, signal?: AbortSignal) {
     // Lockout guard: prevent duplicate requests while streaming (FR-010)
     if (generationStatus.value === 'streaming') return
 
@@ -67,7 +67,7 @@ export const useRecapsStore = defineStore('recaps', () => {
       // Incremental recap: cover only pages since the last recap (Decision 3)
       const fromPage = recapsByBook[bookId]?.[0]?.pageSnapshot ?? 0
 
-      const result = await streamRecap(
+      const result: StreamRecapResult = await streamRecap(
         {
           title: book.title,
           author: book.author,
@@ -78,7 +78,16 @@ export const useRecapsStore = defineStore('recaps', () => {
           from_page: fromPage > 0 ? fromPage : undefined,
         },
         (token) => { streamingText.value += token },
+        signal,
       )
+
+      // Mid-stream dismiss: abort was called before completion — discard partial
+      // content and do NOT persist to history (FR-007, 010-dashboard-ux-sync)
+      if (result.aborted) {
+        generationStatus.value = 'idle'
+        streamingText.value = ''
+        return
+      }
 
       // Persist to Supabase
       const { data, error: insertErr } = await supabase
