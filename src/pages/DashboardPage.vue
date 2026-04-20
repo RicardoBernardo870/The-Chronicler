@@ -11,6 +11,7 @@ import { useActiveBook } from "@/composables/useActiveBook";
 import { useLoreCardsStore } from "@/stores/loreCards";
 import { useRecapsStore } from "@/stores/recaps";
 import { useRecapLock } from "@/composables/useRecapLock";
+
 import RecapStream from "@/components/recap/RecapStream.vue";
 import LastSessionCard from "@/components/dashboard/LastSessionCard.vue";
 import Button from "primevue/button";
@@ -412,11 +413,11 @@ const coverFallback = (e: Event) => {
         <RecapStream :bookId="currentBook!.id" />
       </div>
 
-      <!-- Last Session Card (US4, 011-dashboard-state-refactor) -->
-      <LastSessionCard />
-
       <!-- Word of the Day -->
       <WordOfTheDay />
+
+      <!-- Last Session Card (US4, 011-dashboard-state-refactor) -->
+      <LastSessionCard />
 
       <!-- In Progress section — other in-progress books, swap-capable (US2) -->
       <section
@@ -650,7 +651,7 @@ const coverFallback = (e: Event) => {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--p-indigo-300);
+  color: var(--p-indigo-400);
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
   background: rgba(99, 102, 241, 0.15);

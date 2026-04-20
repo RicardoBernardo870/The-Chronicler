@@ -27,10 +27,8 @@ const prediction = computed(() => {
 </script>
 
 <template>
-  <div v-if="pph !== null" class="velocity-badge glass-subtle">
-    <i class="pi pi-chart-line" />
-    <span>{{ pph }} pg/hr</span>
-    <span v-if="prediction" class="velocity-badge__sep">·</span>
+  <div v-if="pph !== null" class="velocity-badge">
+    <span>{{ pph }} pg/hr </span>
     <span v-if="prediction" class="velocity-badge__prediction">{{ prediction }}</span>
   </div>
   <div v-else class="velocity-badge velocity-badge--fallback glass-subtle">
@@ -41,16 +39,16 @@ const prediction = computed(() => {
 
 <style scoped>
 .velocity-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0.3rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--p-indigo-400);
+  padding: 0.15rem 0.5rem;
   border-radius: 999px;
-  color: var(--p-indigo-300);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.15);
   align-self: flex-start;
+  margin-bottom: 0.2rem;
 }
 
 .velocity-badge--fallback {
@@ -58,6 +56,6 @@ const prediction = computed(() => {
 }
 
 .velocity-badge .pi { font-size: 0.85rem; }
-.velocity-badge__sep { opacity: 0.4; }
-.velocity-badge__prediction { opacity: 0.75; font-weight: 500; }
+.velocity-badge__sep { opacity: 0.7; }
+.velocity-badge__prediction { opacity: 0.75; font-weight: 700; }
 </style>
