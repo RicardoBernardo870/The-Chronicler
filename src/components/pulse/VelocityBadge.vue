@@ -14,11 +14,16 @@ onMounted(() => pulse.fetchHistory())
 
 const pph = computed(() => {
   const v = pulse.velocity.value
-  if (!v) return null
+  // Guard: null / undefined / NaN / Infinity / -Infinity all yield fallback
+  if (v === null || v === undefined || !isFinite(v) || isNaN(v)) return null
   return Math.round(v)
 })
 
-const prediction = computed(() => pulse.finishPrediction(props.totalPages, props.currentPage))
+const prediction = computed(() => {
+  // Guard: invalid page or total counts prevent a meaningful prediction
+  if (props.totalPages <= 0 || props.currentPage > props.totalPages) return null
+  return pulse.finishPrediction(props.totalPages, props.currentPage)
+})
 </script>
 
 <template>
@@ -27,6 +32,10 @@ const prediction = computed(() => pulse.finishPrediction(props.totalPages, props
     <span>{{ pph }} pg/hr</span>
     <span v-if="prediction" class="velocity-badge__sep">·</span>
     <span v-if="prediction" class="velocity-badge__prediction">{{ prediction }}</span>
+  </div>
+  <div v-else class="velocity-badge velocity-badge--fallback glass-subtle">
+    <i class="pi pi-chart-line" />
+    <span>—</span>
   </div>
 </template>
 
@@ -42,6 +51,10 @@ const prediction = computed(() => pulse.finishPrediction(props.totalPages, props
   color: var(--p-indigo-300);
   border: 1px solid rgba(99, 102, 241, 0.2);
   align-self: flex-start;
+}
+
+.velocity-badge--fallback {
+  opacity: 0.45;
 }
 
 .velocity-badge .pi { font-size: 0.85rem; }

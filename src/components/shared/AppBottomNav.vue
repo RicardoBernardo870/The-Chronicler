@@ -25,7 +25,7 @@ const handleToggleTheme = () => {
 const handleSignOut = async () => {
   closeMore()
   await authStore.signOut()
-  await router.push('/auth')
+  await router.push('/login')
 }
 
 const handleAddBook = () => {

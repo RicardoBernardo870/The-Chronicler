@@ -1,4 +1,4 @@
-import type { Mode, RequestBody } from "./types.ts"
+import type { Mode, RequestBody } from "./types.ts";
 
 /**
  * Resolve the generation mode from the request body.
@@ -9,7 +9,7 @@ import type { Mode, RequestBody } from "./types.ts"
  *   3. Otherwise → mid-book recap (the hardened path).
  */
 export const resolveMode = (body: RequestBody): Mode => {
-  if (body.mode === "passport_summary") return "passport_summary"
-  if (body.currentPage === 0) return "blurb"
-  return "recap"
-}
+  if (body.mode === "passport_summary") return "passport_summary";
+  if (body.currentPage === 0) return "blurb";
+  return "recap";
+};
