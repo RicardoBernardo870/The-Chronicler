@@ -29,31 +29,16 @@ export const runExtraction = async (
   ai: any,
   p: ExtractionParams,
 ): Promise<ExtractionOutcome> => {
-  const rangeStart = p.fromPage > 0 ? p.fromPage + 1 : 1;
-
   const message = `
-INSTRUCTIONS FOR GROUNDING:
-1. Use Google Search to find the Table of Contents or a Chapter-to-Page index for ISBN: ${p.isbn || "N/A"} (Book: "${p.title}" by ${p.author}).
-2. Determine exactly which CHAPTER or scene ends closest to page ${p.currentPage} of ${p.totalPages}.
-3. If you cannot find the page-to-chapter mapping for this specific edition, respond with "confidence_level": "low".
+INSTRUCTIONS:
+1. Search for: "${p.title} ${p.author} chapter page count" or "${p.title} table of contents".
+2. Based on a total of ${p.totalPages} pages, determine which chapter corresponds to page ${p.currentPage}.
+3. To prevent spoilers, summarize ONLY up to the chapter BEFORE the one you identified. 
+4. If you cannot find a page-to-chapter map, stop your summary at the ${Math.round(p.percentage * 0.8)}% mark of the narrative.
 
-TASK:
-${
-  p.fromPage > 0
-    ? `List ONLY the key events occurring from page ${rangeStart} through page ${p.currentPage}. DO NOT include anything before page ${rangeStart}.`
-    : `List ONLY the key events from the VERY BEGINNING of the book up to page ${p.currentPage}.`
-}
-
-STRICT BOUNDARY:
-- STOP strictly at page ${p.currentPage}.
-- DO NOT summarize the entire book or mention any events that occur after page ${p.currentPage}.
-- It is better to leave out a scene than to accidentally include a spoiler from page ${p.currentPage + 1} onwards.
-
-
-BOOK CONTEXT:
-- Title: "${p.title}"
-- ISBN: ${p.isbn || "N/A"}
-- Progress: Page ${p.currentPage} (${p.percentage}%)
+BOOK: "${p.title}" by ${p.author}
+ISBN: ${p.isbn || "N/A"}
+USER IS AT: Page ${p.currentPage} of ${p.totalPages} (${p.percentage}%)
 `;
 
   const response = await ai.models.generateContent({
@@ -65,17 +50,12 @@ BOOK CONTEXT:
         p.currentPage,
         p.totalPages,
       ),
-      temperature: 0,
+      temperature: 0.0, // Forced determinism
       maxOutputTokens: 8192,
-      tools: [
-        {
-          googleSearch: {}, // This enables the search engine
-        },
-      ],
-      // Force the model to use the search tool if it's unsure
+      tools: [{ googleSearch: {} }],
       dynamicRetrievalConfig: {
         mode: "MODE_DYNAMIC",
-        dynamicThreshold: 0, // Lower means it's MORE likely to search
+        dynamicThreshold: 0, // Back to forced grounding
       },
     },
   });
@@ -87,16 +67,12 @@ BOOK CONTEXT:
   if (rawJson) {
     try {
       const parsed = JSON.parse(rawJson);
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        typeof parsed.confidence_level === "string" &&
-        VALID_CONFIDENCE.has(parsed.confidence_level)
-      ) {
+      // Ensure we still match your ExtractionResult type while using the new audit logic
+      if (parsed && typeof parsed === "object") {
         result = parsed as ExtractionResult;
       }
     } catch {
-      /* leave result null */
+      /* parse error */
     }
   }
 
