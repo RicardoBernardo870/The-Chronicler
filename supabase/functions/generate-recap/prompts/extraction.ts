@@ -10,16 +10,18 @@ export const buildExtractionPrompt = (
   currentPage: number,
   totalPages: number,
 ): string => {
-  const rangeStart = fromPage > 0 ? fromPage + 1 : 1
-  const rangeDesc = fromPage > 0
-    ? `pages ${rangeStart} to ${currentPage}`
-    : `the first ${currentPage} pages (out of ${totalPages} total)`
+  const rangeStart = fromPage > 0 ? fromPage + 1 : 1;
 
-  const toPct   = Math.round((currentPage / totalPages) * 100)
-  const fromPct = Math.round((fromPage    / totalPages) * 100)
+  const rangeDesc =
+    fromPage > 0
+      ? `pages ${rangeStart} to ${currentPage}`
+      : `the first ${currentPage} pages (out of ${totalPages} total)`;
+
+  const toPct = Math.round((currentPage / totalPages) * 100);
+  const fromPct = Math.round((fromPage / totalPages) * 100);
 
   // Create a safer target for the model to aim for
-  const safeTargetPct = Math.max(0, toPct - 5)
+  const safeTargetPct = Math.max(0, toPct - 10);
 
   return `You are a highly cautious literary analyst. Your task is to describe ONLY what happens in ${rangeDesc} of a book.
 
@@ -49,13 +51,9 @@ For each event, ask yourself: "Am I completely certain this happens before or wi
 - If UNSURE → REMOVE the event
 - Only include HIGH-CONFIDENCE events
 
-OUTPUT FORMAT (TWO STEPS):
+OUTPUT FORMAT (JSON OUTPUT):
 
-STEP 1: TIMELINE SCRATCHPAD
-Before writing the JSON, write a brief, chronological bulleted list of the plot from ${fromPct}% up to maximum ${safeTargetPct}%. Outline the timeline first so you can visually verify no future events slip in.
-
-STEP 2: JSON OUTPUT
-After the scratchpad, output the JSON object. Do not wrap the JSON in code fences — emit it as raw text on its own lines.
+output the JSON object. Do not wrap the JSON in code fences — emit it as raw text on its own lines.
 
 {
   "chapters_covered": ["<chapter name/number or approximate section>", "..."],
@@ -64,5 +62,5 @@ After the scratchpad, output the JSON object. Do not wrap the JSON in code fence
   "current_conflicts": "<unresolved tensions and open questions as of page ${currentPage}>",
   "mood": "<the emotional tone and atmosphere at this point in the story>",
   "confidence_level": "<high | medium | low based on how certain you are about staying within range>"
-}`
-}
+}`;
+};
