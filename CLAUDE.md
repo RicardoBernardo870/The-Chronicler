@@ -1,6 +1,6 @@
 ﻿# BookHero Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-20
+Auto-generated from all feature plans. Last updated: 2026-04-24
 
 ## Active Technologies
 - TypeScript 6 + Vue 3.5+ + PrimeVue 4 (Accordion component), Pinia 3, Supabase JS v2, Vue Router 4 (master)
@@ -21,6 +21,10 @@ Auto-generated from all feature plans. Last updated: 2026-04-20
 - Supabase PostgreSQL (existing `recaps`, `lore_cards` tables — no schema changes) (009-home-inline-cards)
 - TypeScript 6 (strict), Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, VueUse (master)
 - Supabase PostgreSQL (existing — no schema changes); in-memory Pinia refs + SWR cache (master)
+- TypeScript 6 (strict) + Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, VueUse (master)
+- Supabase PostgreSQL — `reading_progress` (modified), `progress_history` (modified); no new tables (master)
+- TypeScript 6 (strict) + Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, VueUse (013-session-stats-card)
+- Supabase PostgreSQL — `reading_progress` + `progress_history` extended with `session_start_at` + `session_note` columns (013-session-stats-card)
 
 - TypeScript 5.x + Vue 3.5+ + PrimeVue 4.x, Pinia 2.x, Vue Router 4.x, Supabase JS v2, (001-the-chronicler)
 
@@ -41,9 +45,10 @@ npm test; npm run lint
 TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 ## Recent Changes
+- 013-session-stats-card: Added explicit session tracking (session_start_at, session_note) to progress tables; new useReadingSession composable + SessionStartButton + SessionNoteField; LastSessionCard upgraded with full 5-metric grid (time, velocity, completion delta, finish prediction, note)
+- master: Added TypeScript 6 (strict) + Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, VueUse
 - master: Added TypeScript 6 (strict), Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, VueUse
 - 009-home-inline-cards: Added TypeScript 6 (strict) + Vue 3.5 (Composition API, `<script setup>`), Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2
-- 008-recap-hardening: Refactored `generate-recap` edge function into multi-file modules (prompts/, handlers/, extraction/, utils/); replaced extractor + recap prompts with stricter anti-spoiler variants; added confidence-based retry (max 2 attempts, 5-page buffer) for mid-book Recap mode only — Book Blurb and Passport Summary relocated without behavioral changes
 
 
 <!-- MANUAL ADDITIONS START -->

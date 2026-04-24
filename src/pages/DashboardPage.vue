@@ -14,6 +14,7 @@ import { useRecapLock } from "@/composables/useRecapLock";
 
 import RecapStream from "@/components/recap/RecapStream.vue";
 import LastSessionCard from "@/components/dashboard/LastSessionCard.vue";
+import SessionStartButton from "@/components/session/SessionStartButton.vue";
 import Button from "primevue/button";
 import ProgressBar from "primevue/progressbar";
 import InputNumber from "primevue/inputnumber";
@@ -21,6 +22,8 @@ import Skeleton from "primevue/skeleton";
 import EmptyState from "@/components/shared/EmptyState.vue";
 import WordOfTheDay from "@/components/dashboard/WordOfTheDay.vue";
 import draggable from "vuedraggable";
+import { useConfirm } from "primevue/useconfirm";
+import ConfirmDialog from "primevue/confirmdialog";
 
 const router = useRouter();
 const booksStore = useBooksStore();
@@ -30,6 +33,7 @@ const lexiconStore = useLexiconStore();
 const authStore = useAuthStore();
 const loreStore = useLoreCardsStore();
 const recapsStore = useRecapsStore();
+const confirm = useConfirm();
 
 // ── Active hero book (US1, US2, 011-dashboard-state-refactor) ────────────────
 const {
@@ -240,10 +244,36 @@ const coverFallback = (e: Event) => {
   const img = e.target as HTMLImageElement;
   img.style.display = "none";
 };
+
+// ── Session conflict handling (T014, 013) ─────────────────────────────────
+// When SessionStartButton emits conflictWarning, we show a confirm dialog.
+// On confirmation, startSession() is called again to overwrite the old one.
+const handleSessionConflict = (startedAt: Date) => {
+  if (!activeBookId.value) return;
+  const bookId = activeBookId.value;
+  const timeStr = startedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  confirm.require({
+    message: `You have an unfinished session started at ${timeStr}. Start a new one?`,
+    header: "Replace session?",
+    icon: "pi pi-exclamation-triangle",
+    acceptLabel: "Start new session",
+    rejectLabel: "Cancel",
+    accept: async () => {
+      try {
+        await progressStore.startSession(bookId);
+      } catch {
+        // error surfaced by SessionStartButton internally
+      }
+    },
+  });
+};
 </script>
 
 <template>
   <div class="dashboard">
+    <!-- ConfirmDialog for session-conflict prompt (013) -->
+    <ConfirmDialog />
+
     <h1 class="dashboard__heading">Your Reading</h1>
 
     <!-- Loading -->
@@ -342,11 +372,18 @@ const coverFallback = (e: Event) => {
             class="dashboard__page-input"
           />
           <Button
-            :label="justSaved ? 'Saved!' : 'Save'"
             :icon="justSaved ? 'pi pi-check' : 'pi pi-check'"
             :loading="saving"
             :severity="justSaved ? 'success' : 'primary'"
+            :aria-label="justSaved ? 'Saved!' : 'Save progress'"
+            v-tooltip.top="justSaved ? 'Saved!' : 'Save'"
             @click="saveProgress"
+          />
+          <SessionStartButton
+            v-if="currentBook"
+            :book-id="currentBook.id"
+            :icon-only="true"
+            @conflict-warning="handleSessionConflict"
           />
         </div>
 
@@ -396,6 +433,7 @@ const coverFallback = (e: Event) => {
             "
           />
         </div>
+
       </article>
 
       <!-- Inline Recap Panel (US2, 010-dashboard-ux-sync) -->
