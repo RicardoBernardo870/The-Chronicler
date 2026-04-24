@@ -21,6 +21,7 @@ export interface ReadingProgress {
   currentPage: number
   percentage: number // computed: (currentPage / book.totalPages) * 100
   updatedAt: string
+  sessionStartAt: string | null  // 013 — non-null = active session in progress
 }
 
 export interface Recap {
@@ -101,6 +102,7 @@ export interface ReadingProgressRow {
   user_id: string
   current_page: number
   updated_at: string
+  session_start_at: string | null  // 013
 }
 
 export interface RecapRow {
@@ -138,6 +140,7 @@ export const mapReadingProgress = (row: ReadingProgressRow, totalPages: number):
   currentPage: row.current_page,
   percentage: totalPages > 0 ? Math.round((row.current_page / totalPages) * 10000) / 100 : 0,
   updatedAt: row.updated_at,
+  sessionStartAt: row.session_start_at ?? null,  // 013
 })
 
 export const mapRecap = (row: RecapRow): Recap => ({
@@ -210,6 +213,8 @@ export interface ProgressHistory {
   userId: string
   page: number
   recordedAt: string
+  sessionStartAt: string | null  // 013 — null for legacy rows
+  sessionNote: string | null     // 013 — optional end-of-session reminder
 }
 
 export interface ProgressHistoryRow {
@@ -218,6 +223,8 @@ export interface ProgressHistoryRow {
   user_id: string
   page: number
   recorded_at: string
+  session_start_at: string | null  // 013
+  session_note: string | null      // 013
 }
 
 export const mapProgressHistory = (row: ProgressHistoryRow): ProgressHistory => ({
@@ -226,6 +233,8 @@ export const mapProgressHistory = (row: ProgressHistoryRow): ProgressHistory => 
   userId: row.user_id,
   page: row.page,
   recordedAt: row.recorded_at,
+  sessionStartAt: row.session_start_at ?? null,
+  sessionNote: row.session_note ?? null,
 })
 
 export interface UpNextOrder {

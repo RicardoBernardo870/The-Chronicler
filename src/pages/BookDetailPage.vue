@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useBooksStore } from "@/stores/books";
 import { useProgressStore } from "@/stores/progress";
@@ -11,10 +11,14 @@ import RecapStream from "@/components/recap/RecapStream.vue";
 import LoreChronoscopeCard from "@/components/lore/LoreChronoscopeCard.vue";
 import VelocityBadge from "@/components/pulse/VelocityBadge.vue";
 import AddWordDialog from "@/components/lexicon/AddWordDialog.vue";
+import SessionStartButton from "@/components/session/SessionStartButton.vue";
+import SessionNoteField from "@/components/session/SessionNoteField.vue";
 import Button from "primevue/button";
 import InputNumber from "primevue/inputnumber";
 import ProgressBar from "primevue/progressbar";
 import Skeleton from "primevue/skeleton";
+import { useConfirm } from "primevue/useconfirm";
+import ConfirmDialog from "primevue/confirmdialog";
 
 const route = useRoute();
 const router = useRouter();
@@ -24,6 +28,7 @@ const recapsStore = useRecapsStore();
 const passportStore = useBookPassportStore();
 const lexiconStore = useLexiconStore();
 const loreStore = useLoreCardsStore();
+const confirm = useConfirm();
 
 const bookId = computed(() => route.params.id as string);
 const book = computed(() => booksStore.bookById(bookId.value));
@@ -34,6 +39,45 @@ const progressLoading = ref(false);
 const progressError = ref<string | null>(null);
 const recapTriggered = ref(false);
 const addWordVisible = ref(false);
+
+// ── Session note (T015, T022, 013) ────────────────────────────────────────
+// showNoteField becomes true when a session ends for this specific book.
+const showNoteField = ref(false);
+const pendingHistoryRowId = ref<string | null>(null);
+
+// Watch the store's lastSessionEnded reactive ref — show note field when it
+// fires for this book. Uses watchEffect so it reacts to the ref reference.
+watchEffect(() => {
+  const event = progressStore.lastSessionEnded;
+  if (event && event.bookId === bookId.value) {
+    pendingHistoryRowId.value = event.historyRowId;
+    showNoteField.value = true;
+  }
+});
+
+const handleNoteComplete = () => {
+  showNoteField.value = false;
+  pendingHistoryRowId.value = null;
+};
+
+// ── Session conflict handling (T015, 013) ─────────────────────────────────
+const handleSessionConflict = (startedAt: Date) => {
+  const timeStr = startedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  confirm.require({
+    message: `You have an unfinished session started at ${timeStr}. Start a new one?`,
+    header: "Replace session?",
+    icon: "pi pi-exclamation-triangle",
+    acceptLabel: "Start new session",
+    rejectLabel: "Cancel",
+    accept: async () => {
+      try {
+        await progressStore.startSession(bookId.value);
+      } catch {
+        // error surfaced by SessionStartButton internally
+      }
+    },
+  });
+};
 
 const lexiconCount = computed(
   () => lexiconStore.entriesByBook[bookId.value]?.length ?? 0,
@@ -129,6 +173,9 @@ const coverFallback = (e: Event) => {
 
 <template>
   <div class="book-detail">
+    <!-- ConfirmDialog for session-conflict prompt (013) -->
+    <ConfirmDialog />
+
     <!-- Not found -->
     <div
       v-if="!book && !booksStore.loading"
@@ -200,16 +247,30 @@ const coverFallback = (e: Event) => {
             fluid
           />
           <Button
-            label="Save"
             icon="pi pi-check"
             :loading="progressLoading"
+            aria-label="Save progress"
+            v-tooltip.top="'Save'"
             @click="saveProgress"
+          />
+          <SessionStartButton
+            :book-id="bookId"
+            :icon-only="true"
+            @conflict-warning="handleSessionConflict"
           />
         </div>
 
         <p v-if="progressError" class="book-detail__progress-error">
           <i class="pi pi-exclamation-triangle" /> {{ progressError }}
         </p>
+
+        <!-- Session Note Field — slides in after session ends (013) -->
+        <SessionNoteField
+          v-if="showNoteField && pendingHistoryRowId"
+          :history-row-id="pendingHistoryRowId"
+          @saved="handleNoteComplete"
+          @skipped="handleNoteComplete"
+        />
 
         <p class="book-detail__progress-hint">
           Page {{ progress?.currentPage ?? 0 }} of {{ book.totalPages }}

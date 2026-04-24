@@ -142,7 +142,12 @@
       "Bash(powershell.exe -NoProfile -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly)",
       "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly)",
       "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File .specify/scripts/powershell/setup-plan.ps1 -Json)",
-      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File .specify/scripts/powershell/update-agent-context.ps1 -AgentType claude)"
+      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File .specify/scripts/powershell/update-agent-context.ps1 -AgentType claude)",
+      "PowerShell(cd \"C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\"; powershell -ExecutionPolicy Bypass -File \".\\\\.specify\\\\scripts\\\\powershell\\\\check-prerequisites.ps1\" -Json -PathsOnly)",
+      "PowerShell(cd \"C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\"; powershell -ExecutionPolicy Bypass -File \".\\\\.specify\\\\scripts\\\\powershell\\\\setup-plan.ps1\" -Json)",
+      "PowerShell(cd \"C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\"; powershell -ExecutionPolicy Bypass -File \".\\\\.specify\\\\scripts\\\\powershell\\\\update-agent-context.ps1\" -AgentType claude)",
+      "PowerShell(cd C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero; powershell -ExecutionPolicy Bypass -File \".specify/scripts/powershell/check-prerequisites.ps1\" -Json -RequireTasks -IncludeTasks)",
+      "mcp__supabase__apply_migration"
     ]
   }
 }
