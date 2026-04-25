@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import type { LoreCard } from '@/types'
 import { useLoreCardsStore } from '@/stores/loreCards'
 import LoreCardDetail from '@/components/lore/LoreCardDetail.vue'
+import { sortDescByDate } from '@/utils/date'
 
 const props = defineProps<{ bookId?: string }>()
 
@@ -23,9 +24,7 @@ const cards = computed<LoreCard[]>(() => {
     ? loreStore.loreForBook(props.bookId)
     : loreStore.allLore
 
-  return [...raw].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  )
+  return sortDescByDate(raw, 'createdAt')
 })
 
 const toggleExpand = (id: string) => {

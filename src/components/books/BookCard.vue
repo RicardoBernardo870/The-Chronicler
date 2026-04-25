@@ -8,8 +8,10 @@ import { useLoreCardsStore } from '@/stores/loreCards'
 import { useConfirm } from 'primevue/useconfirm'
 import { useReadingPulse } from '@/composables/useReadingPulse'
 import Button from 'primevue/button'
+import Chip from 'primevue/chip'
 import Menu from 'primevue/menu'
 import BookEditDialog from '@/components/books/BookEditDialog.vue'
+import { coverFallback } from '@/utils/coverFallback'
 
 const props = defineProps<{
   book: Book
@@ -31,11 +33,6 @@ const initials = computed(() =>
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join(''),
 )
-
-const coverFallback = (e: Event) => {
-  const img = e.target as HTMLImageElement
-  img.style.display = 'none'
-}
 
 const navigate = () => router.push({ name: 'book-detail', params: { id: props.book.id } })
 
@@ -125,7 +122,7 @@ const streak = pulse.streak
     </div>
 
     <div class="book-card__body">
-      <span v-if="book.genre" class="book-card__genre">{{ book.genre }}</span>
+      <Chip v-if="book.genre" :label="book.genre" class="book-card__genre" />
       <h3 class="book-card__title">{{ book.title }}</h3>
       <p class="book-card__author">{{ book.author }}</p>
 

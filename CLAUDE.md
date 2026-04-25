@@ -1,6 +1,6 @@
 ﻿# BookHero Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-24
+Auto-generated from all feature plans. Last updated: 2026-04-25
 
 ## Active Technologies
 - TypeScript 6 + Vue 3.5+ + PrimeVue 4 (Accordion component), Pinia 3, Supabase JS v2, Vue Router 4 (master)
@@ -25,6 +25,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-24
 - Supabase PostgreSQL — `reading_progress` (modified), `progress_history` (modified); no new tables (master)
 - TypeScript 6 (strict) + Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, VueUse (013-session-stats-card)
 - Supabase PostgreSQL — `reading_progress` + `progress_history` extended with `session_start_at` + `session_note` columns (013-session-stats-card)
+- TypeScript 6 (strict) + Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, date-fns v4 (014-vue-modernization)
+- Pure frontend refactor — no schema changes; adds `src/utils/date.ts` + `src/utils/coverFallback.ts`; extracts HeroBookCard, InProgressSection, UpNextSection, CompletedSection, BookDetailHeader, BookProgressPanel (014-vue-modernization)
 
 - TypeScript 5.x + Vue 3.5+ + PrimeVue 4.x, Pinia 2.x, Vue Router 4.x, Supabase JS v2, (001-the-chronicler)
 
@@ -45,6 +47,7 @@ npm test; npm run lint
 TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 ## Recent Changes
+- 014-vue-modernization: Pure refactor — install date-fns v4; src/utils/date.ts + coverFallback.ts; DashboardPage decomposed into HeroBookCard/InProgressSection/UpNextSection/CompletedSection; BookDetailPage into BookDetailHeader/BookProgressPanel; PrimeVue Chip/Tag/InlineMessage for badges; all manual date arithmetic migrated to date-fns
 - 013-session-stats-card: Added explicit session tracking (session_start_at, session_note) to progress tables; new useReadingSession composable + SessionStartButton + SessionNoteField; LastSessionCard upgraded with full 5-metric grid (time, velocity, completion delta, finish prediction, note)
 - master: Added TypeScript 6 (strict) + Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, VueUse
 - master: Added TypeScript 6 (strict), Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, VueUse

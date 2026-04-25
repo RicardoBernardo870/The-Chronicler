@@ -2,7 +2,7 @@
 import { computed, onMounted } from "vue";
 import { useLastSession } from "@/composables/useLastSession";
 import { useBooksStore } from "@/stores/books";
-import { formatRelative } from "@/composables/useRelativeTime";
+import { formatRelativeToNow as formatRelative } from "@/utils/date";
 import { Image } from "primevue";
 
 const { lastSession, fetchAllHistory } = useLastSession();

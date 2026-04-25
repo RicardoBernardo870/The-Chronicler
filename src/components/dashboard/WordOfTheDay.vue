@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useLexiconStore } from '@/stores/lexicon'
 import { useBooksStore } from '@/stores/books'
 import { useAuthStore } from '@/stores/auth'
+import { diffInDays, formatShortDate } from '@/utils/date'
 
 const router = useRouter()
 const lexiconStore = useLexiconStore()
@@ -22,12 +23,10 @@ const bookTitle = computed(() => {
 const nextReviewLabel = computed(() => {
   if (!entry.value) return ''
   const next = new Date(entry.value.nextReviewAt)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const diff = Math.round((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  const diff = diffInDays(next, new Date())
   if (diff <= 1) return 'tomorrow'
   if (diff <= 6) return `in ${diff} days`
-  return `on ${next.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+  return `on ${formatShortDate(entry.value.nextReviewAt)}`
 })
 
 const navigateToLexicon = () => {

@@ -4,16 +4,13 @@ import Accordion from 'primevue/accordion'
 import AccordionPanel from 'primevue/accordionpanel'
 import AccordionHeader from 'primevue/accordionheader'
 import AccordionContent from 'primevue/accordioncontent'
+import { formatShortDate } from '@/utils/date'
 
 const props = defineProps<{
   recap: Recap
 }>()
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-  })
-}
+const formatDate = (iso: string): string => formatShortDate(iso)
 </script>
 
 <template>
