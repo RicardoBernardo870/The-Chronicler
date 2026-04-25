@@ -64,7 +64,7 @@ onMounted(() => fetchAllHistory());
 
     <!-- Book identity row -->
     <div class="last-session__book-info">
-      <Image v-if="bookImage" :src="bookImage" width="56" preview />
+      <Image v-if="bookImage" :src="bookImage" width="56" preview/>
       <div v-else class="last-session__cover-placeholder">
         <i class="pi pi-book" />
       </div>
@@ -208,17 +208,13 @@ onMounted(() => fetchAllHistory());
 .last-session__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.6rem 1rem;
+  gap: 1rem 1rem;
 }
 
 .last-session__metric {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-}
-
-.last-session__metric--wide {
-  grid-column: 1 / -1;
 }
 
 .last-session__metric-label {
