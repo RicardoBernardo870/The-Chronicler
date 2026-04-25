@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
 import { mapProgressHistory, type ProgressHistory, type ProgressHistoryRow } from '@/types'
+import { diffInSeconds } from '@/utils/date'
 
 // T016 (013) — extended LastSession interface
 export interface LastSession {
@@ -73,7 +74,7 @@ export const useLastSession = () => {
       const rowIdx = sameBook.findIndex(r => r.id === row.id)
       const priorRow = rowIdx > 0 ? sameBook[rowIdx - 1] : null
       const pageDelta = priorRow ? Math.max(0, row.page - priorRow.page) : Math.max(0, row.page)
-      const durSec = (new Date(row.recordedAt).getTime() - new Date(row.sessionStartAt!).getTime()) / 1000
+      const durSec = diffInSeconds(row.recordedAt, row.sessionStartAt!)
       if (durSec >= 60 && pageDelta >= 1) {
         velocities.push(pageDelta / (durSec / 3600))
       }
@@ -102,7 +103,7 @@ export const useLastSession = () => {
     // T017: precise duration when session_start_at is present
     const startedAt = lastRow.sessionStartAt ? new Date(lastRow.sessionStartAt) : null
     const durationSeconds = startedAt
-      ? (new Date(lastRow.recordedAt).getTime() - startedAt.getTime()) / 1000
+      ? diffInSeconds(lastRow.recordedAt, startedAt)
       : null
 
     // Velocity: requires ≥60s duration AND ≥1 page read

@@ -1,14 +1,15 @@
 import type { LexiconEntry } from '@/types'
+import { formatISODate } from '@/utils/date'
 
 // Days between reviews per box (box 1 → 5)
 const INTERVALS = [1, 2, 4, 8, 16]
 
-const todayStr = () => new Date().toISOString().split('T')[0]
+const todayStr = () => formatISODate(new Date())
 
 const addDays = (days: number): string => {
   const d = new Date()
   d.setDate(d.getDate() + days)
-  return d.toISOString().split('T')[0]
+  return formatISODate(d)
 }
 
 export const useLeitner = () => {

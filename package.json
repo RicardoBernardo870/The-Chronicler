@@ -17,6 +17,7 @@
     "@primevue/core": "^4.5.5",
     "@supabase/supabase-js": "^2.103.2",
     "@vueuse/core": "^14.2.1",
+    "date-fns": "^4.1.0",
     "pinia": "^3.0.4",
     "primeicons": "^7.0.0",
     "primevue": "^4.5.5",

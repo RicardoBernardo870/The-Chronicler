@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { LoreCard } from '@/types'
+import { formatShortDate } from '@/utils/date'
 
 defineProps<{ card: LoreCard }>()
 
@@ -14,8 +15,7 @@ const typeColour = (type: LoreCard['type']): string => {
   }
 }
 
-const formatDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+const formatDate = (iso: string): string => formatShortDate(iso)
 </script>
 
 <template>

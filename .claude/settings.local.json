@@ -147,7 +147,13 @@
       "PowerShell(cd \"C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\"; powershell -ExecutionPolicy Bypass -File \".\\\\.specify\\\\scripts\\\\powershell\\\\setup-plan.ps1\" -Json)",
       "PowerShell(cd \"C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\"; powershell -ExecutionPolicy Bypass -File \".\\\\.specify\\\\scripts\\\\powershell\\\\update-agent-context.ps1\" -AgentType claude)",
       "PowerShell(cd C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero; powershell -ExecutionPolicy Bypass -File \".specify/scripts/powershell/check-prerequisites.ps1\" -Json -RequireTasks -IncludeTasks)",
-      "mcp__supabase__apply_migration"
+      "mcp__supabase__apply_migration",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('date-fns:', p.dependencies?.['date-fns'] || p.devDependencies?.['date-fns'] || 'NOT INSTALLED'\\); console.log\\('dayjs:', p.dependencies?.['dayjs'] || 'NOT INSTALLED'\\)\")",
+      "PowerShell(& \"C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\.specify\\\\scripts\\\\powershell\\\\check-prerequisites.ps1\" -Json -RequireTasks 2>&1)",
+      "Bash(Get-Content \"C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\src\\\\pages\\\\DashboardPage.vue\")",
+      "Bash(Measure-Object -Line)",
+      "Bash(Select-Object -ExpandProperty Lines)",
+      "Bash(pnpm test *)"
     ]
   }
 }

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Book } from '@/types'
 import { useProgressStore } from '@/stores/progress'
+import { coverFallback } from '@/utils/coverFallback'
 
 const props = defineProps<{ book: Book }>()
 
@@ -18,11 +19,6 @@ const initials = computed(() =>
     .map(w => w[0]?.toUpperCase() ?? '')
     .join('')
 )
-
-const coverFallback = (e: Event) => {
-  const img = e.target as HTMLImageElement
-  img.style.display = 'none'
-}
 
 const navigate = () => router.push({ name: 'book-detail', params: { id: props.book.id } })
 </script>
