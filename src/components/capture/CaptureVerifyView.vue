@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import Button from 'primevue/button'
-import Textarea from 'primevue/textarea'
-import InlineMessage from 'primevue/inlinemessage'
+import {Message, Textarea, Button} from 'primevue'
 
 const props = defineProps<{
   initialText: string
@@ -39,9 +37,9 @@ const handleSave = (): void => {
       <i class="pi pi-pencil" /> Verify the captured text
     </label>
 
-    <InlineMessage v-if="showLowConfidence" severity="warn" class="capture-verify__warning">
+    <Message v-if="showLowConfidence" severity="warn" class="capture-verify__warning">
       OCR confidence is low — please review the text carefully before saving.
-    </InlineMessage>
+    </Message>
 
     <div class="capture-verify__input-wrap">
       <Textarea
@@ -49,7 +47,6 @@ const handleSave = (): void => {
         v-model="text"
         :maxlength="MAX_CHARS"
         rows="8"
-        auto-resize
         class="capture-verify__textarea"
         placeholder="Captured text will appear here…"
       />
