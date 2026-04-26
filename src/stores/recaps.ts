@@ -2,13 +2,17 @@ import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 import { supabase } from '@/services/supabase'
 import { streamRecap, type StreamRecapResult } from '@/services/recapService'
-import { mapRecap, type Recap, type RecapRow, type RecapGenerationStatus } from '@/types'
+import { mapRecap, type Recap, type RecapRow, type RecapGenerationStatus, type RecapMode } from '@/types'
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
 import { useAuthStore } from '@/stores/auth'
+import { useCapturesStore } from '@/stores/captures'  // 015-corpus-recaps
 // T010: SWR for fetchRecapsForBook (history metadata SELECT only).
 // generateRecap and all streaming code are EXCLUDED from cache (FR-009).
 import { swrStatus, swrRun, invalidate, registerRevalidator, cacheKeys } from '@/composables/useCache'
+
+// 015-corpus-recaps: ≥30% delta-range coverage triggers corpus mode.
+const CORPUS_COVERAGE_THRESHOLD = 0.30
 
 const TTL = 60_000 // 60 s
 
@@ -67,6 +71,17 @@ export const useRecapsStore = defineStore('recaps', () => {
       // Incremental recap: cover only pages since the last recap (Decision 3)
       const fromPage = recapsByBook[bookId]?.[0]?.pageSnapshot ?? 0
 
+      // 015-corpus-recaps: select corpus or inferred mode based on delta coverage.
+      // Captures are sent inline in the request body when corpus mode triggers;
+      // the edge function uses them to bypass the extraction stage entirely.
+      const capturesStore = useCapturesStore()
+      await capturesStore.fetchCapturesForBook(bookId).catch(() => {})
+      const inRange = capturesStore.capturesInRange(bookId, fromPage, currentPage)
+      const rangePages = currentPage - fromPage
+      const coverage = rangePages > 0 ? inRange.length / rangePages : 0
+      const useCorpus = coverage >= CORPUS_COVERAGE_THRESHOLD && inRange.length >= 1 && rangePages > 0
+      const selectedMode: RecapMode = useCorpus ? 'corpus' : 'inferred'
+
       const result: StreamRecapResult = await streamRecap(
         {
           title: book.title,
@@ -76,6 +91,9 @@ export const useRecapsStore = defineStore('recaps', () => {
           currentPage,
           totalPages: book.totalPages,
           from_page: fromPage > 0 ? fromPage : undefined,
+          captures: useCorpus
+            ? inRange.map((c) => ({ page: c.page, text: c.text }))
+            : undefined,
         },
         (token) => { streamingText.value += token },
         signal,
@@ -100,6 +118,7 @@ export const useRecapsStore = defineStore('recaps', () => {
           memory_jogger: result.memoryJogger,
           concept_watchlist: result.conceptWatchlist,
           thematic_bridge: result.thematicBridge,
+          mode: selectedMode,  // 015-corpus-recaps
         })
         .select()
         .single()

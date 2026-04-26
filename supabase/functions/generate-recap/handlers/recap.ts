@@ -5,21 +5,29 @@ import { corsHeaders } from "../cors.ts"
 import { runExtraction, type ExtractionOutcome } from "../extraction/runExtraction.ts"
 import { MAX_ATTEMPTS, computeAdjustedPage } from "../extraction/retryPolicy.ts"
 import { logStageFailure } from "../utils/logging.ts"
-import type { RequestBody } from "../types.ts"
+import type { RequestBody, CapturedPage } from "../types.ts"
 
 /**
- * Mid-book Recap handler — the hardened path.
+ * Mid-book Recap handler.
  *
- * Flow:
- *   1. Call extractor. On confidence `high` | `medium` → proceed to composer.
- *   2. On confidence `low` OR parse failure → retry with a reduced page window
- *      (up to MAX_ATTEMPTS additional attempts).
- *   3. On provider safety block → terminal graceful error (no retry).
- *   4. On exhausted retries still low → graceful error (never a speculative recap).
- *   5. On success → stream the recap composition back to the client.
+ * Two paths:
+ *
+ *   CORPUS PATH (015-corpus-recaps): when body.captures is present and
+ *   non-empty, the extraction stage is skipped entirely. The supplied
+ *   captured text IS the source of truth, so we compose directly from it.
+ *
+ *   INFERRED PATH (existing, unchanged): extractor → retry on low confidence
+ *   → composer. Used when no captures are sent.
  */
 export const handleRecap = async (ai: any, body: RequestBody): Promise<Response> => {
   const fromPage = typeof body.from_page === "number" ? body.from_page : 0
+
+  // ── Corpus path ─────────────────────────────────────────────────────────
+  if (Array.isArray(body.captures) && body.captures.length > 0) {
+    return await composeFromCorpus(ai, body, body.captures, fromPage)
+  }
+
+  // ── Inferred path (original logic) ──────────────────────────────────────
 
   let attempt   = 0
   let outcome:  ExtractionOutcome | null = null
@@ -164,3 +172,104 @@ const jsonError = (
     JSON.stringify({ error, detail, ...extra }),
     { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
   )
+
+// ─── Corpus path (015-corpus-recaps) ────────────────────────────────────
+/**
+ * Compose a recap directly from captured page text. Skips the extraction
+ * stage because the captured text is already authoritative.
+ *
+ * The composer receives the raw captured pages, sorted ascending, joined
+ * with [Page N] markers. The system prompt (buildRecapPrompt) preserves the
+ * existing 3-tier output structure (memory_jogger / concept_watchlist /
+ * thematic_bridge), satisfying Constitution Principle I.
+ */
+const composeFromCorpus = async (
+  ai: any,
+  body: RequestBody,
+  captures: CapturedPage[],
+  fromPage: number,
+): Promise<Response> => {
+  const startTime = Date.now()
+
+  // Sort ascending by page; defensive against client-side ordering.
+  const sorted = [...captures].sort((a, b) => a.page - b.page)
+  const rangeStart = fromPage > 0 ? fromPage + 1 : 1
+  const rangeEnd = body.currentPage
+
+  const corpusBlocks = sorted
+    .map((c) => `[Page ${c.page}]\n${c.text.trim()}`)
+    .join("\n\n")
+
+  const composerMessage = `Below is the actual text the reader has captured from "${body.title}" by ${body.author}, covering pages ${rangeStart} to ${rangeEnd} (the stretch since their last recap).
+
+CRITICAL CONSTRAINTS:
+- Summarize ONLY events, characters, and themes that appear in the captured text below.
+- Do NOT infer plot from the book's title, author, or your training data.
+- Do NOT speculate about events not present in the captured text.
+- If a character is mentioned but their fate is unknown in the captured text, do not predict.
+- Frame the summary as "what happened in this stretch" — NOT a story-so-far recap.
+
+CAPTURED TEXT:
+${corpusBlocks}
+
+Generate the three-part briefing using ONLY the events, characters, and details that appear in the captured text above.`
+
+  let stream
+  try {
+    stream = await ai.models.generateContentStream({
+      model: "gemini-2.5-flash",
+      contents: [{ role: "user", parts: [{ text: composerMessage }] }],
+      config: {
+        systemInstruction: buildRecapPrompt(),
+        temperature:       0.7,
+        maxOutputTokens:   4096,
+        thinkingConfig:    DEFAULT_THINKING_CONFIG,
+      },
+    })
+  } catch (err) {
+    logStageFailure({
+      stage:          "recap",
+      rawTextPreview: `corpus mode failure: ${String(err).slice(0, 400)}`,
+    })
+    return jsonError("AI output invalid", "Recap composition failed")
+  }
+
+  const encoder = new TextEncoder()
+  let firstChunkLogged = false
+
+  const readable = new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of stream) {
+          const text = (chunk as any).text
+          if (text) {
+            if (!firstChunkLogged) {
+              firstChunkLogged = true
+              console.log(JSON.stringify({
+                stage:                "recap",
+                mode_selected:        "corpus",
+                first_token_latency_ms: Date.now() - startTime,
+                captures_in_range:    sorted.length,
+                range_pages:          rangeEnd - fromPage,
+              }))
+            }
+            controller.enqueue(encoder.encode(text))
+          }
+        }
+        controller.close()
+      } catch (err) {
+        console.error("Corpus recap stream error:", err)
+        controller.error(err)
+      }
+    },
+  })
+
+  return new Response(readable, {
+    headers: {
+      ...corsHeaders,
+      "Content-Type":  "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
+      "X-Recap-Mode":  "corpus",
+    },
+  })
+}

@@ -1,6 +1,6 @@
 ﻿# BookHero Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-25
+Auto-generated from all feature plans. Last updated: 2026-04-26
 
 ## Active Technologies
 - TypeScript 6 + Vue 3.5+ + PrimeVue 4 (Accordion component), Pinia 3, Supabase JS v2, Vue Router 4 (master)
@@ -27,6 +27,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-25
 - Supabase PostgreSQL — `reading_progress` + `progress_history` extended with `session_start_at` + `session_note` columns (013-session-stats-card)
 - TypeScript 6 (strict) + Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, date-fns v4 (014-vue-modernization)
 - Pure frontend refactor — no schema changes; adds `src/utils/date.ts` + `src/utils/coverFallback.ts`; extracts HeroBookCard, InProgressSection, UpNextSection, CompletedSection, BookDetailHeader, BookProgressPanel (014-vue-modernization)
+- TypeScript 6 (strict) on Vue 3.5 (Composition API, `<script setup>`); Deno runtime for Supabase edge functions + PrimeVue 4, Pinia 3, Supabase JS v2, Vue Router 4, VueUse, date-fns v4. New runtime dependency: native `navigator.mediaDevices.getUserMedia()` for camera access — no new npm packages required. (015-corpus-recaps)
+- Supabase PostgreSQL — new `page_captures` table; existing `recaps` table extended with a `mode text` column. No new buckets in Supabase Storage (images are not persisted). (015-corpus-recaps)
 
 - TypeScript 5.x + Vue 3.5+ + PrimeVue 4.x, Pinia 2.x, Vue Router 4.x, Supabase JS v2, (001-the-chronicler)
 
@@ -47,11 +49,9 @@ npm test; npm run lint
 TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 ## Recent Changes
+- 015-corpus-recaps: New `page_captures` table + `ocr-page` edge function (Gemini 2.5 Flash multimodal OCR); `generate-recap` extended with corpus mode (≥30% delta-range coverage triggers; captures sent inline by client); `recaps.mode` column added; `SessionCaptureField` replaces post-session note prompt as primary action on LastSessionCard; new `captures` Pinia store + `useCapture` composable; image bytes never persisted (in-memory OCR only).
 - 014-vue-modernization: Pure refactor — install date-fns v4; src/utils/date.ts + coverFallback.ts; DashboardPage decomposed into HeroBookCard/InProgressSection/UpNextSection/CompletedSection; BookDetailPage into BookDetailHeader/BookProgressPanel; PrimeVue Chip/Tag/InlineMessage for badges; all manual date arithmetic migrated to date-fns
 - 013-session-stats-card: Added explicit session tracking (session_start_at, session_note) to progress tables; new useReadingSession composable + SessionStartButton + SessionNoteField; LastSessionCard upgraded with full 5-metric grid (time, velocity, completion delta, finish prediction, note)
-- master: Added TypeScript 6 (strict) + Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, VueUse
-- master: Added TypeScript 6 (strict), Vue 3.5 (Composition API, `<script setup>`) + Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2, VueUse
-- 009-home-inline-cards: Added TypeScript 6 (strict) + Vue 3.5 (Composition API, `<script setup>`), Pinia 3, PrimeVue 4, Vue Router 4, Supabase JS v2
 
 
 <!-- MANUAL ADDITIONS START -->

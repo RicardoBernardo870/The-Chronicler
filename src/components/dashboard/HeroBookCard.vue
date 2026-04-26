@@ -6,10 +6,10 @@ import SessionStartButton from '@/components/session/SessionStartButton.vue'
 import Button from 'primevue/button'
 import Chip from 'primevue/chip'
 import Tag from 'primevue/tag'
-import InlineMessage from 'primevue/inlinemessage'
 import ProgressBar from 'primevue/progressbar'
 import InputNumber from 'primevue/inputnumber'
 import { coverFallback } from '@/utils/coverFallback'
+import { Message } from 'primevue'
 
 const props = defineProps<{
   book: Book
@@ -118,9 +118,9 @@ const loreStore = useLoreCardsStore()
       <i class="pi pi-exclamation-triangle" /> {{ saveError }}
     </p>
 
-    <InlineMessage v-if="heroWarning" severity="warn" class="hero-card__continuity-warning">
+    <Message v-if="heroWarning" severity="warn" class="hero-card__continuity-warning">
       It's been a while — time for a Memory Jogger?
-    </InlineMessage>
+    </Message>
 
     <Tag
       v-if="pendingSync"

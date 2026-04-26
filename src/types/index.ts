@@ -24,6 +24,8 @@ export interface ReadingProgress {
   sessionStartAt: string | null  // 013 — non-null = active session in progress
 }
 
+export type RecapMode = 'corpus' | 'inferred'
+
 export interface Recap {
   id: string
   bookId: string
@@ -33,6 +35,7 @@ export interface Recap {
   memoryJogger: string
   conceptWatchlist: string
   thematicBridge: string
+  mode: RecapMode               // 015 — which generation path produced this row
   createdAt: string
 }
 
@@ -114,6 +117,7 @@ export interface RecapRow {
   memory_jogger: string
   concept_watchlist: string
   thematic_bridge: string
+  mode: RecapMode               // 015
   created_at: string
 }
 
@@ -152,6 +156,7 @@ export const mapRecap = (row: RecapRow): Recap => ({
   memoryJogger: row.memory_jogger,
   conceptWatchlist: row.concept_watchlist,
   thematicBridge: row.thematic_bridge,
+  mode: row.mode ?? 'inferred',  // 015 — DEFAULT 'inferred' on historical rows
   createdAt: row.created_at,
 })
 
@@ -344,4 +349,46 @@ export const mapLoreCard = (row: LoreCardRow): LoreCard => ({
   unlockedAtMilestone: row.unlocked_at_milestone,
   seen: row.seen,
   createdAt: row.created_at,
+})
+
+// ─────────────────────────────────────────────────────────────
+// Page Captures (015) — corpus-grounded delta recaps
+// ─────────────────────────────────────────────────────────────
+
+export type PageCaptureSource = 'ocr' | 'manual' | 'import'
+
+export interface PageCapture {
+  id: string
+  userId: string
+  bookId: string
+  page: number          // sourced from reading_progress.current_page; NEVER OCR-detected
+  text: string          // 1-10000 chars (post user-edit)
+  wordCount: number
+  confidence: number    // 0.0-1.0, self-rated by Gemini multimodal
+  capturedAt: string
+  source: PageCaptureSource
+}
+
+export interface PageCaptureRow {
+  id: string
+  user_id: string
+  book_id: string
+  page: number
+  text: string
+  word_count: number
+  confidence: number
+  captured_at: string
+  source: PageCaptureSource
+}
+
+export const mapPageCapture = (row: PageCaptureRow): PageCapture => ({
+  id: row.id,
+  userId: row.user_id,
+  bookId: row.book_id,
+  page: row.page,
+  text: row.text,
+  wordCount: row.word_count,
+  confidence: Number(row.confidence),
+  capturedAt: row.captured_at,
+  source: row.source,
 })
