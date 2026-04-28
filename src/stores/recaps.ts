@@ -156,12 +156,45 @@ export const useRecapsStore = defineStore('recaps', () => {
     return recapsByBook[bookId] ?? []
   }
 
+  // 016 — flat list of every recap across the user's library; used by the
+  // Profile page's Top Themes derivation. SWR-cached at the user level.
+  async function fetchRecapsForAllBooks() {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+
+    const key = `recaps:all:${authStore.user.id}`
+    const fetcher = async () => {
+      const { data, error: err } = await supabase
+        .from('recaps')
+        .select('*')
+        .eq('user_id', authStore.user!.id)
+        .order('created_at', { ascending: false })
+      if (err) throw err
+      const grouped: Record<string, Recap[]> = {}
+      for (const row of data as RecapRow[]) {
+        const recap = mapRecap(row)
+        if (!grouped[recap.bookId]) grouped[recap.bookId] = []
+        grouped[recap.bookId].push(recap)
+      }
+      // Replace, don't merge — this is the source of truth for "all recaps".
+      for (const k of Object.keys(recapsByBook)) delete recapsByBook[k]
+      Object.assign(recapsByBook, grouped)
+    }
+    registerRevalidator(key, () => swrRun(key, fetcher).catch(() => {}))
+
+    const status = swrStatus(key, TTL)
+    if (status === 'fresh') return
+    if (status === 'background') { swrRun(key, fetcher).catch(() => {}); return }
+    await swrRun(key, fetcher)
+  }
+
   return {
     recapsByBook,
     generationStatus,
     streamingText,
     error,
     fetchRecapsForBook,
+    fetchRecapsForAllBooks,
     generateRecap,
     resetStatus,
     latestRecapForBook,

@@ -1,43 +1,52 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useAppTheme } from '@/composables/useAppTheme'
-import { useAuthStore } from '@/stores/auth'
+import { ref, computed } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useAppTheme } from "@/composables/useAppTheme";
+import { useAuthStore } from "@/stores/auth";
 
-const route = useRoute()
-const router = useRouter()
-const authStore = useAuthStore()
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
 
-const { isDark, toggle: toggleTheme } = useAppTheme()
-const moreVisible = ref(false)
+const { isDark, toggle: toggleTheme } = useAppTheme();
+const moreVisible = ref(false);
 
-const isHome = computed(() => route.path === '/')
-const isLibrary = computed(() => route.path.startsWith('/library') || route.path.startsWith('/books'))
-const isLexicon = computed(() => route.path.startsWith('/lexicon'))
+const isHome = computed(() => route.path === "/");
+const isLibrary = computed(
+  () => route.path.startsWith("/library") || route.path.startsWith("/books"),
+);
+const isLexicon = computed(() => route.path.startsWith("/lexicon"));
+const isProfile = computed(() => route.path.startsWith("/profile"));
 
-const closeMore = () => { moreVisible.value = false }
+const closeMore = () => {
+  moreVisible.value = false;
+};
 
 const handleToggleTheme = () => {
-  toggleTheme()
-  closeMore()
-}
+  toggleTheme();
+  closeMore();
+};
 
 const handleSignOut = async () => {
-  closeMore()
-  await authStore.signOut()
-  await router.push('/login')
-}
+  closeMore();
+  await authStore.signOut();
+  await router.push("/login");
+};
 
 const handleAddBook = () => {
-  closeMore()
-  router.push('/books/add')
-}
+  closeMore();
+  router.push("/books/add");
+};
 </script>
 
 <template>
   <!-- Backdrop — closes More sheet on outside click -->
   <Transition name="fade">
-    <div v-if="moreVisible" class="app-bottom-nav__backdrop" @click="closeMore" />
+    <div
+      v-if="moreVisible"
+      class="app-bottom-nav__backdrop"
+      @click="closeMore"
+    />
   </Transition>
 
   <!-- More sheet -->
@@ -49,7 +58,7 @@ const handleAddBook = () => {
       </button>
       <button class="app-bottom-nav__sheet-item" @click="handleToggleTheme">
         <i :class="`pi ${isDark ? 'pi-sun' : 'pi-moon'}`" />
-        <span>{{ isDark ? 'Light mode' : 'Dark mode' }}</span>
+        <span>{{ isDark ? "Light mode" : "Dark mode" }}</span>
       </button>
       <button class="app-bottom-nav__sheet-item" @click="handleSignOut">
         <i class="pi pi-sign-out" />
@@ -64,13 +73,29 @@ const handleAddBook = () => {
       <i class="pi pi-home" />
       <span class="app-bottom-nav__label">Home</span>
     </RouterLink>
-    <RouterLink to="/library" class="app-bottom-nav__item" :class="{ active: isLibrary }">
+    <RouterLink
+      to="/library"
+      class="app-bottom-nav__item"
+      :class="{ active: isLibrary }"
+    >
       <i class="pi pi-th-large" />
       <span class="app-bottom-nav__label">Library</span>
     </RouterLink>
-    <RouterLink to="/lexicon" class="app-bottom-nav__item" :class="{ active: isLexicon }">
+    <RouterLink
+      to="/lexicon"
+      class="app-bottom-nav__item"
+      :class="{ active: isLexicon }"
+    >
       <i class="pi pi-language" />
       <span class="app-bottom-nav__label">Great Library</span>
+    </RouterLink>
+    <RouterLink
+      to="/profile"
+      class="app-bottom-nav__item"
+      :class="{ active: isProfile }"
+    >
+      <i class="pi pi-user" />
+      <span class="app-bottom-nav__label">Profile</span>
     </RouterLink>
     <button
       class="app-bottom-nav__item"
@@ -109,7 +134,9 @@ const handleAddBook = () => {
   justify-content: center;
   gap: 0.2rem;
   opacity: 0.5;
-  transition: opacity 0.15s, color 0.15s;
+  transition:
+    opacity 0.15s,
+    color 0.15s;
   border: none;
   background: transparent;
   color: inherit;
@@ -191,7 +218,7 @@ const handleAddBook = () => {
 }
 
 /* Light mode sheet hover */
-html[data-p-theme='light'] .app-bottom-nav__sheet-item:hover {
+html[data-p-theme="light"] .app-bottom-nav__sheet-item:hover {
   background: rgba(0, 0, 0, 0.05);
 }
 
@@ -209,7 +236,9 @@ html[data-p-theme='light'] .app-bottom-nav__sheet-item:hover {
 
 .sheet-enter-active,
 .sheet-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 
 .sheet-enter-from,

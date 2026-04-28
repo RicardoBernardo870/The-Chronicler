@@ -48,6 +48,11 @@ const router = createRouter({
           component: () => import("@/pages/BookPassportPage.vue"),
           props: true,
         },
+        {
+          path: "profile",
+          name: "profile",
+          component: () => import("@/pages/ProfilePage.vue"),
+        },
       ],
     },
     {

@@ -110,6 +110,23 @@ export const useCapturesStore = defineStore('captures', () => {
       capturesByBook[input.bookId] = list
       loadedBookIds.value.add(input.bookId)
 
+      // 016 — fire-and-forget auto-vocabulary extraction. Non-blocking,
+      // silent on failure (FR-020 / SC-004). Capture itself is already saved
+      // by this point — extraction runs purely in the background.
+      try {
+        const { useVocabularyExtraction } = await import('@/composables/useVocabularyExtraction')
+        const { triggerExtraction } = useVocabularyExtraction()
+        triggerExtraction({
+          captureId: mapped.id,
+          bookId: mapped.bookId,
+          page: mapped.page,
+          ocrText: mapped.text,
+        })
+      } catch (vocabErr) {
+        // Never bubble — capture must stay successful.
+        console.warn('[captures] vocab trigger import failed', vocabErr)
+      }
+
       return mapped
     } catch (e: unknown) {
       lastError.value = e instanceof Error ? e.message : 'Failed to save capture'

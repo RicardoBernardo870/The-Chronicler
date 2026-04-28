@@ -1,85 +1,97 @@
 <script setup lang="ts">
-import { ref, computed, defineAsyncComponent } from 'vue'
-import { useProgressStore } from '@/stores/progress'
-import { useCapturesStore } from '@/stores/captures'
-import { useCapture } from '@/composables/useCapture'
-import Button from 'primevue/button'
-import { useToast } from 'primevue/usetoast'
+import { ref, computed, defineAsyncComponent } from "vue";
+import { useProgressStore } from "@/stores/progress";
+import { useCapturesStore } from "@/stores/captures";
+import { useCapture } from "@/composables/useCapture";
+import Button from "primevue/button";
+import { useToast } from "primevue/usetoast";
 
 // "Add note instead" fallback re-uses the existing component
-import SessionNoteField from '@/components/session/SessionNoteField.vue'
+import SessionNoteField from "@/components/session/SessionNoteField.vue";
 
-// Capture views are heavy (camera + textarea + InlineMessage) — load lazily
-const CaptureCameraView = defineAsyncComponent(() => import('@/components/capture/CaptureCameraView.vue'))
-const CaptureVerifyView = defineAsyncComponent(() => import('@/components/capture/CaptureVerifyView.vue'))
+// Capture views are heavy (camera + textarea + Message) — load lazily
+const CaptureCameraView = defineAsyncComponent(
+  () => import("@/components/capture/CaptureCameraView.vue"),
+);
+const CaptureVerifyView = defineAsyncComponent(
+  () => import("@/components/capture/CaptureVerifyView.vue"),
+);
 
 const props = defineProps<{
-  historyRowId: string
-  bookId: string
-}>()
+  historyRowId: string;
+  bookId: string;
+}>();
 
 const emit = defineEmits<{
-  saved: []
-  skipped: []
-}>()
+  saved: [];
+  skipped: [];
+}>();
 
-const progressStore = useProgressStore()
-const capturesStore = useCapturesStore()
-const toast = useToast()
+const progressStore = useProgressStore();
+const capturesStore = useCapturesStore();
+const toast = useToast();
 
-const { state, ocrResult, errorMessage, startCamera, snap, retake, cancel } = useCapture()
+const { state, ocrResult, errorMessage, startCamera, snap, retake, cancel } =
+  useCapture();
 
 // 'note' = user chose "Add note instead"; rendered SessionNoteField fallback
-const mode = ref<'capture' | 'note'>('capture')
+const mode = ref<"capture" | "note">("capture");
 
-const currentPage = computed(() => progressStore.progressForBook(props.bookId)?.currentPage ?? 0)
+const currentPage = computed(
+  () => progressStore.progressForBook(props.bookId)?.currentPage ?? 0,
+);
 
 const handleStartCapture = (): void => {
   // CaptureCameraView mounts and calls startCamera via prop — flip state so view appears
-  state.value = 'camera'
-}
+  state.value = "camera";
+};
 
 const handleSnap = async (): Promise<void> => {
-  await snap()
-  if (state.value === 'error' && errorMessage.value) {
-    toast.add({ severity: 'error', summary: 'OCR failed', detail: errorMessage.value, life: 4000 })
+  await snap();
+  if (state.value === "error" && errorMessage.value) {
+    toast.add({
+      severity: "error",
+      summary: "OCR failed",
+      detail: errorMessage.value,
+      life: 4000,
+    });
   }
-}
+};
 
 const handleSave = async (text: string): Promise<void> => {
-  if (!ocrResult.value) return
+  if (!ocrResult.value) return;
   try {
-    const wordCount = text.split(/\s+/).filter(Boolean).length
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
     await capturesStore.saveCapture({
       bookId: props.bookId,
       page: currentPage.value,
       text,
       confidence: ocrResult.value.confidence,
       wordCount,
-    })
-    emit('saved')
+    });
+    emit("saved");
   } catch (e) {
     toast.add({
-      severity: 'error',
-      summary: 'Could not save capture',
-      detail: e instanceof Error ? e.message : 'Unknown error',
+      severity: "error",
+      summary: "Could not save capture",
+      detail: e instanceof Error ? e.message : "Unknown error",
       life: 4000,
-    })
+    });
   }
-}
+};
 
 const handleAddNoteInstead = (): void => {
-  cancel()
-  mode.value = 'note'
-}
+  cancel();
+  mode.value = "note";
+};
 
-const handleNoteFallbackSaved = (): void => emit('saved')
-const handleNoteFallbackSkipped = (): void => emit('skipped')
+const handleNoteFallbackSaved = (): void => emit("saved");
+const handleNoteFallbackSkipped = (): void => emit("skipped");
 
 const handleSkip = (): void => {
-  cancel()
-  emit('skipped')
-}
+  cancel();
+  emit("skipped");
+};
 </script>
 
 <template>
@@ -99,8 +111,8 @@ const handleSkip = (): void => {
         <i class="pi pi-camera" /> Capture this page
       </p>
       <p class="session-capture__hint">
-        Take a quick photo of the page you just finished. We'll save the text so future recaps
-        come straight from what you actually read.
+        Take a quick photo of the page you just finished. We'll save the text so
+        future recaps come straight from what you actually read.
       </p>
       <div class="session-capture__actions">
         <Button
@@ -109,10 +121,18 @@ const handleSkip = (): void => {
           aria-label="Capture a photo of the last page you read"
           @click="handleStartCapture"
         />
-        <button type="button" class="session-capture__link" @click="handleAddNoteInstead">
+        <button
+          type="button"
+          class="session-capture__link"
+          @click="handleAddNoteInstead"
+        >
           Add note instead
         </button>
-        <button type="button" class="session-capture__link session-capture__skip" @click="handleSkip">
+        <button
+          type="button"
+          class="session-capture__link session-capture__skip"
+          @click="handleSkip"
+        >
           Skip
         </button>
       </div>
@@ -144,36 +164,62 @@ const handleSkip = (): void => {
     <!-- State: camera permission denied -->
     <div v-else-if="state === 'denied'" class="session-capture__panel">
       <p class="session-capture__panel-text">
-        Camera access was denied. You can still leave a note for this session, or grant camera
-        access in your browser settings and try again.
+        Camera access was denied. You can still leave a note for this session,
+        or grant camera access in your browser settings and try again.
       </p>
       <div class="session-capture__actions">
-        <Button label="Add note instead" icon="pi pi-pencil" outlined @click="handleAddNoteInstead" />
-        <button type="button" class="session-capture__link" @click="handleSkip">Cancel</button>
+        <Button
+          label="Add note instead"
+          icon="pi pi-pencil"
+          outlined
+          @click="handleAddNoteInstead"
+        />
+        <button type="button" class="session-capture__link" @click="handleSkip">
+          Cancel
+        </button>
       </div>
     </div>
 
     <!-- State: offline -->
     <div v-else-if="state === 'offline'" class="session-capture__panel">
       <p class="session-capture__panel-text">
-        You're offline — capture needs internet to extract text. Try again later, or leave a note
-        for now.
+        You're offline — capture needs internet to extract text. Try again
+        later, or leave a note for now.
       </p>
       <div class="session-capture__actions">
-        <Button label="Add note instead" icon="pi pi-pencil" outlined @click="handleAddNoteInstead" />
-        <button type="button" class="session-capture__link" @click="handleSkip">Cancel</button>
+        <Button
+          label="Add note instead"
+          icon="pi pi-pencil"
+          outlined
+          @click="handleAddNoteInstead"
+        />
+        <button type="button" class="session-capture__link" @click="handleSkip">
+          Cancel
+        </button>
       </div>
     </div>
 
     <!-- State: generic error -->
     <div v-else-if="state === 'error'" class="session-capture__panel">
       <p class="session-capture__panel-text">
-        {{ errorMessage ?? 'Something went wrong.' }}
+        {{ errorMessage ?? "Something went wrong." }}
       </p>
       <div class="session-capture__actions">
-        <Button label="Try again" icon="pi pi-refresh" outlined @click="retake" />
-        <Button label="Add note instead" icon="pi pi-pencil" text @click="handleAddNoteInstead" />
-        <button type="button" class="session-capture__link" @click="handleSkip">Skip</button>
+        <Button
+          label="Try again"
+          icon="pi pi-refresh"
+          outlined
+          @click="retake"
+        />
+        <Button
+          label="Add note instead"
+          icon="pi pi-pencil"
+          text
+          @click="handleAddNoteInstead"
+        />
+        <button type="button" class="session-capture__link" @click="handleSkip">
+          Skip
+        </button>
       </div>
     </div>
   </div>
@@ -192,8 +238,14 @@ const handleSkip = (): void => {
 }
 
 @keyframes slide-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .session-capture__prompt {
@@ -235,8 +287,13 @@ const handleSkip = (): void => {
   transition: opacity 0.15s;
 }
 
-.session-capture__link:hover { opacity: 1; text-decoration: underline; }
-.session-capture__skip { opacity: 0.45; }
+.session-capture__link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+.session-capture__skip {
+  opacity: 0.45;
+}
 
 .session-capture__loading {
   display: flex;

@@ -17,19 +17,18 @@
 
 ### User Story 1 — A Single Place to See My Reading Identity (Priority: P1)
 
-A reader who has been using the app for some time wants one dedicated page where they can see, at a glance, *who they are as a reader*: how much they've read, how consistently they show up, and how they compare across books in their library. They land on the Profile page and immediately see lifetime stats, their current and longest reading streaks, a year-long reading-day heatmap, and a breakdown of their library by genre, author, and pace.
+A reader who has been using the app for some time wants one dedicated page where they can see, at a glance, *who they are as a reader*: how much they've read, how consistently they show up, and how they compare across books in their library. They land on the Profile page and immediately see lifetime stats, their current and longest reading streaks, and a breakdown of their library by genre, author, and pace.
 
 **Why this priority**: This is the foundation of the entire feature. It can ship using only existing data already produced by the app (books, recaps, captures, progress history). It delivers immediate value even before any AI features land, and it gives the user a real "destination" page that previously did not exist.
 
-**Independent Test**: A user with at least one finished book and one active book opens the Profile page from primary navigation, sees populated Lifetime Stats Grid, Reading Heatmap, Library Breakdown, and Top Themes section without needing any AI generation, and can navigate back without errors.
+**Independent Test**: A user with at least one finished book and one active book opens the Profile page from primary navigation, sees populated Lifetime Stats Grid, Library Breakdown, and Top Themes section without needing any AI generation, and can navigate back without errors.
 
 **Acceptance Scenarios**:
 
 1. **Given** a user with reading history (≥1 book, ≥1 logged session), **When** they open the Profile page, **Then** they see populated Lifetime Stats Grid (books finished, books in progress, total pages, total reading hours, all-time velocity, current streak, longest streak).
-2. **Given** the same user, **When** they scroll the Profile page, **Then** they see a year-long heatmap calendar where each day with at least one session is visibly marked, and tapping a day reveals what they read.
-3. **Given** the same user, **When** they view the Library Breakdown section, **Then** they see genre distribution, total unique authors, and a pace comparison across their books.
-4. **Given** a user who has never read anything, **When** they open the Profile page, **Then** they see a friendly empty state inviting them to start their first session.
-5. **Given** a user with recaps and lore cards, **When** they view Top Themes, **Then** they see a word cloud or chip list derived from those concepts, with frequency-weighted prominence.
+2. **Given** the same user, **When** they view the Library Breakdown section, **Then** they see genre distribution, total unique authors, and a pace comparison across their books.
+3. **Given** a user who has never read anything, **When** they open the Profile page, **Then** they see a friendly empty state inviting them to start their first session.
+4. **Given** a user with recaps and lore cards, **When** they view Top Themes, **Then** they see a word cloud or chip list derived from those concepts, with frequency-weighted prominence.
 
 ---
 
@@ -76,7 +75,6 @@ When the reader captures a page during a session (existing behavior), the system
 - A user with **books but no captures** opens the Profile page → Vocabulary Garden shows zero state; other sections populate normally.
 - A user **without any recaps or lore** opens the Profile page → Top Themes word cloud shows an empty placeholder; all other sections populate normally.
 - DNA generation **fails partway** (AI down, malformed response) → system retains the previous DNA if one exists; otherwise leaves the slot empty with a "We'll try again later" placeholder; no error blocks the rest of the page.
-- The user **changes timezone** between sessions → reading heatmap continues to use their current local timezone for day boundaries.
 - A vocabulary word the AI extracts is **a proper noun** (character name, place) → such words are excluded from extraction and not added.
 - The user **deletes a book** that contributed to their DNA → next regeneration excludes that book; current persisted DNA is left as-is until the next threshold-driven regeneration.
 - The user **manually adds the same word** to the Lexicon that the AI later finds in a capture → dedup logic applies; AI does not create a duplicate entry.
@@ -90,7 +88,6 @@ When the reader captures a page during a session (existing behavior), the system
 
 - **FR-001**: The system MUST provide a dedicated Profile page accessible from the primary application navigation.
 - **FR-002**: The Profile page MUST display a Lifetime Stats Grid containing: total books finished, total books currently in progress, total pages read, total reading hours, all-time average reading velocity, current reading streak (consecutive days), and longest reading streak.
-- **FR-003**: The Profile page MUST display a year-long Reading Heatmap calendar marking days on which the user logged at least one reading session.
 - **FR-004**: The Profile page MUST display a Library Breakdown section showing genre distribution (sourced from the existing `genre` column on the books record — no new schema, no AI inference), total unique authors read, and a per-book pace comparison.
 - **FR-005**: The Profile page MUST display a Top Themes section derived from concepts surfaced in the user's recaps and lore cards, weighted by frequency.
 - **FR-006**: All stats that can be derived from existing user data (books, sessions, recaps, captures, lore cards) MUST be computed without introducing new persistent storage tables.
@@ -156,7 +153,6 @@ When the reader captures a page during a session (existing behavior), the system
 - The existing OCR-based page capture system, Lexicon, and Leitner review system are stable and exposed by APIs/stores that this feature can extend without architectural rework.
 - The existing recaps and lore cards stores expose the data needed to compute Top Themes without introducing new tables.
 - "Reading streak" is defined as the count of consecutive calendar days (in the user's local timezone) on which at least one reading session was logged.
-- "Reading heatmap year" is rolling — the most recent 365 days as of the current viewing date.
 - The Reading DNA's "mood signature" is a compact visual element (e.g., a sequence of small color or emoji indicators representing the emotional tone of the user's recent books). The exact visual representation is a design decision deferred to planning.
 - Book suggestion AI output respects safety and licensing — only public, uncontroversial titles are surfaced; the system does not need to verify availability for purchase.
 - Book suggestions are sourced exclusively from the AI's general literary knowledge (FR-027); no external book catalog integration is required for this release.
