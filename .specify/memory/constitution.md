@@ -1,21 +1,29 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: [TEMPLATE] → 1.0.0
-Modified principles: N/A (initial ratification — no prior principles)
+Version change: 1.0.0 → 1.1.0
+Bump rationale: MINOR — added a new Core Principle (VI. Component Architecture & UI Standards)
+that introduces non-negotiable PrimeVue-first usage and Vue componentization rules. No prior
+principles were redefined or removed.
+
+Modified principles: None renamed or redefined.
 Added sections:
-  - Core Principles (5 principles: I–V)
-  - Technical Stack & Integration Standards
-  - UX & Design Philosophy
-  - Governance
+  - Core Principle VI: Component Architecture & UI Standards
+Removed sections: None.
+
 Templates requiring updates:
-  ✅ .specify/templates/plan-template.md — Constitution Check gates align with principles I–V
-  ✅ .specify/templates/spec-template.md — Functional requirements pattern aligns with FR nomenclature
-  ✅ .specify/templates/tasks-template.md — Task phases reflect PWA, AI, and data integrity concerns
-  ⚠ .specify/templates/commands/ — No command files present; no updates required
+  ✅ .specify/templates/plan-template.md — Constitution Check gate dynamically references
+     the constitution; the existing generic "[Gates determined based on constitution file]"
+     line picks up the new principle without edits. Plans for UI-touching features should
+     now include a check for Principle VI compliance.
+  ✅ .specify/templates/spec-template.md — No structural changes required; specs may now
+     reference Principle VI in functional requirements (e.g., FR-026 in feature 016).
+  ✅ .specify/templates/tasks-template.md — No structural changes required; UI tasks should
+     mention the PrimeVue component used (or the rationale for a custom component).
+  ⚠ .specify/templates/commands/ — Directory not present; no updates required.
+
 Follow-up TODOs:
-  - TODO(RATIFICATION_DATE): Confirm exact date stakeholders formally adopted this constitution
-    (using today 2026-04-15 as default)
+  - None. All placeholders previously resolved (RATIFICATION_DATE confirmed at v1.0.0).
 -->
 
 # The Chronicler Constitution
@@ -98,9 +106,55 @@ store installation:
 portability" pillar. PWA enables instant access on any device the reader happens to have
 nearby when they pick up a book.
 
+### VI. Component Architecture & UI Standards (NON-NEGOTIABLE)
+
+All new UI work MUST follow a **PrimeVue-first, single-responsibility** discipline. The intent
+is to keep the codebase consistent, accessible, themable, and readable as it grows.
+
+**PrimeVue-First Rules**:
+
+- Before building any custom UI element, the developer MUST check the official PrimeVue
+  documentation (https://primevue.org/) for an existing component that fits the requirement.
+- The PrimeVue component MUST be used when one exists for the use case (Button, Dialog, Tabs,
+  Accordion, DataTable, Image, Toast, Chip, Tag, InlineMessage, Panel, Card, etc.). Native
+  HTML elements MAY be used for trivial structural primitives (`<section>`, `<header>`,
+  `<article>`, semantic landmarks) where no PrimeVue equivalent is appropriate.
+- Custom-built components are PERMITTED ONLY when (a) no PrimeVue component covers the
+  requirement, OR (b) the closest PrimeVue component is fundamentally unsuited (e.g., its
+  API forces a state model that conflicts with the feature's needs). The reasoning MUST be
+  recorded in the feature's plan.md or as an inline code comment on the custom component.
+- Styling MUST extend PrimeVue's design tokens and CSS variables wherever possible rather
+  than overriding with hard-coded values; this preserves dark-mode and theme consistency
+  required by Principle V's UX Philosophy.
+
+**Vue Componentization Rules**:
+
+- Each Vue component MUST have a **single, named responsibility**. Components that exceed
+  ~250 lines of `<script setup>` + `<template>` combined SHOULD be decomposed into smaller
+  units unless the complexity is intrinsic to the domain (e.g., a chart with many props).
+- Page-level components MUST delegate substantive UI sections to dedicated child components
+  living under `src/components/<feature-or-domain>/`. Pages SHOULD primarily orchestrate state
+  and layout — they SHOULD NOT contain large blocks of presentational template logic.
+- Reusable presentational logic MUST be extracted into `<script setup>` composables under
+  `src/composables/` when shared by two or more components.
+- Component naming MUST be PascalCase, multi-word (Vue style guide rule), and reflect the
+  domain noun the component represents (e.g., `LastSessionCard`, `RecapCard`,
+  `SessionCaptureField`) — not generic names like `Wrapper`, `Box`, `Container`.
+- Imports of third-party components SHOULD be local to the component that uses them
+  (per-component PrimeVue import) rather than global registration, to keep the bundle tree
+  shakeable and the dependency surface explicit at the call site.
+
+**Rationale**: PrimeVue is the project's UI foundation. Reinventing components that already
+exist costs engineering time, fragments the design system, and creates accessibility
+regressions because PrimeVue handles ARIA, keyboard nav, and theming out of the box. Likewise,
+a Vue codebase that lets pages balloon into thousand-line components becomes unreadable,
+untestable, and slow to iterate. A small-component, single-responsibility discipline is the
+cheapest investment available in long-term maintainability.
+
 ## Technical Stack & Integration Standards
 
 - **Frontend**: Vue (TypeScript) PWA with service worker for offline support.
+- **UI Library**: PrimeVue 4 — the canonical component library per Principle VI.
 - **Backend / BaaS**: Supabase (PostgreSQL + Auth + Realtime + Storage).
 - **AI Layer**: Claude API (Anthropic) — default to the latest capable model for recap
   generation; include prompt caching to reduce latency and cost on repeated lookups.
@@ -123,7 +177,8 @@ The Chronicler's UI MUST remain minimalist and distraction-free:
 - Color scheme and typography MUST prioritize legibility in low-light reading environments
   (dark mode MUST be supported from day one).
 - Empty states MUST provide clear, actionable onboarding copy — never a blank screen.
-- UI must be inspired by iOS liquid glass
+- UI must be inspired by iOS liquid glass.
+- All UI elements MUST adhere to Principle VI (PrimeVue-first + componentization).
 
 **Rationale**: Complexity is the enemy of the use case. A reader reaching for the app has
 one goal: get oriented and get back to reading. Every extra click is a failure.
@@ -142,7 +197,10 @@ This Constitution supersedes all other written or verbal project guidance. Amend
    any MAJOR or MINOR amendment.
 
 All implementation plans (`plan.md`) MUST include a Constitution Check gate that verifies
-compliance with Principles I–V before Phase 0 research begins. Any justified deviation from
+compliance with Principles I–VI before Phase 0 research begins. Any justified deviation from
 a principle MUST be documented in the plan's Complexity Tracking table with explicit rationale.
+For Principle VI specifically, any custom UI component built in lieu of an available PrimeVue
+component MUST be justified in the plan's Complexity Tracking table or as a dedicated comment
+on the custom component file.
 
-**Version**: 1.0.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-15
+**Version**: 1.1.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-28
