@@ -16,7 +16,7 @@ export interface LastSession {
   startPage: number               // page at session start
   endPage: number                 // page at session end (= current row's page)
   durationSeconds: number | null  // null for legacy rows
-  velocityPph: number | null      // null when: legacy, duration < 60s, or 0 pages
+  velocityPph: number | null      // all-sessions average for the book; null when no valid sessions exist
   completionDelta: number | null  // null when totalPages unknown or 0
   finishPredictionSessions: number | null  // null when velocity unavailable or done
   sessionNote: string | null      // 013 optional end-of-session note
@@ -29,9 +29,14 @@ export interface LastSession {
  * "Session" is defined as the last recorded progress_history row.
  *
  * T017: durationSeconds is now precise — computed from session_start_at → recorded_at
- *       when session_start_at is non-null.  Legacy rows fall back to "—".
+ *       when session_start_at is non-null. Legacy rows fall back to "—".
  * T018: completionDelta and finishPredictionSessions are derived from page data +
  *       a rolling 3-session average velocity for the same book.
+ *
+ * velocityPph: aggregated across ALL valid sessions for the book (stable book-level
+ *              reading speed), not just the last session.
+ * finishPredictionSessions: still uses a rolling last-3-sessions window to reflect
+ *                            current momentum rather than all-time average.
  */
 export const useLastSession = () => {
   const allHistory = ref<ProgressHistory[]>([])
@@ -50,29 +55,51 @@ export const useLastSession = () => {
   }
 
   // Re-fetch whenever a session ends so the card updates immediately without
-  // requiring a page reload. lastSessionEnded changes each time updateProgress
-  // completes with an active session_start_at.
+  // requiring a page reload.
   const progressStore = useProgressStore()
   watch(() => progressStore.lastSessionEnded, (event) => {
     if (event) fetchAllHistory()
   })
 
-  // ── Rolling average velocity (T018) ──────────────────────────────────────
-  // Uses up to the last 3 progress_history rows with non-null session_start_at
-  // for the given bookId (excluding the current "last" row which is already
-  // factored in by the caller).
-  const _rollingAvgVelocity = (bookId: string, excludeRowId: string): number | null => {
-    const rows = allHistory.value
-      .filter(r => r.bookId === bookId && r.sessionStartAt !== null && r.id !== excludeRowId)
-      .slice(-3)  // last 3 rows
+  // ── All-sessions velocity for a book ─────────────────────────────────────
+  // Aggregates every valid session (session_start_at present, ≥60s, ≥1 page)
+  // for the given bookId into a single stable pages-per-hour figure.
+  // This is displayed as "Velocity" — a true book-level reading speed.
+  const _allSessionsVelocity = (bookId: string): number | null => {
+    const sameBookRows = allHistory.value.filter(r => r.bookId === bookId)
+    let totalPages = 0
+    let totalSeconds = 0
 
-    if (rows.length === 0) return null
+    for (let i = 0; i < sameBookRows.length; i++) {
+      const row = sameBookRows[i]
+      if (row.sessionStartAt === null) continue
+      const priorRow = i > 0 ? sameBookRows[i - 1] : null
+      const pageDelta = priorRow ? Math.max(0, row.page - priorRow.page) : Math.max(0, row.page)
+      const durSec = diffInSeconds(row.recordedAt, row.sessionStartAt)
+      if (durSec >= 60 && pageDelta >= 1) {
+        totalPages += pageDelta
+        totalSeconds += durSec
+      }
+    }
+
+    if (totalPages === 0 || totalSeconds === 0) return null
+    return Math.round(totalPages / (totalSeconds / 3600))
+  }
+
+  // ── Rolling average velocity (T018) ──────────────────────────────────────
+  // Uses up to the last 3 progress_history rows with valid session_start_at
+  // for the given bookId. Used exclusively for "At this pace" prediction to
+  // reflect current reading momentum rather than all-time average.
+  const _rollingAvgVelocity = (bookId: string): number | null => {
+    const sameBookRows = allHistory.value.filter(r => r.bookId === bookId)
+    const validRows = sameBookRows.filter(r => r.sessionStartAt !== null).slice(-3)
+
+    if (validRows.length === 0) return null
 
     const velocities: number[] = []
-    for (const row of rows) {
-      const sameBook = allHistory.value.filter(r => r.bookId === bookId)
-      const rowIdx = sameBook.findIndex(r => r.id === row.id)
-      const priorRow = rowIdx > 0 ? sameBook[rowIdx - 1] : null
+    for (const row of validRows) {
+      const rowIdx = sameBookRows.findIndex(r => r.id === row.id)
+      const priorRow = rowIdx > 0 ? sameBookRows[rowIdx - 1] : null
       const pageDelta = priorRow ? Math.max(0, row.page - priorRow.page) : Math.max(0, row.page)
       const durSec = diffInSeconds(row.recordedAt, row.sessionStartAt!)
       if (durSec >= 60 && pageDelta >= 1) {
@@ -106,11 +133,8 @@ export const useLastSession = () => {
       ? diffInSeconds(lastRow.recordedAt, startedAt)
       : null
 
-    // Velocity: requires ≥60s duration AND ≥1 page read
-    const velocityPph =
-      durationSeconds !== null && durationSeconds >= 60 && pagesDelta >= 1
-        ? Math.round(pagesDelta / (durationSeconds / 3600))
-        : null
+    // Velocity: all-sessions average for this book (stable book-level reading speed)
+    const velocityPph = _allSessionsVelocity(lastRow.bookId)
 
     const booksStore = useBooksStore()
     const book = booksStore.bookById(lastRow.bookId)
@@ -122,33 +146,18 @@ export const useLastSession = () => {
         ? Math.round((pagesDelta / totalPages) * 1000) / 10  // 1 decimal place
         : null
 
-    // T018: finish prediction — rolling average of last 3 sessions
+    // T018: finish prediction — rolling last-3-sessions average × this session's duration
     let finishPredictionSessions: number | null = null
     if (totalPages > 0 && pagesDelta >= 1) {
       const pagesRemaining = Math.max(0, totalPages - endPage)
       if (pagesRemaining > 0) {
-        // Include current session's velocity in rolling average
-        const rollingAvg = velocityPph !== null
-          ? (() => {
-              const priorAvg = _rollingAvgVelocity(lastRow.bookId, lastRow.id)
-              if (priorAvg === null) return velocityPph
-              // Average current session with prior rolling avg
-              const priorRows = allHistory.value
-                .filter(r => r.bookId === lastRow.bookId && r.sessionStartAt !== null && r.id !== lastRow.id)
-                .slice(-3).length
-              return (velocityPph + priorAvg * Math.min(priorRows, 2)) / (Math.min(priorRows, 2) + 1)
-            })()
-          : _rollingAvgVelocity(lastRow.bookId, lastRow.id)
-
+        const rollingAvg = _rollingAvgVelocity(lastRow.bookId)
         if (rollingAvg !== null && rollingAvg > 0) {
-          // One "session" = the average session duration (use 60 min as baseline if unknown)
-          const avgPagesPerSession = pagesDelta > 0 ? pagesDelta : 1
-          const avgSessionVelocity = rollingAvg
-          // Estimate pages per session from pph × 1 hour (normalise to 1-hour session)
-          const estimatedPagesPerSession = avgSessionVelocity > 0
-            ? (durationSeconds ? (avgSessionVelocity * (durationSeconds / 3600)) : avgPagesPerSession)
-            : avgPagesPerSession
-
+          // Estimate pages per a typical session using rolling velocity × this session's length.
+          // Falls back to this session's raw pagesDelta when duration is unavailable (legacy rows).
+          const estimatedPagesPerSession = durationSeconds
+            ? rollingAvg * (durationSeconds / 3600)
+            : pagesDelta > 0 ? pagesDelta : 1
           if (estimatedPagesPerSession > 0) {
             finishPredictionSessions = Math.ceil(pagesRemaining / estimatedPagesPerSession)
           }
