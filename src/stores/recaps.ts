@@ -11,8 +11,8 @@ import { useCapturesStore } from '@/stores/captures'  // 015-corpus-recaps
 // generateRecap and all streaming code are EXCLUDED from cache (FR-009).
 import { swrStatus, swrRun, invalidate, registerRevalidator, cacheKeys } from '@/composables/useCache'
 
-// 015-corpus-recaps: ≥30% delta-range coverage triggers corpus mode.
-const CORPUS_COVERAGE_THRESHOLD = 0.30
+// 015-corpus-recaps: any capture in the delta range triggers corpus mode.
+// One real page of text is a better anchor than pure inference.
 
 const TTL = 60_000 // 60 s
 
@@ -71,15 +71,17 @@ export const useRecapsStore = defineStore('recaps', () => {
       // Incremental recap: cover only pages since the last recap (Decision 3)
       const fromPage = recapsByBook[bookId]?.[0]?.pageSnapshot ?? 0
 
-      // 015-corpus-recaps: select corpus or inferred mode based on delta coverage.
+      // 015-corpus-recaps: select corpus or inferred mode.
       // Captures are sent inline in the request body when corpus mode triggers;
       // the edge function uses them to bypass the extraction stage entirely.
+      // Context window spans 2 sessions back (Option A): the recap scope stays
+      // anchored to fromPage, but captures from the previous session are also
+      // included so the AI has richer grounding text.
+      const capturesFromPage = recapsByBook[bookId]?.[1]?.pageSnapshot ?? 0
       const capturesStore = useCapturesStore()
       await capturesStore.fetchCapturesForBook(bookId).catch(() => {})
-      const inRange = capturesStore.capturesInRange(bookId, fromPage, currentPage)
-      const rangePages = currentPage - fromPage
-      const coverage = rangePages > 0 ? inRange.length / rangePages : 0
-      const useCorpus = coverage >= CORPUS_COVERAGE_THRESHOLD && inRange.length >= 1 && rangePages > 0
+      const inRange = capturesStore.capturesInRange(bookId, capturesFromPage, currentPage)
+      const useCorpus = inRange.length >= 1 && currentPage > fromPage
       const selectedMode: RecapMode = useCorpus ? 'corpus' : 'inferred'
 
       const result: StreamRecapResult = await streamRecap(
