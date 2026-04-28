@@ -11,6 +11,16 @@ export interface RequestBody {
   percentage:   number
   mode?:        'passport_summary'
   from_page?:   number
+  // 015-corpus-recaps: when present, the recap handler bypasses the
+  // extraction stage and composes directly from the supplied captured
+  // page text. Each entry MUST satisfy fromPage < page <= currentPage
+  // (the client is responsible for the delta-range filter).
+  captures?:    CapturedPage[]
+}
+
+export interface CapturedPage {
+  page: number
+  text: string
 }
 
 export interface ExtractionResult {

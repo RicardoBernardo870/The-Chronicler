@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { Book, ReadingProgress } from '@/types'
 import SessionStartButton from '@/components/session/SessionStartButton.vue'
-import SessionNoteField from '@/components/session/SessionNoteField.vue'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
 import ProgressBar from 'primevue/progressbar'
@@ -12,8 +11,6 @@ const props = defineProps<{
   currentPageInput: number
   progressLoading: boolean
   progressError: string | null
-  showNoteField: boolean
-  pendingHistoryRowId: string | null
   percentage: number
   isComplete: boolean
   lexiconCount: number
@@ -24,7 +21,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:currentPageInput': [value: number]
   save: []
-  noteComplete: []
   sessionConflict: [startedAt: Date]
   viewJourney: []
   openAddWord: []
@@ -70,13 +66,6 @@ const emit = defineEmits<{
     <p v-if="progressError" class="progress-panel__error">
       <i class="pi pi-exclamation-triangle" /> {{ progressError }}
     </p>
-
-    <SessionNoteField
-      v-if="showNoteField && pendingHistoryRowId"
-      :history-row-id="pendingHistoryRowId"
-      @saved="emit('noteComplete')"
-      @skipped="emit('noteComplete')"
-    />
 
     <p class="progress-panel__hint">
       Page {{ progress?.currentPage ?? 0 }} of {{ book.totalPages }}

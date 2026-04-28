@@ -20,6 +20,13 @@ const formatDate = (iso: string): string => formatShortDate(iso)
         <i class="pi pi-chart-bar" />
         page {{ recap.pageSnapshot ?? '—' }} · {{ recap.progressSnapshot }}%
       </span>
+      <span
+        v-if="recap.mode === 'corpus'"
+        class="recap-card__corpus-badge"
+        v-tooltip.top="'This recap was generated from the actual pages you captured.'"
+      >
+        📸 From your captures
+      </span>
       <time class="recap-card__date" :datetime="recap.createdAt">
         {{ formatDate(recap.createdAt) }}
       </time>
@@ -100,6 +107,21 @@ const formatDate = (iso: string): string => formatShortDate(iso)
 .recap-card__date {
   font-size: 0.75rem;
   opacity: 0.55;
+}
+
+/* 015-corpus-recaps: visible signal that this recap was grounded in
+   the user's captured page text (not inferred from book metadata). */
+.recap-card__corpus-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.18), rgba(167, 139, 250, 0.18));
+  border: 1px solid rgba(167, 139, 250, 0.30);
+  color: var(--p-emerald-300, #6ee7b7);
 }
 
 .recap-card__section-label {

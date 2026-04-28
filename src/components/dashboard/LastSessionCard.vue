@@ -1,12 +1,36 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref, watchEffect } from "vue";
 import { useLastSession } from "@/composables/useLastSession";
 import { useBooksStore } from "@/stores/books";
+import { useProgressStore } from "@/stores/progress";
 import { formatRelativeToNow as formatRelative } from "@/utils/date";
 import { Image } from "primevue";
+import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 
 const { lastSession, fetchAllHistory } = useLastSession();
 const booksStore = useBooksStore();
+const progressStore = useProgressStore();
+
+// ── Inline post-session prompt (015 — capture replaces note as primary) ─
+const showCaptureField = ref(false);
+const pendingHistoryRowId = ref<string | null>(null);
+const pendingBookId = ref<string | null>(null);
+
+watchEffect(() => {
+  const event = progressStore.lastSessionEnded;
+  if (event) {
+    pendingHistoryRowId.value = event.historyRowId;
+    pendingBookId.value = event.bookId;
+    showCaptureField.value = true;
+  }
+});
+
+const handleCaptureComplete = () => {
+  showCaptureField.value = false;
+  pendingHistoryRowId.value = null;
+  pendingBookId.value = null;
+  fetchAllHistory();
+};
 
 const bookImage = computed(() => {
   if (!lastSession.value) return undefined;
@@ -117,8 +141,19 @@ onMounted(() => fetchAllHistory());
       </div>
     </div>
 
+    <!-- Inline post-session capture prompt (015 — primary action) -->
+    <template v-if="showCaptureField && pendingHistoryRowId && pendingBookId">
+      <hr class="last-session__sep" />
+      <SessionCaptureField
+        :history-row-id="pendingHistoryRowId"
+        :book-id="pendingBookId"
+        @saved="handleCaptureComplete"
+        @skipped="handleCaptureComplete"
+      />
+    </template>
+
     <!-- Session note (T023) -->
-    <template v-if="lastSession.sessionNote">
+    <template v-else-if="lastSession.sessionNote">
       <hr class="last-session__sep" />
       <p class="last-session__note">
         <i class="pi pi-pencil" />

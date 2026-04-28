@@ -153,7 +153,18 @@
       "Bash(Get-Content \"C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\src\\\\pages\\\\DashboardPage.vue\")",
       "Bash(Measure-Object -Line)",
       "Bash(Select-Object -ExpandProperty Lines)",
-      "Bash(pnpm test *)"
+      "Bash(pnpm test *)",
+      "Bash(git checkout *)",
+      "Bash(mkdir -p specs/015-corpus-recaps/checklists)",
+      "Bash(cp .specify/templates/spec-template.md specs/015-corpus-recaps/spec.md)",
+      "Bash(pwsh -NoProfile -Command \".specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly\")",
+      "PowerShell(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly)",
+      "mcp__supabase__list_migrations",
+      "mcp__supabase__list_edge_functions",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__execute_sql",
+      "Bash(node bundle_deploy.cjs)",
+      "Bash(node -e \"console.log\\(require\\('fs'\\).readFileSync\\('recap_deploy.json','utf8'\\)\\)\")"
     ]
   }
 }

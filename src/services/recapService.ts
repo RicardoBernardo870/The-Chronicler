@@ -12,6 +12,12 @@ export interface RecapRequest {
   totalPages: number
   /** Start of the incremental recap range. AI covers from_page+1 → currentPage only. Omit for full recap from page 1. */
   from_page?: number
+  /**
+   * 015-corpus-recaps: captured page text within the delta range
+   * (fromPage, currentPage]. When supplied, the edge function bypasses the
+   * extraction stage and composes the recap directly from this text.
+   */
+  captures?: Array<{ page: number; text: string }>
 }
 
 

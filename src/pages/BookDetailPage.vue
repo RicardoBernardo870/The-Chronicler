@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, watchEffect } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useBooksStore } from "@/stores/books";
 import { useProgressStore } from "@/stores/progress";
@@ -36,18 +36,6 @@ const progressLoading = ref(false);
 const progressError = ref<string | null>(null);
 const recapTriggered = ref(false);
 const addWordVisible = ref(false);
-const showNoteField = ref(false);
-const pendingHistoryRowId = ref<string | null>(null);
-
-watchEffect(() => {
-  const event = progressStore.lastSessionEnded;
-  if (event && event.bookId === bookId.value) {
-    pendingHistoryRowId.value = event.historyRowId;
-    showNoteField.value = true;
-  }
-});
-
-const handleNoteComplete = () => { showNoteField.value = false; pendingHistoryRowId.value = null; };
 
 const handleSessionConflict = (startedAt: Date) => {
   const timeStr = startedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -140,8 +128,6 @@ const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
         :current-page-input="currentPageInput"
         :progress-loading="progressLoading"
         :progress-error="progressError"
-        :show-note-field="showNoteField"
-        :pending-history-row-id="pendingHistoryRowId"
         :percentage="percentage"
         :is-complete="isComplete"
         :lexicon-count="lexiconCount"
@@ -149,7 +135,6 @@ const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
         :pages-until-unlock="pagesUntilUnlock"
         @update:current-page-input="(v) => (currentPageInput = v)"
         @save="saveProgress"
-        @note-complete="handleNoteComplete"
         @session-conflict="handleSessionConflict"
         @view-journey="router.push({ name: 'book-passport', params: { id: bookId } })"
         @open-add-word="addWordVisible = true"
