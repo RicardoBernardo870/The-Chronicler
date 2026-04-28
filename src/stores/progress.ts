@@ -331,6 +331,11 @@ export const useProgressStore = defineStore('progress', () => {
       )
   })
 
+  // Clears the session-ended event once it has been consumed by a component
+  // (e.g. SessionCaptureField on BookDetailPage). Prevents stale events from
+  // re-triggering the capture prompt on subsequent Dashboard visits.
+  const consumeSessionEnded = () => { lastSessionEnded.value = null }
+
   return {
     progress,
     pendingSync,
@@ -342,6 +347,7 @@ export const useProgressStore = defineStore('progress', () => {
     startSession,
     clearSession,
     saveSessionNote,
+    consumeSessionEnded,
     progressForBook,
     percentageForBook,
     setupListeners,

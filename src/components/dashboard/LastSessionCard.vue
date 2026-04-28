@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watchEffect } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useLastSession } from "@/composables/useLastSession";
 import { useBooksStore } from "@/stores/books";
 import { useProgressStore } from "@/stores/progress";
@@ -16,19 +16,23 @@ const showCaptureField = ref(false);
 const pendingHistoryRowId = ref<string | null>(null);
 const pendingBookId = ref<string | null>(null);
 
-watchEffect(() => {
-  const event = progressStore.lastSessionEnded;
+// Watch for session-ended events that weren't consumed on BookDetailPage
+// (e.g. user ended session and navigated directly to Dashboard).
+// Uses { immediate: true } so it also catches events already in the store
+// when this card mounts.
+watch(() => progressStore.lastSessionEnded, (event) => {
   if (event) {
     pendingHistoryRowId.value = event.historyRowId;
     pendingBookId.value = event.bookId;
     showCaptureField.value = true;
   }
-});
+}, { immediate: true });
 
 const handleCaptureComplete = () => {
   showCaptureField.value = false;
   pendingHistoryRowId.value = null;
   pendingBookId.value = null;
+  progressStore.consumeSessionEnded();
   fetchAllHistory();
 };
 
