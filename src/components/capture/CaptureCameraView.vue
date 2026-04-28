@@ -64,8 +64,8 @@ onMounted(async () => {
 
 .capture-camera__video {
   width: 100%;
-  max-height: 60vh;
-  aspect-ratio: 4 / 3;
+  max-height: 70vh;
+  aspect-ratio: 3 / 4;
   object-fit: cover;
   background: #000;
   border-radius: 12px;
