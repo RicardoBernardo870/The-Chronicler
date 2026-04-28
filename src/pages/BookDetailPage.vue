@@ -12,6 +12,7 @@ import BookProgressPanel from "@/components/book/BookProgressPanel.vue";
 import RecapStream from "@/components/recap/RecapStream.vue";
 import LoreChronoscopeCard from "@/components/lore/LoreChronoscopeCard.vue";
 import AddWordDialog from "@/components/lexicon/AddWordDialog.vue";
+import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 import Button from "primevue/button";
 import Skeleton from "primevue/skeleton";
 import { useConfirm } from "primevue/useconfirm";
@@ -36,6 +37,28 @@ const progressLoading = ref(false);
 const progressError = ref<string | null>(null);
 const recapTriggered = ref(false);
 const addWordVisible = ref(false);
+
+// ── Post-session capture prompt ──────────────────────────────────────────
+// Shown inline on this page right after a session ends — so the user sees
+// the capture prompt immediately without having to navigate to the Dashboard.
+const showCaptureField = ref(false);
+const captureHistoryRowId = ref<string | null>(null);
+const captureBookId = ref<string | null>(null);
+
+watch(() => progressStore.lastSessionEnded, (event) => {
+  if (event && event.bookId === bookId.value) {
+    captureHistoryRowId.value = event.historyRowId;
+    captureBookId.value = event.bookId;
+    showCaptureField.value = true;
+  }
+});
+
+const handleCaptureComplete = () => {
+  showCaptureField.value = false;
+  captureHistoryRowId.value = null;
+  captureBookId.value = null;
+  progressStore.consumeSessionEnded();
+};
 
 const handleSessionConflict = (startedAt: Date) => {
   const timeStr = startedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -139,6 +162,15 @@ const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
         @view-journey="router.push({ name: 'book-passport', params: { id: bookId } })"
         @open-add-word="addWordVisible = true"
         @view-lexicon="router.push({ name: 'lexicon', query: { bookId } })"
+      />
+
+      <!-- Post-session page capture prompt (appears immediately after saving progress with an active session) -->
+      <SessionCaptureField
+        v-if="showCaptureField && captureHistoryRowId && captureBookId"
+        :history-row-id="captureHistoryRowId"
+        :book-id="captureBookId"
+        @saved="handleCaptureComplete"
+        @skipped="handleCaptureComplete"
       />
 
       <LoreChronoscopeCard :book-id="bookId" :collapsible="true" :initial-collapsed="true" />
