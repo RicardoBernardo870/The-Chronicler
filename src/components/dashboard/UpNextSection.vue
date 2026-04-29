@@ -61,6 +61,8 @@ const emit = defineEmits<{
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  max-height: 434px;
+  overflow: auto;
 }
 
 .up-next__title {
