@@ -5,9 +5,6 @@
 import { onMounted } from "vue";
 import { useBooksStore } from "@/stores/books";
 import { useProgressStore } from "@/stores/progress";
-import { useRecapsStore } from "@/stores/recaps";
-import { useLoreCardsStore } from "@/stores/loreCards";
-import { useLexiconStore } from "@/stores/lexicon";
 import { useReadingDnaStore } from "@/stores/readingDna";
 import { useReadingProfile } from "@/composables/useReadingProfile";
 
@@ -17,21 +14,18 @@ import LibraryBreakdownCard from "@/components/profile/LibraryBreakdownCard.vue"
 
 const booksStore = useBooksStore();
 const progressStore = useProgressStore();
-const recapsStore = useRecapsStore();
-const loreStore = useLoreCardsStore();
-const lexiconStore = useLexiconStore();
 const dnaStore = useReadingDnaStore();
 const { booksFinished } = useReadingProfile();
 
 onMounted(async () => {
   // Hydrate every store the Profile page reads. Each call is SWR-aware so
   // repeat visits within TTL are free.
+  // Books must resolve before progress — the progress fetcher maps rows via
+  // booksStore.bookById(), so a concurrent fetch risks an empty progress map
+  // that the SWR cache then marks fresh, starving the Dashboard of data.
+  await booksStore.fetchLibrary()
   await Promise.all([
-    booksStore.fetchLibrary(),
     progressStore.fetchProgress(),
-    recapsStore.fetchRecapsForAllBooks(),
-    loreStore.fetchLoreForAllBooks(),
-    lexiconStore.fetchEntriesForAllBooks(),
     dnaStore.fetchDna(),
   ]);
   // Threshold-gated DNA generation — never on page load unless eligible.

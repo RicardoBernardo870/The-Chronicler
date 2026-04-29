@@ -56,34 +56,24 @@ export const useReadingDnaStore = defineStore("readingDna", () => {
     return daysSince >= DAYS_THRESHOLD;
   };
 
-  const _buildCorpus = () => {
-    const progressStore = useProgressStore();
-
-    const books = progressStore.completedBooks.map((b) => ({
-      title: b.book.title,
-      author: b.book.author,
-    }));
-
-    return { books };
-  };
-
   const maybeGenerateDna = async (booksFinished: number): Promise<void> => {
     const authStore = useAuthStore();
     if (!authStore.user) return;
     if (!_shouldGenerate(booksFinished)) return;
 
+    const progressStore = useProgressStore();
+    const books = progressStore.completedBooks.map((b) => ({
+      title: b.book.title,
+      author: b.book.author,
+    }));
+    if (books.length === 0) return;
+
     status.value = "generating";
-    const corpus = _buildCorpus();
 
     try {
       const { data, error } = await supabase.functions.invoke(
         "generate-reading-dna",
-        {
-          body: {
-            ...corpus,
-            booksFinishedCount: booksFinished,
-          },
-        },
+        { body: { books } },
       );
       if (error || !data) {
         // FR-014 — preserve previous DNA, surface 'error' only if we have nothing
