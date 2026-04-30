@@ -51,7 +51,7 @@ const _fetchBookOptions = async (uid: string) => {
       seen.add(bookId)
       opts.push({
         bookId,
-        bookTitle: (row.books as { title: string } | null)?.title ?? 'Unknown Book',
+        bookTitle: (row.books as any)?.title ?? 'Unknown Book',
       })
     }
   }
