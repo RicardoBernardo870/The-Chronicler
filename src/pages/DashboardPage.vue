@@ -121,9 +121,12 @@ const heroWarning = computed(() => (heroPulse.value?.continuityScore.value ?? 10
 
 onMounted(async () => {
   try {
-    await booksStore.fetchLibrary()
-    await progressStore.fetchProgress()
-    await upNextStore.fetchOrder()
+    // 017 — single RPC replaces sequential fetchLibrary + fetchProgress pair
+    await booksStore.fetchLibraryWithProgress()
+    await Promise.all([
+      progressStore.fetchProgress(),
+      upNextStore.fetchOrder(),
+    ])
     await lexiconStore.fetchEntriesForAllBooks()
     if (authStore.user) lexiconStore.resolveWordOfTheDay(authStore.user.id)
     loreStore.fetchLoreForAllBooks().catch(() => {})

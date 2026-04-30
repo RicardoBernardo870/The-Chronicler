@@ -51,6 +51,7 @@ npm test; npm run lint
 TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 ## Recent Changes
+- 017-supabase-rpc-aggregations: Four Supabase PostgreSQL RPC functions replace client-side JS aggregation; `get_library_with_progress` eliminates sequential store dependency chain and the Profile→Dashboard race condition; `get_reading_stats`/`get_last_session`/`get_library_breakdown` replace full-history fetches; four new cacheKeys (`library`, `readingStats`, `lastSession`, `libraryBreakdown`); `ProfilePage.vue` now loads all data in parallel via `fetchLibraryWithProgress`; `progressStore.fetchProgress` hydrates from `libraryEntries` (zero network when RPC ran first); `useReadingProfile`, `useLastSession`, `useLibraryBreakdown` composables rewritten to single RPC calls; `LibraryBreakdownCard.vue` updated to RPC field names; no new tables, no edge functions.
 - 016-reader-profile-page: New `/profile` route (Reader Profile page) + new tables `reading_dna` and `vocabulary_extractions`; `lexicon_entries.source` column ('manual'|'auto') added; new edge functions `generate-reading-dna` and `extract-vocabulary` (Gemini 2.5 Flash); new Pinia store `readingDna`; new composables `useReadingProfile`, `useTopThemes`, `useLibraryBreakdown`, `useVocabularyExtraction`; auto-vocabulary fires fire-and-forget after `captures.saveCapture` (silent, non-blocking, FR-020); DNA threshold-gated client-side (3 books OR 90 days); zero custom UI components — every Profile-page element is a PrimeVue primitive (Constitution VI).
 - 015-corpus-recaps: New `page_captures` table + `ocr-page` edge function (Gemini 2.5 Flash multimodal OCR); `generate-recap` extended with corpus mode (≥30% delta-range coverage triggers; captures sent inline by client); `recaps.mode` column added; `SessionCaptureField` replaces post-session note prompt as primary action on LastSessionCard; new `captures` Pinia store + `useCapture` composable; image bytes never persisted (in-memory OCR only).
 - 014-vue-modernization: Pure refactor — install date-fns v4; src/utils/date.ts + coverFallback.ts; DashboardPage decomposed into HeroBookCard/InProgressSection/UpNextSection/CompletedSection; BookDetailPage into BookDetailHeader/BookProgressPanel; PrimeVue Chip/Tag/InlineMessage for badges; all manual date arithmetic migrated to date-fns
@@ -62,5 +63,5 @@ TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan: specs/016-reader-profile-page/plan.md
+shell commands, and other important information, read the current plan: specs/017-supabase-rpc-aggregations/plan.md
 <!-- SPECKIT END -->

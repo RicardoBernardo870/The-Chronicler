@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// 016 — Library breakdown: genres, author count, pace bars. PrimeVue primitives only.
-import { Message, ProgressBar } from "primevue";
+// 017 — Library breakdown: genres, author count, status counts. PrimeVue primitives only.
+import { Message } from "primevue";
 import { useLibraryBreakdown } from "@/composables/useLibraryBreakdown";
 
 const { breakdown } = useLibraryBreakdown();
@@ -14,9 +14,7 @@ const { breakdown } = useLibraryBreakdown();
     </h2>
 
     <Message
-      v-if="
-        breakdown.genres.length === 0 && breakdown.paceComparison.length === 0
-      "
+      v-if="!breakdown || breakdown.genreDistribution.length === 0"
       severity="info"
       class="library-breakdown__empty"
     >
@@ -26,17 +24,17 @@ const { breakdown } = useLibraryBreakdown();
     <template v-else>
       <!-- Genre distribution -->
       <div
-        v-if="breakdown.genres.length > 0"
+        v-if="breakdown.genreDistribution.length > 0"
         class="library-breakdown__section"
       >
         <h3 class="library-breakdown__heading">Genres</h3>
         <div class="library-breakdown__tags">
           <span
-            v-for="g in breakdown.genres"
-            :key="g.name"
+            v-for="g in breakdown.genreDistribution"
+            :key="g.genre"
             class="library-breakdown__genre-tag"
           >
-            {{ g.name }} · {{ g.count }}
+            {{ g.genre }} · {{ g.count }}
           </span>
         </div>
       </div>
@@ -45,37 +43,24 @@ const { breakdown } = useLibraryBreakdown();
       <div class="library-breakdown__section library-breakdown__authors">
         <i class="pi pi-user library-breakdown__author-icon" />
         <span class="library-breakdown__author-label">
-          {{ breakdown.uniqueAuthors }}
-          {{ breakdown.uniqueAuthors === 1 ? "author" : "authors" }}
+          {{ breakdown.authorsCount }}
+          {{ breakdown.authorsCount === 1 ? "author" : "authors" }}
         </span>
       </div>
 
-      <!-- Pace comparison -->
-      <div
-        v-if="breakdown.paceComparison.length > 0"
-        class="library-breakdown__section"
-      >
-        <h3 class="library-breakdown__heading">Pace comparison</h3>
-        <div class="library-breakdown__pace-list">
-          <div
-            v-for="row in breakdown.paceComparison"
-            :key="row.bookId"
-            class="library-breakdown__pace-row"
-          >
-            <div class="library-breakdown__pace-label">
-              <span class="library-breakdown__pace-title">{{
-                row.bookTitle
-              }}</span>
-              <span class="library-breakdown__pace-meta">{{
-                row.paceLabel
-              }}</span>
-            </div>
-            <ProgressBar
-              :value="row.paceNormalized"
-              :show-value="false"
-              class="library-breakdown__pace-bar"
-            />
-          </div>
+      <!-- Status counts -->
+      <div class="library-breakdown__section library-breakdown__status-row">
+        <div class="library-breakdown__stat">
+          <span class="library-breakdown__stat-value">{{ breakdown.booksFinished }}</span>
+          <span class="library-breakdown__stat-label">finished</span>
+        </div>
+        <div class="library-breakdown__stat">
+          <span class="library-breakdown__stat-value">{{ breakdown.booksInProgress }}</span>
+          <span class="library-breakdown__stat-label">reading</span>
+        </div>
+        <div class="library-breakdown__stat">
+          <span class="library-breakdown__stat-value">{{ breakdown.booksUnstarted }}</span>
+          <span class="library-breakdown__stat-label">unstarted</span>
         </div>
       </div>
     </template>
@@ -161,34 +146,30 @@ const { breakdown } = useLibraryBreakdown();
   color: var(--p-indigo-300);
 }
 
-/* Pace bars */
-.library-breakdown__pace-list {
+/* Status counts */
+.library-breakdown__status-row {
+  flex-direction: row !important;
+  gap: 1.5rem;
+}
+
+.library-breakdown__stat {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  align-items: center;
+  gap: 0.1rem;
 }
 
-.library-breakdown__pace-label {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.8rem;
-  margin-bottom: 0.2rem;
+.library-breakdown__stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--p-indigo-300);
 }
 
-.library-breakdown__pace-title {
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 60%;
-}
-
-.library-breakdown__pace-meta {
-  opacity: 0.55;
-  font-size: 0.75rem;
-}
-
-.library-breakdown__pace-bar {
-  height: 6px;
+.library-breakdown__stat-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
 }
 </style>

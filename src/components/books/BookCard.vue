@@ -6,7 +6,6 @@ import { useProgressStore } from '@/stores/progress'
 import { useBooksStore } from '@/stores/books'
 import { useLoreCardsStore } from '@/stores/loreCards'
 import { useConfirm } from 'primevue/useconfirm'
-import { useReadingPulse } from '@/composables/useReadingPulse'
 import Button from 'primevue/button'
 import Chip from 'primevue/chip'
 import Menu from 'primevue/menu'
@@ -75,10 +74,8 @@ const toggleMenu = (event: Event) => {
   menu.value.toggle(event)
 }
 
-// Reading streak
-const pulse = useReadingPulse(props.book.id)
-pulse.fetchHistory()
-const streak = pulse.streak
+// Streak chip removed — per-book history fetch caused N+1 queries on Library page.
+// Global reading streak is available on the Profile page via get_reading_stats RPC.
 </script>
 
 <template>
@@ -133,9 +130,6 @@ const streak = pulse.streak
         <span class="book-card__progress-pct">{{ percentage.toFixed(0) }}%</span>
       </div>
 
-      <div v-if="streak > 0" class="book-card__streak">
-        🔥 {{ streak }}-day streak
-      </div>
     </div>
   </article>
 </template>

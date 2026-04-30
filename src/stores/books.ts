@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/services/supabase'
-import { mapBook, type Book, type BookRow } from '@/types'
+import { mapBook, type Book, type BookRow, type LibraryBookEntry } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import {
   swrStatus,
@@ -16,6 +16,7 @@ const TTL = 60_000 // 60 s
 
 export const useBooksStore = defineStore('books', () => {
   const books = ref<Book[]>([])
+  const libraryEntries = ref<LibraryBookEntry[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -63,6 +64,61 @@ export const useBooksStore = defineStore('books', () => {
     }
   }
 
+  // ── RPC: get_library_with_progress (017) ──────────────────────────────────
+  // Single round-trip replacing fetchLibrary + progressStore.fetchProgress pair.
+  // Eliminates the race condition on Profile → Dashboard navigation.
+
+  const LIBRARY_TTL = 60_000 // 60 s
+
+  const _libraryFetcher = async () => {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+    const { data, error: err } = await supabase.rpc('get_library_with_progress', {
+      p_user_id: authStore.user.id,
+    })
+    if (err) throw err
+    const entries = (data as LibraryBookEntry[]) ?? []
+    libraryEntries.value = entries
+    books.value = entries.map(e => ({
+      id: e.id,
+      userId: authStore.user!.id,
+      title: e.title,
+      author: e.author,
+      isbn: null,
+      coverUrl: e.coverUrl,
+      totalPages: e.totalPages,
+      genre: null,
+      createdAt: '',
+    }))
+  }
+
+  const fetchLibraryWithProgress = async () => {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+
+    const key = cacheKeys.library(authStore.user.id)
+    registerRevalidator(key, () => swrRun(key, _libraryFetcher).catch(() => {}))
+
+    const status = swrStatus(key, LIBRARY_TTL)
+    if (status === 'fresh') return
+
+    if (status === 'background') {
+      swrRun(key, _libraryFetcher).catch(() => { /* silent */ })
+      return
+    }
+
+    // 'loading' — first visit
+    loading.value = true
+    error.value = null
+    try {
+      await swrRun(key, _libraryFetcher)
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : 'Failed to load library'
+    } finally {
+      loading.value = false
+    }
+  }
+
   // ── Read helpers ───────────────────────────────────────────────────────────
 
   const bookById = (id: string): Book | undefined => books.value.find(b => b.id === id)
@@ -90,7 +146,10 @@ export const useBooksStore = defineStore('books', () => {
 
     const book = mapBook(data as BookRow)
     books.value.unshift(book)
-    swrTouch(cacheKeys.books(authStore.user.id))
+    const uid = authStore.user.id
+    swrTouch(cacheKeys.books(uid))
+    invalidate(cacheKeys.library(uid))
+    invalidate(cacheKeys.libraryBreakdown(uid))
     return book
   }
 
@@ -118,7 +177,10 @@ export const useBooksStore = defineStore('books', () => {
     const updated = mapBook(data as BookRow)
     const idx = books.value.findIndex(b => b.id === id)
     if (idx !== -1) books.value[idx] = updated
-    swrTouch(cacheKeys.books(authStore.user.id))
+    const uid = authStore.user.id
+    swrTouch(cacheKeys.books(uid))
+    invalidate(cacheKeys.library(uid))
+    invalidate(cacheKeys.libraryBreakdown(uid))
   }
 
   const removeBook = async (id: string) => {
@@ -134,10 +196,16 @@ export const useBooksStore = defineStore('books', () => {
     // Touch books + broad invalidation of all per-book keys
     swrTouch(cacheKeys.books(uid))
     invalidate(cacheKeys.progress(uid))
+    invalidate(cacheKeys.library(uid))
+    invalidate(cacheKeys.libraryBreakdown(uid))
     invalidate(`lexicon:${uid}`, { prefix: true })
     invalidate(cacheKeys.recaps(uid, id))
     invalidate(cacheKeys.bookPassport(uid, id))
   }
 
-  return { books, loading, error, fetchLibrary, bookById, addBook, updateBook, removeBook }
+  return {
+    books, libraryEntries, loading, error,
+    fetchLibrary, fetchLibraryWithProgress,
+    bookById, addBook, updateBook, removeBook,
+  }
 })

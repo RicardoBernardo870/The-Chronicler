@@ -1,77 +1,67 @@
-import { computed } from 'vue'
-import { useBooksStore } from '@/stores/books'
-import { useProgressStore } from '@/stores/progress'
+import { ref } from 'vue'
+import { supabase } from '@/services/supabase'
+import { useAuthStore } from '@/stores/auth'
+import { type LibraryBreakdown } from '@/types'
+import {
+  swrStatus,
+  swrRun,
+  registerRevalidator,
+  cacheKeys,
+} from '@/composables/useCache'
 
 /**
- * 016 — Library breakdown view model for the Profile page.
+ * 017 — Library breakdown via get_library_breakdown RPC.
  *
- * - Genre distribution from the existing books.genre column (FR-004).
- * - Unique author count.
- * - Per-book pace comparison (label + normalized 0-100 value for ProgressBar).
- *
- * Pure client-side derivation; no new tables (FR-006).
+ * Replaces the client-side computed (booksStore.books + progressStore.progress)
+ * with a single server-side RPC call returning genreDistribution, authorsCount,
+ * status counts, and average completion.
  */
 
-export interface GenreCount {
-  name: string
-  count: number
-}
+const BREAKDOWN_TTL = 120_000 // 120 s
 
-export interface PaceRow {
-  bookId: string
-  bookTitle: string
-  paceLabel: string         // e.g. "12 pages/hr"
-  paceNormalized: number    // 0–100 for ProgressBar
-}
-
-export interface LibraryBreakdown {
-  genres: GenreCount[]
-  uniqueAuthors: number
-  paceComparison: PaceRow[]
-}
+// Module-level singleton refs — survive Vue component remounts so the SWR
+// 'fresh' early-return doesn't leave a remounted component with a null ref.
+const _breakdown = ref<LibraryBreakdown | null>(null)
+const _loaded = ref(false)
 
 export const useLibraryBreakdown = () => {
-  const booksStore = useBooksStore()
-  const progressStore = useProgressStore()
+  const breakdown = _breakdown
+  const loaded = _loaded
 
-  const breakdown = computed((): LibraryBreakdown => {
-    const books = booksStore.books
+  // ── Fetcher ────────────────────────────────────────────────────────────────
 
-    // Genre distribution
-    const genreCounts = new Map<string, number>()
-    const authors = new Set<string>()
-    for (const b of books) {
-      const g = b.genre?.trim() || 'Uncategorized'
-      genreCounts.set(g, (genreCounts.get(g) ?? 0) + 1)
-      if (b.author) authors.add(b.author.trim().toLowerCase())
+  const _breakdownFetcher = async () => {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+    const { data, error } = await supabase.rpc('get_library_breakdown', {
+      p_user_id: authStore.user.id,
+    })
+    if (error) throw error
+    breakdown.value = data as LibraryBreakdown
+    loaded.value = true
+  }
+
+  const fetchBreakdown = async () => {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+
+    const key = cacheKeys.libraryBreakdown(authStore.user.id)
+    registerRevalidator(key, () => swrRun(key, _breakdownFetcher).catch(() => {}))
+
+    const status = swrStatus(key, BREAKDOWN_TTL)
+    if (status === 'fresh') return
+
+    if (status === 'background') {
+      swrRun(key, _breakdownFetcher).catch(() => { /* silent */ })
+      return
     }
-    const genres = [...genreCounts.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
 
-    // Pace comparison — label uses currentPage / sessions hint; for now use
-    // currentPage as a proxy for "how far you've gotten" normalized against
-    // book length. The Profile spec calls this "pace comparison across books".
-    const paceRows: PaceRow[] = []
-    for (const b of books) {
-      const p = progressStore.progress[b.id]
-      if (!p || !b.totalPages) continue
-      const pct = Math.min(100, Math.round((p.currentPage / b.totalPages) * 100))
-      paceRows.push({
-        bookId: b.id,
-        bookTitle: b.title,
-        paceLabel: `${pct}% read · p. ${p.currentPage} / ${b.totalPages}`,
-        paceNormalized: pct,
-      })
-    }
-    paceRows.sort((a, b) => b.paceNormalized - a.paceNormalized)
+    // 'loading' — first fetch
+    await swrRun(key, _breakdownFetcher)
+  }
 
-    return {
-      genres,
-      uniqueAuthors: authors.size,
-      paceComparison: paceRows,
-    }
-  })
+  // Auto-fetch once on first composable use
+  void fetchBreakdown()
 
-  return { breakdown }
+  return { breakdown, loaded, fetchBreakdown }
 }
