@@ -1,26 +1,31 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted, watch } from 'vue'
-import type { LexiconEntry } from '@/types'
-import Button from 'primevue/button'
+import { ref, nextTick, onMounted, watch } from "vue";
+import type { LexiconEntry } from "@/types";
+import Button from "primevue/button";
 
-defineProps<{ entry: LexiconEntry; bookTitle?: string }>()
-const emit = defineEmits<{ advance: []; reset: [] }>()
+type Props = {
+  entry: LexiconEntry
+  bookTitle?: string
+}
 
-const flipped = ref(false)
-const frontRef = ref<HTMLElement | null>(null)
-const backRef = ref<HTMLElement | null>(null)
-const innerHeight = ref(0)
+defineProps<Props>();
+const emit = defineEmits<{ advance: []; reset: [] }>();
+
+const flipped = ref(false);
+const frontRef = ref<HTMLElement | null>(null);
+const backRef = ref<HTMLElement | null>(null);
+const innerHeight = ref(0);
 
 // Measure the active face and drive the container height so the card
 // always fits its content regardless of which face is showing.
 const measureHeight = async (isFlipped: boolean) => {
-  await nextTick()
-  const el = isFlipped ? backRef.value : frontRef.value
-  if (el) innerHeight.value = el.scrollHeight
-}
+  await nextTick();
+  const el = isFlipped ? backRef.value : frontRef.value;
+  if (el) innerHeight.value = el.scrollHeight;
+};
 
-onMounted(() => measureHeight(false))
-watch(flipped, measureHeight)
+onMounted(() => measureHeight(false));
+watch(flipped, measureHeight);
 </script>
 
 <template>
@@ -33,38 +38,59 @@ watch(flipped, measureHeight)
       <!-- Front -->
       <div ref="frontRef" class="lc-face lc-front glass-surface">
         <div class="lc-front__top">
-          <span class="lc-badge" :class="entry.entryType === 'dictionary' ? 'lc-badge--dict' : 'lc-badge--lore'">
-            {{ entry.entryType === 'dictionary' ? 'Dictionary' : 'Lore' }}
+          <span
+            class="lc-badge"
+            :class="
+              entry.entryType === 'dictionary'
+                ? 'lc-badge--dict'
+                : 'lc-badge--lore'
+            "
+          >
+            {{ entry.entryType === "dictionary" ? "Dictionary" : "Lore" }}
           </span>
-          <span v-if="entry.pageFound" class="lc-page">p.{{ entry.pageFound }}</span>
+          <span v-if="entry.pageFound" class="lc-page">
+            p.{{ entry.pageFound }}
+          </span>
         </div>
+
         <p class="lc-term">{{ entry.term }}</p>
         <p v-if="bookTitle" class="lc-book-title">{{ bookTitle }}</p>
         <p class="lc-hint">tap to see definition</p>
       </div>
 
       <!-- Back -->
-      <div ref="backRef" class="lc-face lc-back glass-surface" @click.stop>
+      <div
+        ref="backRef"
+        class="lc-face lc-back glass-surface"
+        @click.stop="flipped = !flipped"
+      >
         <p class="lc-definition">{{ entry.definition }}</p>
-        <p v-if="entry.contextSentence" class="lc-context">"{{ entry.contextSentence }}"</p>
+        <p v-if="entry.contextSentence" class="lc-context">
+          "{{ entry.contextSentence }}"
+        </p>
         <div class="lc-actions">
           <Button
             label="✓ I know this"
             size="small"
             severity="success"
             outlined
-            @click="emit('advance'); flipped = false"
+            @click="
+              emit('advance');
+              flipped = false;
+            "
           />
           <Button
             label="✗ Review again"
             size="small"
             severity="secondary"
             outlined
-            @click="emit('reset'); flipped = false"
+            @click="
+              emit('reset');
+              flipped = false;
+            "
           />
         </div>
       </div>
-
     </div>
   </div>
 </template>
@@ -79,11 +105,14 @@ watch(flipped, measureHeight)
   position: relative;
   width: 100%;
   transform-style: preserve-3d;
-  transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1),
-              height 0.35s cubic-bezier(0.4, 0.2, 0.2, 1);
+  transition:
+    transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1),
+    height 0.35s cubic-bezier(0.4, 0.2, 0.2, 1);
 }
 
-.lc-inner--flipped { transform: rotateY(180deg); }
+.lc-inner--flipped {
+  transform: rotateY(180deg);
+}
 
 .lc-face {
   /* Anchored to top/left/right only — height is driven by content, not the
@@ -101,7 +130,9 @@ watch(flipped, measureHeight)
   gap: 0.5rem;
 }
 
-.lc-back { transform: rotateY(180deg); }
+.lc-back {
+  transform: rotateY(180deg);
+}
 
 /* Front */
 .lc-front__top {
@@ -170,7 +201,7 @@ watch(flipped, measureHeight)
   font-style: italic;
   opacity: 0.65;
   line-height: 1.45;
-  border-left: 2px solid rgba(99,102,241,0.4);
+  border-left: 2px solid rgba(99, 102, 241, 0.4);
   padding-left: 0.6rem;
 }
 
