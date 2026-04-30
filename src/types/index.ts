@@ -99,6 +99,71 @@ export interface BookRow {
   created_at: string
 }
 
+// ─────────────────────────────────────────────────────────────
+// RPC Aggregate Response Types (017-supabase-rpc-aggregations)
+// ─────────────────────────────────────────────────────────────
+
+export type BookStatus = 'unread' | 'reading' | 'finished'
+
+/** Returned as an array by get_library_with_progress RPC. */
+export interface LibraryBookEntry {
+  id: string             // book id
+  title: string
+  author: string
+  coverUrl: string | null
+  totalPages: number
+  currentPage: number
+  percentage: number     // 0–100
+  status: BookStatus
+  lastReadAt: string | null      // ISO timestamp; null if never started
+  sessionStartAt: string | null  // non-null = active session in progress
+  progressId: string | null      // reading_progress.id; null if no progress row
+}
+
+/** Returned by get_reading_stats RPC. All numeric fields default to 0. */
+export interface ReadingStats {
+  pagesThisWeek: number
+  pagesThisMonth: number
+  totalPagesRead: number
+  totalReadingHours: number
+  sessionsThisMonth: number
+  currentStreakDays: number
+  longestStreakDays: number
+  allTimeVelocityPph: number
+}
+
+/** Returned by get_last_session RPC. null when user has no history. */
+export interface LastSessionSummary {
+  bookId: string
+  bookTitle: string
+  endedAt: string
+  startedAt: string | null
+  pagesDelta: number
+  startPage: number
+  endPage: number
+  durationSeconds: number | null
+  velocityPph: number | null
+  completionDelta: number | null
+  finishPredictionSessions: number | null
+  sessionNote: string | null
+}
+
+export interface GenreDistributionItem {
+  genre: string
+  count: number
+  percentage: number
+}
+
+/** Returned by get_library_breakdown RPC. */
+export interface LibraryBreakdown {
+  genreDistribution: GenreDistributionItem[]
+  authorsCount: number
+  booksFinished: number
+  booksInProgress: number
+  booksUnstarted: number
+  avgCompletionPct: number
+}
+
 export interface ReadingProgressRow {
   id: string
   book_id: string
@@ -211,6 +276,29 @@ export const mapLexiconEntry = (row: LexiconEntryRow): LexiconEntry => ({
   nextReviewAt: row.next_review_at,
   createdAt: row.created_at,
   source: row.source ?? 'manual',
+})
+
+// ─────────────────────────────────────────────────────────────
+// Great Library search (018-great-library)
+// ─────────────────────────────────────────────────────────────
+
+/** A lexicon entry enriched with the source book's title (from join). */
+export interface LexiconSearchResult extends LexiconEntry {
+  bookTitle: string   // 'Unknown Book' when the book row is orphaned/deleted
+}
+
+/** One option in the Great Library book-filter dropdown. */
+export interface BookFilterOption {
+  bookId: string
+  bookTitle: string
+}
+
+/** Maps a raw Supabase lexicon_entries row (with books join) to LexiconSearchResult. */
+export const mapSearchResult = (
+  row: LexiconEntryRow & { books: { title: string } | null },
+): LexiconSearchResult => ({
+  ...mapLexiconEntry(row),
+  bookTitle: (row.books as { title: string } | null)?.title ?? 'Unknown Book',
 })
 
 // ─────────────────────────────────────────────────────────────

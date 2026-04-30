@@ -18,12 +18,11 @@ const dnaStore = useReadingDnaStore();
 const { booksFinished } = useReadingProfile();
 
 onMounted(async () => {
-  // Hydrate every store the Profile page reads. Each call is SWR-aware so
-  // repeat visits within TTL are free.
-  // Books must resolve before progress — the progress fetcher maps rows via
-  // booksStore.bookById(), so a concurrent fetch risks an empty progress map
-  // that the SWR cache then marks fresh, starving the Dashboard of data.
-  await booksStore.fetchLibrary()
+  // 017 — fetchLibraryWithProgress replaces the sequential fetchLibrary +
+  // fetchProgress pair. A single RPC call returns books joined with progress;
+  // progressStore.fetchProgress() then hydrates from the in-memory entries
+  // (< 1 ms, no network), eliminating the race condition on Profile → Dashboard.
+  await booksStore.fetchLibraryWithProgress()
   await Promise.all([
     progressStore.fetchProgress(),
     dnaStore.fetchDna(),

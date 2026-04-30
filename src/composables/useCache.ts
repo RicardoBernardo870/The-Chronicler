@@ -183,15 +183,20 @@ if (typeof document !== 'undefined') {
 // ── Cache key helpers ─────────────────────────────────────────────────────────
 
 export const cacheKeys = {
-  books:        (uid: string)                  => `books:${uid}`,
-  progress:     (uid: string)                  => `progress:${uid}`,
-  lexicon:      (uid: string, bookId: string)  => `lexicon:${uid}:${bookId}`,
-  lexiconAll:   (uid: string)                  => `lexicon:${uid}:all`,
-  recaps:       (uid: string, bookId: string)  => `recaps:${uid}:${bookId}`,
-  bookPassport: (uid: string, bookId: string)  => `bookPassport:${uid}:${bookId}`,
-  upNext:       (uid: string)                  => `upNext:${uid}`,
-  lore:         (uid: string, bookId: string)  => `lore:${uid}:${bookId}`,
-  loreAll:      (uid: string)                  => `lore:${uid}:all`,
+  books:           (uid: string)                  => `books:${uid}`,
+  progress:        (uid: string)                  => `progress:${uid}`,
+  lexicon:         (uid: string, bookId: string)  => `lexicon:${uid}:${bookId}`,
+  lexiconAll:      (uid: string)                  => `lexicon:${uid}:all`,
+  recaps:          (uid: string, bookId: string)  => `recaps:${uid}:${bookId}`,
+  bookPassport:    (uid: string, bookId: string)  => `bookPassport:${uid}:${bookId}`,
+  upNext:          (uid: string)                  => `upNext:${uid}`,
+  lore:            (uid: string, bookId: string)  => `lore:${uid}:${bookId}`,
+  loreAll:         (uid: string)                  => `lore:${uid}:all`,
+  // 017 — RPC aggregate cache keys
+  library:         (uid: string)                  => `library:${uid}`,
+  readingStats:    (uid: string)                  => `readingStats:${uid}`,
+  lastSession:     (uid: string)                  => `lastSession:${uid}`,
+  libraryBreakdown:(uid: string)                  => `libraryBreakdown:${uid}`,
 } as const
 
 // ── Dev-only observability (T004 / data-model.md § Observability) ─────────────

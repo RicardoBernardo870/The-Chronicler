@@ -7,7 +7,7 @@ import { formatRelativeToNow as formatRelative } from "@/utils/date";
 import { Image } from "primevue";
 import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 
-const { lastSession, fetchAllHistory } = useLastSession();
+const { lastSession, fetchLastSession } = useLastSession();
 const booksStore = useBooksStore();
 const progressStore = useProgressStore();
 
@@ -33,7 +33,7 @@ const handleCaptureComplete = () => {
   pendingHistoryRowId.value = null;
   pendingBookId.value = null;
   progressStore.consumeSessionEnded();
-  fetchAllHistory();
+  fetchLastSession();
 };
 
 const bookImage = computed(() => {
@@ -77,7 +77,7 @@ const distanceLabel = computed((): string => {
   return `${pagesDelta} ${pagesDelta === 1 ? "page" : "pages"} · p. ${startPage + 1} → p. ${endPage}`;
 });
 
-onMounted(() => fetchAllHistory());
+onMounted(() => fetchLastSession());
 </script>
 
 <template>

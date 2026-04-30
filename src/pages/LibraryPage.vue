@@ -24,9 +24,12 @@ const viewMode = ref<'list' | 'grid'>(
 watch(viewMode, v => localStorage.setItem('library-view-mode', v))
 
 onMounted(async () => {
-  await booksStore.fetchLibrary()
-  await progressStore.fetchProgress()
-  await upNextStore.fetchOrder()
+  // 017 — single RPC replaces sequential fetchLibrary + fetchProgress pair
+  await booksStore.fetchLibraryWithProgress()
+  await Promise.all([
+    progressStore.fetchProgress(),
+    upNextStore.fetchOrder(),
+  ])
   // Fetch all lore so hasUnseenLore() is reactive on every BookCard (FR-026, T035)
   loreStore.fetchLoreForAllBooks().catch(() => { /* silent — Library is best-effort for chips */ })
 })

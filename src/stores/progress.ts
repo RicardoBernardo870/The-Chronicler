@@ -12,6 +12,7 @@ import {
   swrStatus,
   swrRun,
   swrTouch,
+  invalidate,
   registerRevalidator,
   cacheKeys,
 } from '@/composables/useCache'
@@ -78,7 +79,33 @@ export const useProgressStore = defineStore('progress', () => {
   // ── Fetcher ────────────────────────────────────────────────────────────────
 
   const _fetcher = async () => {
+    const authStore = useAuthStore()
     const booksStore = useBooksStore()
+
+    // T005 (017): if fetchLibraryWithProgress already ran, derive progress map
+    // from libraryEntries — no network call needed.
+    if (booksStore.libraryEntries.length > 0) {
+      const map: Record<string, ReadingProgress> = {}
+      for (const entry of booksStore.libraryEntries) {
+        if (entry.progressId === null) continue  // no progress row — skip
+        map[entry.id] = {
+          id: entry.progressId,
+          bookId: entry.id,
+          userId: authStore.user?.id ?? '',
+          currentPage: entry.currentPage,
+          percentage: entry.percentage,
+          updatedAt: entry.lastReadAt ?? new Date().toISOString(),
+          sessionStartAt: entry.sessionStartAt,
+        }
+      }
+      progress.value = map
+      // Mark progress cache fresh so downstream SWR checks see 'fresh'
+      if (authStore.user) swrTouch(cacheKeys.progress(authStore.user.id))
+      if (navigator.onLine) await drainQueue()
+      return
+    }
+
+    // Fallback: progressStore accessed independently (no library RPC ran yet)
     // T008 (013): select session_start_at so active sessions survive fetch
     const { data, error } = await supabase
       .from('reading_progress')
@@ -219,6 +246,9 @@ export const useProgressStore = defineStore('progress', () => {
         await syncToSupabase(bookId, currentPage)
         // Mark progress cache fresh with server-confirmed data
         swrTouch(cacheKeys.progress(authStore.user.id))
+        // Invalidate RPC aggregate caches so they revalidate on next access (017)
+        invalidate(cacheKeys.lastSession(authStore.user.id))
+        invalidate(cacheKeys.readingStats(authStore.user.id))
 
         // T012 (013): insert progress_history with session_start_at
         const now = new Date().toISOString()

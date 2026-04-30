@@ -6,18 +6,18 @@ import StatTile from "./StatTile.vue";
 import { useReadingProfile } from "@/composables/useReadingProfile";
 
 const {
-  booksFinished,
   booksInProgress,
   totalPagesRead,
   totalReadingHours,
   allTimeVelocityPph,
   currentStreak,
   longestStreak,
+  sessionsThisMonth,
 } = useReadingProfile();
 
 const isEmpty = computed(
   () =>
-    booksFinished.value === 0 &&
+   sessionsThisMonth.value === 0 &&
     booksInProgress.value === 0 &&
     totalPagesRead.value === 0,
 );
@@ -37,18 +37,18 @@ const isEmpty = computed(
     <div v-else class="lifetime-stats__grid">
       <StatTile
         icon="pi-check-circle"
-        label="Books finished"
+        label="Sessions this month"
         class="glass-subtle"
-        :value="booksFinished"
+        :value="sessionsThisMonth"
       />
       <StatTile
-        icon="pi-bookmark"
+        icon="pi-book"
         label="In progress"
         class="glass-subtle"
         :value="booksInProgress"
       />
       <StatTile
-        icon="pi-book"
+        icon="pi-bookmark"
         label="Pages read"
         class="glass-subtle"
         :value="totalPagesRead"
