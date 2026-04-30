@@ -279,6 +279,29 @@ export const mapLexiconEntry = (row: LexiconEntryRow): LexiconEntry => ({
 })
 
 // ─────────────────────────────────────────────────────────────
+// Great Library search (018-great-library)
+// ─────────────────────────────────────────────────────────────
+
+/** A lexicon entry enriched with the source book's title (from join). */
+export interface LexiconSearchResult extends LexiconEntry {
+  bookTitle: string   // 'Unknown Book' when the book row is orphaned/deleted
+}
+
+/** One option in the Great Library book-filter dropdown. */
+export interface BookFilterOption {
+  bookId: string
+  bookTitle: string
+}
+
+/** Maps a raw Supabase lexicon_entries row (with books join) to LexiconSearchResult. */
+export const mapSearchResult = (
+  row: LexiconEntryRow & { books: { title: string } | null },
+): LexiconSearchResult => ({
+  ...mapLexiconEntry(row),
+  bookTitle: (row.books as { title: string } | null)?.title ?? 'Unknown Book',
+})
+
+// ─────────────────────────────────────────────────────────────
 // Reading DNA + Vocabulary Extraction (016)
 // ─────────────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@ import { ref, nextTick, onMounted, watch } from 'vue'
 import type { LexiconEntry } from '@/types'
 import Button from 'primevue/button'
 
-defineProps<{ entry: LexiconEntry }>()
+defineProps<{ entry: LexiconEntry; bookTitle?: string }>()
 const emit = defineEmits<{ advance: []; reset: [] }>()
 
 const flipped = ref(false)
@@ -39,6 +39,7 @@ watch(flipped, measureHeight)
           <span v-if="entry.pageFound" class="lc-page">p.{{ entry.pageFound }}</span>
         </div>
         <p class="lc-term">{{ entry.term }}</p>
+        <p v-if="bookTitle" class="lc-book-title">{{ bookTitle }}</p>
         <p class="lc-hint">tap to see definition</p>
       </div>
 
@@ -139,6 +140,14 @@ watch(flipped, measureHeight)
   font-weight: 700;
   letter-spacing: -0.02em;
   padding: 0.5rem 0;
+}
+
+.lc-book-title {
+  margin: 0;
+  font-size: 0.72rem;
+  opacity: 0.45;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .lc-hint {
