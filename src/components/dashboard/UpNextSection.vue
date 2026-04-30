@@ -95,7 +95,6 @@ const emit = defineEmits<{
   border-radius: 12px;
   cursor: pointer;
   transition: opacity 0.15s ease;
-  touch-action: none;
 }
 
 .up-next__item:hover { opacity: 0.85; }
@@ -112,6 +111,9 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: center;
   user-select: none;
+  /* Only the handle disables native touch gestures so the card itself
+     remains scrollable on mobile. */
+  touch-action: none;
 }
 
 .up-next__handle:active { cursor: grabbing; }
