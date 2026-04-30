@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, nextTick, onMounted, watch } from 'vue'
 import type { LexiconEntry } from '@/types'
 import Button from 'primevue/button'
 
@@ -7,14 +7,31 @@ defineProps<{ entry: LexiconEntry }>()
 const emit = defineEmits<{ advance: []; reset: [] }>()
 
 const flipped = ref(false)
+const frontRef = ref<HTMLElement | null>(null)
+const backRef = ref<HTMLElement | null>(null)
+const innerHeight = ref(0)
+
+// Measure the active face and drive the container height so the card
+// always fits its content regardless of which face is showing.
+const measureHeight = async (isFlipped: boolean) => {
+  await nextTick()
+  const el = isFlipped ? backRef.value : frontRef.value
+  if (el) innerHeight.value = el.scrollHeight
+}
+
+onMounted(() => measureHeight(false))
+watch(flipped, measureHeight)
 </script>
 
 <template>
   <div class="lc-wrap" @click="flipped = !flipped">
-    <div class="lc-inner" :class="{ 'lc-inner--flipped': flipped }">
-
+    <div
+      class="lc-inner"
+      :class="{ 'lc-inner--flipped': flipped }"
+      :style="{ height: innerHeight ? innerHeight + 'px' : undefined }"
+    >
       <!-- Front -->
-      <div class="lc-face lc-front glass-surface">
+      <div ref="frontRef" class="lc-face lc-front glass-surface">
         <div class="lc-front__top">
           <span class="lc-badge" :class="entry.entryType === 'dictionary' ? 'lc-badge--dict' : 'lc-badge--lore'">
             {{ entry.entryType === 'dictionary' ? 'Dictionary' : 'Lore' }}
@@ -26,7 +43,7 @@ const flipped = ref(false)
       </div>
 
       <!-- Back -->
-      <div class="lc-face lc-back glass-surface" @click.stop>
+      <div ref="backRef" class="lc-face lc-back glass-surface" @click.stop>
         <p class="lc-definition">{{ entry.definition }}</p>
         <p v-if="entry.contextSentence" class="lc-context">"{{ entry.contextSentence }}"</p>
         <div class="lc-actions">
@@ -55,22 +72,25 @@ const flipped = ref(false)
 .lc-wrap {
   perspective: 900px;
   cursor: pointer;
-  min-height: 140px;
 }
 
 .lc-inner {
   position: relative;
   width: 100%;
-  min-height: 160px;
   transform-style: preserve-3d;
-  transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+  transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1),
+              height 0.35s cubic-bezier(0.4, 0.2, 0.2, 1);
 }
 
 .lc-inner--flipped { transform: rotateY(180deg); }
 
 .lc-face {
+  /* Anchored to top/left/right only — height is driven by content, not the
+     container, so scrollHeight measurement reflects the true content size. */
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   border-radius: 14px;
@@ -78,7 +98,6 @@ const flipped = ref(false)
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-height: 140px;
 }
 
 .lc-back { transform: rotateY(180deg); }
@@ -119,9 +138,7 @@ const flipped = ref(false)
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  flex: 1;
-  display: flex;
-  align-items: center;
+  padding: 0.5rem 0;
 }
 
 .lc-hint {
@@ -136,7 +153,6 @@ const flipped = ref(false)
   margin: 0;
   font-size: 0.88rem;
   line-height: 1.55;
-  flex: 1;
 }
 
 .lc-context {

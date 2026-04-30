@@ -164,7 +164,14 @@
       "mcp__supabase__list_tables",
       "mcp__supabase__execute_sql",
       "Bash(node bundle_deploy.cjs)",
-      "Bash(node -e \"console.log\\(require\\('fs'\\).readFileSync\\('recap_deploy.json','utf8'\\)\\)\")"
+      "Bash(node -e \"console.log\\(require\\('fs'\\).readFileSync\\('recap_deploy.json','utf8'\\)\\)\")",
+      "Bash(echo \"EXIT $?\")",
+      "Bash(rm _tsc.log)",
+      "Bash(npm run *)",
+      "Bash(rm _build.log)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\src\\\\components\\\\profile\\\\TopThemesCloud.vue\" -ErrorAction SilentlyContinue)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\src\\\\composables\\\\useTopThemes.ts\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Deleted\")"
     ]
   }
 }

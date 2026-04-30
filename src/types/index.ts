@@ -165,6 +165,8 @@ export const mapRecap = (row: RecapRow): Recap => ({
 // ─────────────────────────────────────────────────────────────
 
 export type LexiconEntryType = 'dictionary' | 'lore'
+// 016 — distinguishes user-added vs auto-extracted lexicon entries
+export type LexiconEntrySource = 'manual' | 'auto'
 
 export interface LexiconEntry {
   id: string
@@ -178,6 +180,7 @@ export interface LexiconEntry {
   leitnerBox: number
   nextReviewAt: string
   createdAt: string
+  source: LexiconEntrySource    // 016
 }
 
 export interface LexiconEntryRow {
@@ -192,6 +195,7 @@ export interface LexiconEntryRow {
   leitner_box: number
   next_review_at: string
   created_at: string
+  source: LexiconEntrySource    // 016
 }
 
 export const mapLexiconEntry = (row: LexiconEntryRow): LexiconEntry => ({
@@ -206,7 +210,63 @@ export const mapLexiconEntry = (row: LexiconEntryRow): LexiconEntry => ({
   leitnerBox: row.leitner_box,
   nextReviewAt: row.next_review_at,
   createdAt: row.created_at,
+  source: row.source ?? 'manual',
 })
+
+// ─────────────────────────────────────────────────────────────
+// Reading DNA + Vocabulary Extraction (016)
+// ─────────────────────────────────────────────────────────────
+
+export interface BookSuggestion {
+  title: string
+  author: string
+  reason: string
+}
+
+export interface MoodSignature {
+  tone: string
+  emojis: string[]
+}
+
+export interface ReadingDna {
+  userId: string
+  personality: string
+  moodSignature: MoodSignature
+  suggestions: BookSuggestion[]
+  booksFinishedAtGeneration: number
+  generatedAt: string
+}
+
+export interface ReadingDnaRow {
+  user_id: string
+  personality: string
+  mood_tone: string
+  mood_emojis: string[]
+  suggestions: BookSuggestion[]
+  books_finished_at_generation: number
+  generated_at: string
+}
+
+export const mapReadingDna = (row: ReadingDnaRow): ReadingDna => ({
+  userId: row.user_id,
+  personality: row.personality,
+  moodSignature: { tone: row.mood_tone, emojis: row.mood_emojis },
+  suggestions: row.suggestions,
+  booksFinishedAtGeneration: row.books_finished_at_generation,
+  generatedAt: row.generated_at,
+})
+
+export type VocabularyExtractionStatus = 'pending' | 'succeeded' | 'failed' | 'skipped'
+
+export interface VocabularyExtraction {
+  id: string
+  captureId: string
+  bookId: string
+  page: number
+  wordsAdded: number
+  status: VocabularyExtractionStatus
+  createdAt: string
+}
 
 // ─────────────────────────────────────────────────────────────
 // Progress History, Up Next Order, Recap Fragment, Book Passport (T009)

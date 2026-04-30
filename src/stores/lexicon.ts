@@ -234,6 +234,14 @@ export const useLexiconStore = defineStore('lexicon', () => {
 
   const allEntries = computed(() => Object.values(entriesByBook.value).flat())
 
+  // 016 — invalidate the SWR cache so the next read re-fetches. Used by the
+  // auto-vocabulary path after the edge function inserts new entries server-side.
+  const invalidateAll = () => {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+    swrTouch(cacheKeys.lexiconAll(authStore.user.id))
+  }
+
   return {
     entriesByBook,
     allEntries,
@@ -241,6 +249,7 @@ export const useLexiconStore = defineStore('lexicon', () => {
     isWordOfTheDayPreview,
     fetchEntriesForBook,
     fetchEntriesForAllBooks,
+    invalidateAll,
     addEntry,
     updateLeitner,
     resolveWordOfTheDay,
