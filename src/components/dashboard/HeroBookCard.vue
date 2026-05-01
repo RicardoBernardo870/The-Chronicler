@@ -104,7 +104,6 @@ const loreStore = useLoreCardsStore()
         :loading="saving"
         :severity="justSaved ? 'success' : 'primary'"
         :aria-label="justSaved ? 'Saved!' : 'Save progress'"
-        v-tooltip.top="justSaved ? 'Saved!' : 'Save'"
         @click="emit('save')"
       />
       <SessionStartButton
@@ -135,7 +134,6 @@ const loreStore = useLoreCardsStore()
         :label="`🔒 ${pagesUntilUnlock} more pages`"
         disabled
         class="hero-card__action-btn hero-card__action-btn--locked"
-        v-tooltip.top="'You unlock a new recap every 5% of progress, or after 3 days away'"
       />
       <Button
         v-else

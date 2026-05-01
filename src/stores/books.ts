@@ -84,10 +84,10 @@ export const useBooksStore = defineStore('books', () => {
       userId: authStore.user!.id,
       title: e.title,
       author: e.author,
-      isbn: null,
+      isbn: e.isbn ?? null,      // 019 — was hardcoded null; now from RPC
       coverUrl: e.coverUrl,
       totalPages: e.totalPages,
-      genre: null,
+      genre: e.genre ?? null,   // 019 — was hardcoded null; now from RPC
       createdAt: '',
     }))
   }
@@ -155,7 +155,7 @@ export const useBooksStore = defineStore('books', () => {
 
   const updateBook = async (
     id: string,
-    changes: Partial<Pick<Book, 'title' | 'author' | 'totalPages' | 'genre' | 'coverUrl'>>
+    changes: Partial<Pick<Book, 'title' | 'author' | 'totalPages' | 'genre' | 'coverUrl' | 'isbn'>>
   ) => {
     const authStore = useAuthStore()
     if (!authStore.user) throw new Error('Not authenticated')
@@ -168,6 +168,7 @@ export const useBooksStore = defineStore('books', () => {
         ...(changes.totalPages !== undefined && { total_pages: changes.totalPages }),
         ...(changes.genre !== undefined && { genre: changes.genre }),
         ...(changes.coverUrl !== undefined && { cover_url: changes.coverUrl }),
+        ...(changes.isbn !== undefined && { isbn: changes.isbn }),  // 019 — was missing
       })
       .eq('id', id)
       .select()

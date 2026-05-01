@@ -1,29 +1,30 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Book } from '@/types'
+import type { VelocityResult } from '@/composables/useReadingVelocity'
 import { useProgressStore } from '@/stores/progress'
-import { useBooksStore } from '@/stores/books'
 import { useLoreCardsStore } from '@/stores/loreCards'
-import { useConfirm } from 'primevue/useconfirm'
-import Button from 'primevue/button'
 import Chip from 'primevue/chip'
-import Menu from 'primevue/menu'
-import BookEditDialog from '@/components/books/BookEditDialog.vue'
 import { coverFallback } from '@/utils/coverFallback'
 
 const props = defineProps<{
   book: Book
+  daysLeft?: VelocityResult
 }>()
 
 const router = useRouter()
 const progressStore = useProgressStore()
-const booksStore = useBooksStore()
 const loreStore = useLoreCardsStore()
-const confirm = useConfirm()
 
-const percentage = computed(() => progressStore.percentageForBook(props.book.id))
-const hasNewLore  = computed(() => loreStore.hasUnseenLore(props.book.id))
+const percentage    = computed(() => progressStore.percentageForBook(props.book.id))
+const currentPage   = computed(() => progressStore.progressForBook(props.book.id)?.currentPage ?? 0)
+const hasNewLore    = computed(() => loreStore.hasUnseenLore(props.book.id))
+const showPageCount = computed(() => currentPage.value > 0 && props.book.totalPages > 0)
+const daysLeftLabel = computed(() => {
+  if (props.daysLeft == null || percentage.value >= 100) return null
+  return props.daysLeft === 'today' ? 'Finish today!' : `~${props.daysLeft} days left`
+})
 
 const initials = computed(() =>
   props.book.title
@@ -41,46 +42,9 @@ const onNewLoreChip = (e: Event) => {
   e.stopPropagation()
   navigate()
 }
-
-// Overflow menu
-const menu = ref()
-const editVisible = ref(false)
-
-const menuItems = [
-  {
-    label: 'Edit book',
-    icon: 'pi pi-pencil',
-    command: () => { editVisible.value = true },
-  },
-  {
-    label: 'Remove book',
-    icon: 'pi pi-trash',
-    command: () => {
-      confirm.require({
-        message: 'Remove this book and all its data? This cannot be undone.',
-        header: 'Remove Book',
-        icon: 'pi pi-exclamation-triangle',
-        rejectLabel: 'Cancel',
-        acceptLabel: 'Remove',
-        acceptClass: 'p-button-danger',
-        accept: () => booksStore.removeBook(props.book.id),
-      })
-    },
-  },
-]
-
-const toggleMenu = (event: Event) => {
-  event.stopPropagation()
-  menu.value.toggle(event)
-}
-
-// Streak chip removed — per-book history fetch caused N+1 queries on Library page.
-// Global reading streak is available on the Profile page via get_reading_stats RPC.
 </script>
 
 <template>
-  <BookEditDialog v-if="editVisible" :book="book" :visible="editVisible" @update:visible="editVisible = $event" @close="editVisible = false" />
-
   <article class="book-card glass-surface" role="button" tabindex="0" @click="navigate" @keydown.enter="navigate">
     <!-- "New Lore" chip (FR-026, FR-027) -->
     <button
@@ -92,18 +56,6 @@ const toggleMenu = (event: Event) => {
       <i class="pi pi-sparkles" />
       New Lore
     </button>
-
-    <!-- Overflow menu button -->
-    <Menu ref="menu" :model="menuItems" popup />
-    <Button
-      icon="pi pi-ellipsis-v"
-      text
-      rounded
-      size="small"
-      class="book-card__menu-btn"
-      aria-label="Book options"
-      @click="toggleMenu"
-    />
 
     <div class="book-card__cover-wrap">
       <img
@@ -130,6 +82,14 @@ const toggleMenu = (event: Event) => {
         <span class="book-card__progress-pct">{{ percentage.toFixed(0) }}%</span>
       </div>
 
+      <div v-if="showPageCount || daysLeftLabel" class="book-card__meta">
+        <span v-if="showPageCount" class="book-card__page-count">
+          Page {{ currentPage }} of {{ book.totalPages }}
+        </span>
+        <span v-if="daysLeftLabel" class="book-card__days-left">
+          {{ daysLeftLabel }}
+        </span>
+      </div>
     </div>
   </article>
 </template>
@@ -139,29 +99,9 @@ const toggleMenu = (event: Event) => {
   position: relative;
   display: flex;
   gap: 1rem;
-  border-radius: var(--p-border-radius-xl, 16px);
   padding: 1rem;
-  padding-right: 2.5rem; /* room for the ⋮ button */
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.book-card__menu-btn {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.25rem;
-  width: 32px !important;
-  height: 32px !important;
-  opacity: 0.55;
-  transition: opacity 0.15s;
-  z-index: 1;
-}
-
-.book-card:hover .book-card__menu-btn { opacity: 1; }
-
-.book-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
 }
 
 .book-card:active { transform: scale(0.98); }
@@ -178,22 +118,20 @@ const toggleMenu = (event: Event) => {
   height: 100%;
   object-fit: cover;
   border-radius: 6px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .book-card__cover-placeholder {
   position: absolute;
   inset: 0;
   border-radius: 6px;
-  background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.2));
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.2));
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.book-card__cover-placeholder--hidden {
-  display: none;
-}
+.book-card__cover-placeholder--hidden { display: none; }
 
 .book-card__initials {
   font-size: 1.2rem;
@@ -218,7 +156,7 @@ const toggleMenu = (event: Event) => {
   color: var(--p-indigo-300);
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
-  background: rgba(99,102,241,0.15);
+  background: rgba(99, 102, 241, 0.15);
   align-self: flex-start;
   margin-bottom: 0.15rem;
 }
@@ -271,11 +209,24 @@ const toggleMenu = (event: Event) => {
   text-align: right;
 }
 
-.book-card__streak {
-  font-size: 0.72rem;
-  font-weight: 600;
-  margin-top: 0.3rem;
-  opacity: 0.8;
+.book-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+  flex-wrap: wrap;
+}
+
+.book-card__page-count {
+  font-size: 0.7rem;
+  opacity: 0.55;
+  font-weight: 500;
+}
+
+.book-card__days-left {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--p-indigo-300);
 }
 
 /* ── New Lore chip (FR-026) ───────────────────────────────────────────────── */
@@ -283,7 +234,7 @@ const toggleMenu = (event: Event) => {
 .book-card__new-lore-chip {
   position: absolute;
   top: 0.5rem;
-  left: 0.5rem;
+  right: 0.5rem;
   z-index: 2;
   display: flex;
   align-items: center;

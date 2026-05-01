@@ -183,7 +183,6 @@ const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
             :label="`🔒 Read ${pagesUntilUnlock} more pages to unlock`"
             disabled
             class="book-detail__recap-locked"
-            v-tooltip.top="'You unlock a new recap every 10% of progress'"
           />
           <Button
             v-else-if="!isGenerating"

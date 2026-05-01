@@ -1,0 +1,170 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { Book } from '@/types'
+import type { VelocityResult } from '@/composables/useReadingVelocity'
+import { useProgressStore } from '@/stores/progress'
+import BookGridCard from '@/components/books/BookGridCard.vue'
+import ReadingWideCard from '@/components/library/ReadingWideCard.vue'
+
+const props = defineProps<{
+  /** Already-sorted full set of books (reading first, queue, completed last). */
+  books: Book[]
+  velocityMap: Record<string, VelocityResult>
+}>()
+
+const progressStore = useProgressStore()
+
+const reading = computed(() =>
+  props.books.filter((b) => {
+    const p = progressStore.percentageForBook(b.id)
+    return p > 0 && p < 100
+  }),
+)
+const queue = computed(() =>
+  props.books.filter((b) => progressStore.percentageForBook(b.id) === 0),
+)
+const archive = computed(() =>
+  props.books.filter((b) => progressStore.percentageForBook(b.id) >= 100),
+)
+</script>
+
+<template>
+  <div class="library-grid">
+
+    <!-- Currently Reading — wide horizontal cards -->
+    <section v-if="reading.length > 0" class="library-grid__section">
+      <header class="library-grid__section-header">
+        <span class="section-accent section-accent--reading"></span>
+        <span class="section-label">Now Reading</span>
+        <span class="section-badge section-badge--reading">{{ reading.length }}</span>
+      </header>
+      <div class="library-grid__reading-row">
+        <ReadingWideCard
+          v-for="book in reading"
+          :key="book.id"
+          :book="book"
+          :days-left="velocityMap[book.id] ?? null"
+        />
+      </div>
+    </section>
+
+    <!-- The Queue — standard cover grid -->
+    <section v-if="queue.length > 0" class="library-grid__section">
+      <header class="library-grid__section-header">
+        <span class="section-accent section-accent--queue"></span>
+        <span class="section-label">The Queue</span>
+        <span class="section-badge section-badge--queue">{{ queue.length }}</span>
+      </header>
+      <div class="library-grid__cover-grid">
+        <BookGridCard v-for="book in queue" :key="book.id" :book="book" />
+      </div>
+    </section>
+
+    <!-- Completed — dimmed cover grid -->
+    <section v-if="archive.length > 0" class="library-grid__section library-grid__section--completed">
+      <header class="library-grid__section-header">
+        <span class="section-accent section-accent--archive"></span>
+        <span class="section-label section-label--dim">Completed</span>
+        <span class="section-badge section-badge--archive">{{ archive.length }}</span>
+      </header>
+      <div class="library-grid__cover-grid library-grid__cover-grid--dim">
+        <BookGridCard v-for="book in archive" :key="book.id" :book="book" />
+      </div>
+    </section>
+
+  </div>
+</template>
+
+<style scoped>
+.library-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.library-grid__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.library-grid__section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.library-grid__reading-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.library-grid__cover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.625rem;
+}
+
+.library-grid__cover-grid--dim {
+  opacity: 0.65;
+  filter: saturate(0.7);
+}
+
+/* ── Section accent + label + badge (shared between sections) ─────────── */
+
+.section-accent {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.section-accent--reading { background: var(--p-indigo-500); box-shadow: 0 0 6px rgba(99, 102, 241, 0.7); }
+.section-accent--queue   { background: var(--p-violet-400, #a78bfa); }
+.section-accent--archive { background: rgba(255, 255, 255, 0.2); }
+
+.section-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}
+.section-label--dim { opacity: 0.4; }
+
+.section-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.section-badge--reading {
+  background: rgba(99, 102, 241, 0.22);
+  color: var(--p-indigo-300);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+.section-badge--queue {
+  background: rgba(167, 139, 250, 0.18);
+  color: var(--p-violet-300, #c4b5fd);
+  border: 1px solid rgba(167, 139, 250, 0.22);
+}
+.section-badge--archive {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:root[data-p-theme="light"] .section-badge--reading {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--p-indigo-600);
+}
+:root[data-p-theme="light"] .section-badge--queue {
+  background: rgba(167, 139, 250, 0.12);
+  color: var(--p-violet-600, #7c3aed);
+}
+</style>

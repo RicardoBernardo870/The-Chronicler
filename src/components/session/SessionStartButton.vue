@@ -50,12 +50,11 @@ const handleClick = async () => {
 
     <!-- ── Icon-only variant (used next to save button) ── -->
     <template v-if="iconOnly">
-      <!-- Active: clock icon, indigo tint, tooltip shows elapsed -->
+      <!-- Active: clock icon, indigo tint -->
       <Button
         v-if="state.isActive"
         icon="pi pi-clock"
         :aria-label="`Session active — ${elapsedLabel} elapsed. Tap to replace.`"
-        v-tooltip.top="`⏱ ${elapsedLabel}`"
         class="session-start-btn__icon-btn session-start-btn__icon-btn--active"
         @click="handleClick"
       />
@@ -64,7 +63,6 @@ const handleClick = async () => {
         v-else
         icon="pi pi-play"
         aria-label="Start reading session"
-        v-tooltip.top="'Start Session'"
         outlined
         :loading="pending"
         class="session-start-btn__icon-btn"

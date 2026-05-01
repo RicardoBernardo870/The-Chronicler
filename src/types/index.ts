@@ -118,6 +118,8 @@ export interface LibraryBookEntry {
   lastReadAt: string | null      // ISO timestamp; null if never started
   sessionStartAt: string | null  // non-null = active session in progress
   progressId: string | null      // reading_progress.id; null if no progress row
+  genre: string | null           // 019 — pulled from books.genre via RPC
+  isbn: string | null            // 019 — pulled from books.isbn via RPC (needed for edit pre-fill)
 }
 
 /** Returned by get_reading_stats RPC. All numeric fields default to 0. */
