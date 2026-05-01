@@ -85,19 +85,19 @@ export const useIsbn = () => {
   const lookup = async (isbn: string): Promise<BookMetadata | null> => {
     const clean = isbn.replace(/[^0-9X]/gi, "");
 
-    const olResult = await fetchFromOpenLibrary(clean);
+    const olResult = await fetchFromGoogleBooks(clean);
 
-    // Open Library returned nothing — full fallback to Google Books
-    if (!olResult) return fetchFromGoogleBooks(clean);
+    // Google Books returned nothing — full fallback to Open library
+    if (!olResult) return fetchFromOpenLibrary(clean);
 
-    // Open Library has all fields — return immediately, no Google Books call
+    // Google Books has all fields — return immediately, no Open library call
     if (!isMissingFields(olResult)) return olResult;
 
-    // Open Library returned a partial result — fetch Google Books for gap-filling only
-    const gbResult = await fetchFromGoogleBooks(clean);
+    // Google Books returned a partial result — fetch Open library for gap-filling only
+    const gbResult = await fetchFromOpenLibrary(clean);
     if (!gbResult) return olResult;
 
-    // Merge: primary = Open Library, secondary = Google Books (fills gaps only)
+    // Merge: primary = Google Books, secondary = Open library (fills gaps only)
     return mergeMetadata(olResult, gbResult);
   };
 
