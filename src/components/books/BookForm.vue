@@ -52,7 +52,7 @@ const onSubmit = () => {
     totalPages: totalPages.value!,
     genre: genre.value,
     coverUrl: coverUrl.value,
-    isbn: isbn.value?.trim() || null,
+    isbn: isbn.value?.trim().toUpperCase() || null,
   })
 }
 </script>
