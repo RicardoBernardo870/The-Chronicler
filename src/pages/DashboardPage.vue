@@ -283,7 +283,7 @@ const handleSessionConflict = (startedAt: Date) => {
 .dashboard {
   max-width: 680px;
   margin: 0 auto;
-  padding: 1.5rem 1rem var(--app-nav-bottom-clearance);
+  padding: 0.5rem 1rem var(--app-nav-bottom-clearance);
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
