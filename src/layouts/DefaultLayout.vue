@@ -23,7 +23,6 @@ const authStore = useAuthStore()
 
 .default-layout__main {
   flex: 1;
-  padding-top: 1.5rem;
   /* Page-level bottom padding is handled per-page via --app-nav-bottom-clearance */
 }
 
