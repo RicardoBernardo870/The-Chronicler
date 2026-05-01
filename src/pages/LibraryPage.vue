@@ -1,63 +1,75 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { Button, Skeleton } from 'primevue'
+import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
 import { useUpNextStore } from '@/stores/upNext'
 import { useLoreCardsStore } from '@/stores/loreCards'
-import BookCard from '@/components/books/BookCard.vue'
-import BookGridCard from '@/components/books/BookGridCard.vue'
-import EmptyState from '@/components/shared/EmptyState.vue'
-import Button from 'primevue/button'
-import Skeleton from 'primevue/skeleton'
+import { useReadingVelocity } from '@/composables/useReadingVelocity'
+import type { Book } from '@/types'
 
-const router = useRouter()
-const booksStore = useBooksStore()
+import BookEditDialog   from '@/components/books/BookEditDialog.vue'
+import LibraryListView  from '@/components/library/LibraryListView.vue'
+import LibraryGridView  from '@/components/library/LibraryGridView.vue'
+import EmptyState       from '@/components/shared/EmptyState.vue'
+
+// ── Stores / services ───────────────────────────────────────────────────────
+
+const router        = useRouter()
+const booksStore    = useBooksStore()
 const progressStore = useProgressStore()
-const upNextStore = useUpNextStore()
-const loreStore = useLoreCardsStore()
+const upNextStore   = useUpNextStore()
+const loreStore     = useLoreCardsStore()
+const toast         = useToast()    // global <Toast> lives in App.vue
+const confirm       = useConfirm()  // global <ConfirmDialog> lives in App.vue
 
-// View mode — persisted to localStorage
+// ── View mode (persisted) ──────────────────────────────────────────────────
+
 const viewMode = ref<'list' | 'grid'>(
-  (localStorage.getItem('library-view-mode') as 'list' | 'grid') ?? 'list'
+  (localStorage.getItem('library-view-mode') as 'list' | 'grid') ?? 'list',
 )
-watch(viewMode, v => localStorage.setItem('library-view-mode', v))
+watch(viewMode, (v) => localStorage.setItem('library-view-mode', v))
 
-onMounted(async () => {
-  // 017 — single RPC replaces sequential fetchLibrary + fetchProgress pair
-  await booksStore.fetchLibraryWithProgress()
-  await Promise.all([
-    progressStore.fetchProgress(),
-    upNextStore.fetchOrder(),
-  ])
-  // Fetch all lore so hasUnseenLore() is reactive on every BookCard (FR-026, T035)
-  loreStore.fetchLoreForAllBooks().catch(() => { /* silent — Library is best-effort for chips */ })
+// ── Section arrays (list view) ─────────────────────────────────────────────
+
+const readingBooks = computed(() =>
+  booksStore.libraryEntries.filter((e) => e.status === 'reading'),
+)
+
+const queuedBooks = computed(() => {
+  const entries     = booksStore.libraryEntries.filter((e) => e.status === 'unread')
+  const orderedIds  = upNextStore.sortedBookIds()
+  return [...entries].sort((a, b) => {
+    const iA = orderedIds.indexOf(a.id)
+    const iB = orderedIds.indexOf(b.id)
+    if (iA === -1 && iB === -1) return 0
+    if (iA === -1) return 1
+    if (iB === -1) return -1
+    return iA - iB
+  })
 })
 
-// 4-tier sort:
-// 1. Most-recently-updated in-progress book first
-// 2. Other in-progress books ascending by %
-// 3. 0%-progress books in up-next order
-// 4. Completed (100%) books last
-const sortedBooks = computed(() => {
-  const books = [...booksStore.books]
-  const upNextIds = upNextStore.sortedBookIds()
+const archivedBooks = computed(() =>
+  booksStore.libraryEntries.filter((e) => e.status === 'finished'),
+)
 
+// ── Sorted full set (grid view) ────────────────────────────────────────────
+
+const sortedBooks = computed(() => {
+  const books     = [...booksStore.books]
+  const upNextIds = upNextStore.sortedBookIds()
   return books.sort((a, b) => {
-    const pA = progressStore.percentageForBook(a.id)
-    const pB = progressStore.percentageForBook(b.id)
+    const pA   = progressStore.percentageForBook(a.id)
+    const pB   = progressStore.percentageForBook(b.id)
     const updA = progressStore.progressForBook(a.id)?.updatedAt ?? a.createdAt
     const updB = progressStore.progressForBook(b.id)?.updatedAt ?? b.createdAt
-
     const tierA = pA >= 100 ? 3 : pA > 0 ? 1 : 2
     const tierB = pB >= 100 ? 3 : pB > 0 ? 1 : 2
-
     if (tierA !== tierB) return tierA - tierB
-
-    // Tier 1: in-progress — most recently updated first
     if (tierA === 1) return new Date(updB).getTime() - new Date(updA).getTime()
-
-    // Tier 2: 0% — follow up-next order, unordered books go last
     if (tierA === 2) {
       const iA = upNextIds.indexOf(a.id)
       const iB = upNextIds.indexOf(b.id)
@@ -66,19 +78,73 @@ const sortedBooks = computed(() => {
       if (iB === -1) return -1
       return iA - iB
     }
-
-    // Tier 3: completed — most recently finished first
     return new Date(updB).getTime() - new Date(updA).getTime()
   })
+})
+
+// ── Reading velocity (server-side RPC) ─────────────────────────────────────
+
+const readingBookIds = computed(() => readingBooks.value.map((e) => e.id))
+const velocity       = useReadingVelocity(readingBookIds)
+
+// ── Edit / delete handlers (driven by SwipeableBookCard events) ────────────
+
+const editTarget  = ref<Book | null>(null)
+const editVisible = ref(false)
+
+const openEditDialog = (book: Book) => {
+  editTarget.value  = book
+  editVisible.value = true
+}
+
+const confirmDelete = (book: Book) => {
+  confirm.require({
+    message:    `Remove "${book.title}" and all its data? This cannot be undone.`,
+    header:     'Remove Book',
+    icon:       'pi pi-exclamation-triangle',
+    rejectLabel: 'Cancel',
+    acceptLabel: 'Remove',
+    acceptClass: 'p-button-danger',
+    accept: async () => {
+      try {
+        await booksStore.removeBook(book.id)
+      } catch {
+        toast.add({
+          severity: 'error',
+          summary:  'Remove failed',
+          detail:   'Could not remove the book. Try again.',
+          life:     3000,
+        })
+      }
+    },
+  })
+}
+
+// ── Mount ──────────────────────────────────────────────────────────────────
+
+onMounted(async () => {
+  await booksStore.fetchLibraryWithProgress()
+  await Promise.all([progressStore.fetchProgress(), upNextStore.fetchOrder()])
+  loreStore.fetchLoreForAllBooks().catch(() => {})
+  await velocity.fetch()
 })
 </script>
 
 <template>
+  <BookEditDialog
+    v-if="editTarget"
+    :book="editTarget"
+    :visible="editVisible"
+    @update:visible="editVisible = $event"
+    @close="editVisible = false; editTarget = null"
+  />
+
   <div class="library">
+
+    <!-- Header -->
     <header class="library__header">
       <h1 class="library__title">Library</h1>
       <div class="library__header-actions">
-        <!-- View toggle -->
         <div class="library__view-toggle">
           <Button
             icon="pi pi-list"
@@ -109,18 +175,20 @@ const sortedBooks = computed(() => {
     </header>
 
     <!-- Loading skeletons -->
-    <template v-if="booksStore.loading">
-      <div class="library__list">
-        <div v-for="i in 4" :key="i" class="glass-surface" style="border-radius: 16px; padding: 1rem; display: flex; gap: 1rem">
-          <Skeleton width="64px" height="92px" border-radius="6px" />
-          <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem">
-            <Skeleton height="0.875rem" width="60%" />
-            <Skeleton height="0.75rem" width="40%" />
-            <Skeleton height="4px" style="margin-top: auto" />
-          </div>
+    <div v-if="booksStore.loading" class="library__skeleton-list">
+      <div
+        v-for="i in 3"
+        :key="i"
+        class="glass-surface library__skeleton-row"
+      >
+        <Skeleton width="64px" height="92px" border-radius="6px" />
+        <div class="library__skeleton-text">
+          <Skeleton height="0.875rem" width="60%" />
+          <Skeleton height="0.75rem" width="40%" />
+          <Skeleton height="4px" style="margin-top: auto" />
         </div>
       </div>
-    </template>
+    </div>
 
     <!-- Empty state -->
     <EmptyState
@@ -130,27 +198,32 @@ const sortedBooks = computed(() => {
       description="Scan an ISBN or add a book manually to start tracking your reading."
     >
       <template #action>
-        <Button label="Add your first book" icon="pi pi-plus" @click="router.push('/books/add')" />
+        <Button
+          label="Add your first book"
+          icon="pi pi-plus"
+          @click="router.push('/books/add')"
+        />
       </template>
     </EmptyState>
 
     <!-- Grid view -->
-    <div v-else-if="viewMode === 'grid'" class="library__grid">
-      <BookGridCard
-        v-for="book in sortedBooks"
-        :key="book.id"
-        :book="book"
-      />
-    </div>
+    <LibraryGridView
+      v-else-if="viewMode === 'grid'"
+      :books="sortedBooks"
+      :velocity-map="velocity.velocityMap.value"
+    />
 
     <!-- List view -->
-    <TransitionGroup v-else name="book-list" tag="div" class="library__list">
-      <BookCard
-        v-for="book in sortedBooks"
-        :key="book.id"
-        :book="book"
-      />
-    </TransitionGroup>
+    <LibraryListView
+      v-else
+      :reading-books="readingBooks"
+      :queued-books="queuedBooks"
+      :archived-books="archivedBooks"
+      :velocity-map="velocity.velocityMap.value"
+      @edit="openEditDialog"
+      @delete="confirmDelete"
+    />
+
   </div>
 </template>
 
@@ -161,7 +234,7 @@ const sortedBooks = computed(() => {
   padding: 1.5rem 1rem var(--app-nav-bottom-clearance);
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
 }
 
 .library__header {
@@ -188,20 +261,23 @@ const sortedBooks = computed(() => {
   letter-spacing: -0.02em;
 }
 
-.library__list {
+.library__skeleton-list {
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
 }
 
-.library__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+.library__skeleton-row {
+  border-radius: 16px;
+  padding: 1rem;
+  display: flex;
   gap: 1rem;
 }
 
-.book-list-enter-active,
-.book-list-leave-active { transition: all 0.3s ease; }
-.book-list-enter-from   { opacity: 0; transform: translateY(-6px); }
-.book-list-leave-to     { opacity: 0; transform: translateY(6px); }
+.library__skeleton-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
 </style>

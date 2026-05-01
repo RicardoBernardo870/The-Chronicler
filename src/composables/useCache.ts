@@ -197,6 +197,8 @@ export const cacheKeys = {
   readingStats:    (uid: string)                  => `readingStats:${uid}`,
   lastSession:     (uid: string)                  => `lastSession:${uid}`,
   libraryBreakdown:(uid: string)                  => `libraryBreakdown:${uid}`,
+  // 019 — reading-velocity RPC: cached until a session ends or the page reloads
+  velocity:        (uid: string)                  => `velocity:${uid}`,
 } as const
 
 // ── Dev-only observability (T004 / data-model.md § Observability) ─────────────

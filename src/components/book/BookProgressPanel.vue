@@ -53,7 +53,6 @@ const emit = defineEmits<{
         icon="pi pi-check"
         :loading="progressLoading"
         aria-label="Save progress"
-        v-tooltip.top="'Save'"
         @click="emit('save')"
       />
       <SessionStartButton

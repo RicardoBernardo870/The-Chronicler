@@ -27,6 +27,7 @@ const onSave = async (data: { title: string; author: string; totalPages: number 
       ...(data.totalPages != null && { totalPages: data.totalPages }),
       genre: data.genre,
       coverUrl: data.coverUrl,
+      isbn: data.isbn,  // 019 — was silently dropped
     })
     emit('update:visible', false)
     emit('close')
@@ -57,6 +58,7 @@ const onCancel = () => {
         totalPages: book.totalPages,
         genre: book.genre,
         coverUrl: book.coverUrl,
+        isbn: book.isbn,
       }"
       :loading="saving"
       @submit="onSave"

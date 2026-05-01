@@ -23,7 +23,6 @@ const formatDate = (iso: string): string => formatShortDate(iso)
       <span
         v-if="recap.mode === 'corpus'"
         class="recap-card__corpus-badge"
-        v-tooltip.top="'This recap was generated from the actual pages you captured.'"
       >
         📸 From your captures
       </span>

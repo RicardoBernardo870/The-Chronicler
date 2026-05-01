@@ -37,11 +37,31 @@ export const useUpNextStore = defineStore('upNext', () => {
     await swrRun(key, _fetcher)
   }
 
-  // ── saveOrder with cache touch (T016) ─────────────────────────────────────
+  // ── saveOrder — optimistic update (019) ───────────────────────────────────
+  // Apply the new order locally FIRST so the UI settles instantly (no snap-back),
+  // then persist to Supabase in the background. On failure, revert to previousOrder
+  // and re-throw so the caller can show a toast.
 
   const saveOrder = async (bookIds: string[]) => {
     const authStore = useAuthStore()
     if (!authStore.user) return
+
+    // Snapshot for revert on failure
+    const previousOrder = [...upNextOrder.value]
+
+    // Optimistic update — apply new order immediately to reactive state
+    upNextOrder.value = bookIds.map((bookId, index) => {
+      const existing = previousOrder.find(o => o.bookId === bookId)
+      return existing
+        ? { ...existing, sortPosition: index }
+        : {
+            id: '',
+            userId: authStore.user!.id,
+            bookId,
+            sortPosition: index,
+            updatedAt: new Date().toISOString(),
+          }
+    })
 
     const rows = bookIds.map((bookId, index) => ({
       user_id: authStore.user!.id,
@@ -49,14 +69,20 @@ export const useUpNextStore = defineStore('upNext', () => {
       sort_position: index,
       updated_at: new Date().toISOString(),
     }))
-    const { error } = await supabase
-      .from('up_next_order')
-      .upsert(rows, { onConflict: 'user_id,book_id' })
-    if (error) throw error
 
-    // T016: refetch to get canonical server order + touch cache
-    await _fetcher()
-    swrTouch(cacheKeys.upNext(authStore.user.id))
+    try {
+      const { error } = await supabase
+        .from('up_next_order')
+        .upsert(rows, { onConflict: 'user_id,book_id' })
+      if (error) throw error
+
+      // Success — touch cache so next SWR cycle uses this order
+      swrTouch(cacheKeys.upNext(authStore.user.id))
+    } catch (err) {
+      // Revert to previous order and propagate so caller shows a toast
+      upNextOrder.value = previousOrder
+      throw err
+    }
   }
 
   const sortedBookIds = () => upNextOrder.value.map(o => o.bookId)

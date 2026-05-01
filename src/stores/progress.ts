@@ -284,6 +284,10 @@ export const useProgressStore = defineStore('progress', () => {
             progress.value[bookId] = { ...progress.value[bookId], sessionStartAt: null }
           }
 
+          // 019 — A new progress_history row with session_start_at just landed,
+          // so any cached reading-velocity result is now stale.
+          invalidate(cacheKeys.velocity(authStore.user.id))
+
           // Emit sessionEnded event so SessionNoteField can appear
           if (historyRowId) {
             lastSessionEnded.value = {
