@@ -23,6 +23,7 @@ const props = defineProps<{
   recapTriggered: boolean
   recapLocked: boolean
   pagesUntilUnlock: number
+  recapLockLabel: string
 }>()
 
 const emit = defineEmits<{
@@ -137,7 +138,7 @@ const loreStore = useLoreCardsStore()
     <div class="hero-card__actions">
       <Button
         v-if="!recapTriggered && recapLocked"
-        :label="`🔒 ${pagesUntilUnlock} more pages`"
+        :label="recapLockLabel || `Read ${pagesUntilUnlock} more pages`"
         disabled
         class="hero-card__action-btn hero-card__action-btn--locked"
       />

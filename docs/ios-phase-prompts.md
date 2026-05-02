@@ -232,8 +232,7 @@ Success criteria:
 
 ```
 Add the community layer to BookHero. Reference: docs/ios-implementation-plan.md Phase 5,
-docs/wiki/Planned-Community.md (if present), and the conversation design notes from
-2026-05-02 (community design discussion).
+docs/community-design-notes.md, and docs/wiki/Planned-Community.md (if present).
 
 Prerequisite: Phase 4 complete; subscription model live.
 

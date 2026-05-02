@@ -7,6 +7,7 @@ import { useRecapsStore } from "@/stores/recaps";
 import { useBookPassportStore } from "@/stores/bookPassport";
 import { useLexiconStore } from "@/stores/lexicon";
 import { useLoreCardsStore } from "@/stores/loreCards";
+import { useRecapLock } from "@/composables/useRecapLock";
 import BookDetailHeader from "@/components/book/BookDetailHeader.vue";
 import BookProgressPanel from "@/components/book/BookProgressPanel.vue";
 import RecapStream from "@/components/recap/RecapStream.vue";
@@ -95,26 +96,7 @@ const isComplete = computed(() => percentage.value >= 100);
 const isGenerating = computed(() => recapsStore.generationStatus === "streaming");
 const recapCount = computed(() => recapsStore.recapHistoryForBook(bookId.value).length);
 
-const RECAP_TIME_UNLOCK_DAYS = 3;
-const lastRecapPct = computed(() => recapsStore.latestRecapForBook(bookId.value)?.progressSnapshot ?? 0);
-const unlockPage = computed(() => {
-  if (!book.value || lastRecapPct.value === 0) return 0;
-  return Math.ceil(((lastRecapPct.value + 5) / 100) * book.value.totalPages);
-});
-const recapLockedByPages = computed(
-  () => lastRecapPct.value > 0 && (progress.value?.currentPage ?? 0) < unlockPage.value,
-);
-const daysSinceLastSession = computed(() => {
-  const updatedAt = progress.value?.updatedAt;
-  if (!updatedAt) return 0;
-  return (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24);
-});
-const recapLocked = computed(
-  () => recapLockedByPages.value && daysSinceLastSession.value < RECAP_TIME_UNLOCK_DAYS,
-);
-const pagesUntilUnlock = computed(() =>
-  Math.max(0, unlockPage.value - (progress.value?.currentPage ?? 0)),
-);
+const { recapLocked, pagesUntilUnlock, recapLockLabel } = useRecapLock(bookId);
 
 const saveProgress = async () => {
   if (!book.value) return;
@@ -180,7 +162,7 @@ const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
           <h2 class="book-detail__section-title">AI Recap</h2>
           <Button
             v-if="!isGenerating && recapLocked"
-            :label="`🔒 Read ${pagesUntilUnlock} more pages to unlock`"
+            :label="recapLockLabel"
             disabled
             class="book-detail__recap-locked"
           />
