@@ -1,31 +1,27 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0 → 1.1.0
-Bump rationale: MINOR — added a new Core Principle (VI. Component Architecture & UI Standards)
-that introduces non-negotiable PrimeVue-first usage and Vue componentization rules. No prior
-principles were redefined or removed.
+Version change: 1.1.0 -> 1.2.0
+Bump rationale: MINOR - added a new Core Principle (VII. Production-Ready Community
+Backend Contracts) for additive, RLS-first Supabase/Postgres community feature work.
 
 Modified principles: None renamed or redefined.
 Added sections:
-  - Core Principle VI: Component Architecture & UI Standards
+  - Core Principle VII: Production-Ready Community Backend Contracts
 Removed sections: None.
 
 Templates requiring updates:
-  ✅ .specify/templates/plan-template.md — Constitution Check gate dynamically references
-     the constitution; the existing generic "[Gates determined based on constitution file]"
-     line picks up the new principle without edits. Plans for UI-touching features should
-     now include a check for Principle VI compliance.
-  ✅ .specify/templates/spec-template.md — No structural changes required; specs may now
-     reference Principle VI in functional requirements (e.g., FR-026 in feature 016).
-  ✅ .specify/templates/tasks-template.md — No structural changes required; UI tasks should
-     mention the PrimeVue component used (or the rationale for a custom component).
-  ⚠ .specify/templates/commands/ — Directory not present; no updates required.
+  - Updated .specify/templates/plan-template.md to include explicit Principle VII
+    community backend gates.
+  - Updated .specify/templates/spec-template.md to prompt community/social specs for
+    backend contract, RLS, privacy, and blocking requirements.
+  - Updated .specify/templates/tasks-template.md to include RLS, FK index, RPC contract,
+    privacy, and blocking tasks for backend/social features.
+  - .specify/templates/commands/ directory not present; no command templates updated.
 
 Follow-up TODOs:
   - None. All placeholders previously resolved (RATIFICATION_DATE confirmed at v1.0.0).
 -->
-
 # The Chronicler Constitution
 
 ## Core Principles
@@ -151,6 +147,35 @@ a Vue codebase that lets pages balloon into thousand-line components becomes unr
 untestable, and slow to iterate. A small-component, single-responsibility discipline is the
 cheapest investment available in long-term maintainability.
 
+### VII. Production-Ready Community Backend Contracts (NON-NEGOTIABLE)
+
+All community and social feature backend work MUST be designed as additive, production-ready
+Supabase/Postgres infrastructure from its first migration. These rules apply to public
+profiles, follows, feeds, reading circles, book clubs, social lexicon features, discovery,
+blocking, privacy, and any future iOS-facing community contract.
+
+- Backend additions MUST be additive and MUST NOT break existing PWA behavior, tables, routes,
+  or cached client data contracts.
+- Supabase/Postgres schema changes MUST include RLS from the first migration; no community
+  table may ship with a later "RLS follow-up" task.
+- RLS policies MUST avoid per-row expensive auth calls where possible by using
+  `(select auth.uid())`, indexed helper checks, or stable helper functions with a fixed
+  `search_path`.
+- Every foreign key and common filter/join column MUST have a matching index unless the plan
+  documents a measurable reason not to add one.
+- Public/social reads SHOULD expose stable RPC contracts where they reduce client coupling,
+  so the future iOS app can consume the same backend without reverse-engineering PWA queries.
+- Privacy and blocking MUST be enforced server-side through RLS, RPC predicates, or both;
+  client-side filtering alone is never sufficient for social data.
+- PWA UI for community features MAY be minimal during early validation, but backend data
+  contracts SHOULD be final or close to final before implementation begins.
+
+**Rationale**: Community features make private reading identity visible to other users. A
+social backend that is merely "good enough for the PWA" will leak implementation details,
+create migration pain for the future iOS app, and risk privacy failures that cannot be fixed
+with frontend checks. Production-ready RLS, indexing, and stable contracts are the minimum
+foundation for safe reader-to-reader features.
+
 ## Technical Stack & Integration Standards
 
 - **Frontend**: Vue (TypeScript) PWA with service worker for offline support.
@@ -197,10 +222,12 @@ This Constitution supersedes all other written or verbal project guidance. Amend
    any MAJOR or MINOR amendment.
 
 All implementation plans (`plan.md`) MUST include a Constitution Check gate that verifies
-compliance with Principles I–VI before Phase 0 research begins. Any justified deviation from
+compliance with Principles I-VII before Phase 0 research begins. Any justified deviation from
 a principle MUST be documented in the plan's Complexity Tracking table with explicit rationale.
 For Principle VI specifically, any custom UI component built in lieu of an available PrimeVue
 component MUST be justified in the plan's Complexity Tracking table or as a dedicated comment
-on the custom component file.
+on the custom component file. For Principle VII specifically, community/social plans MUST
+document RLS, indexing, RPC contracts, privacy enforcement, blocking enforcement, and PWA
+compatibility before Phase 1 design is considered complete.
 
-**Version**: 1.1.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-28
+**Version**: 1.2.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-05-02
