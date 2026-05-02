@@ -3,7 +3,9 @@ import { useProgressStore } from '@/stores/progress'
 import { useRecapsStore } from '@/stores/recaps'
 import { useBooksStore } from '@/stores/books'
 
-const RECAP_TIME_UNLOCK_DAYS = 3
+const RECAP_PAGE_THRESHOLD_PERCENT = 5
+const RECAP_COOLDOWN_HOURS = 12
+const RECAP_IDLE_UNLOCK_HOURS = 72
 
 /**
  * Shared recap lock composable (FR-013, 010-dashboard-ux-sync).
@@ -26,32 +28,71 @@ export const useRecapLock = (bookId: Ref<string> | string) => {
   )
 
   const unlockPage = computed(() => {
-    if (!book.value || lastRecapPct.value === 0) return 0
-    return Math.ceil((lastRecapPct.value + 5) / 100 * book.value.totalPages)
+    if (!book.value) return 0
+    const targetPct = Math.min(100, lastRecapPct.value + RECAP_PAGE_THRESHOLD_PERCENT)
+    return Math.max(1, Math.ceil((targetPct / 100) * book.value.totalPages))
   })
 
   const recapLockedByPages = computed(
-    () => lastRecapPct.value > 0 && (progress.value?.currentPage ?? 0) < unlockPage.value,
+    () => (progress.value?.currentPage ?? 0) < unlockPage.value,
   )
 
-  const daysSinceLastSession = computed(() => {
+  const hoursSinceLastSession = computed(() => {
     const updatedAt = progress.value?.updatedAt
     if (!updatedAt) return 0
-    return (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24)
+    return (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60)
   })
 
+  const daysSinceLastSession = computed(() => hoursSinceLastSession.value / 24)
+
+  const recapUnlockedByIdleTime = computed(
+    () => hoursSinceLastSession.value >= RECAP_IDLE_UNLOCK_HOURS,
+  )
+
+  const recapLockedByCooldown = computed(
+    () =>
+      !recapLockedByPages.value &&
+      !recapUnlockedByIdleTime.value &&
+      hoursSinceLastSession.value < RECAP_COOLDOWN_HOURS,
+  )
+
   const recapLocked = computed(
-    () => recapLockedByPages.value && daysSinceLastSession.value < RECAP_TIME_UNLOCK_DAYS,
+    () =>
+      !recapUnlockedByIdleTime.value &&
+      (recapLockedByPages.value || recapLockedByCooldown.value),
   )
 
   const pagesUntilUnlock = computed(
     () => Math.max(0, unlockPage.value - (progress.value?.currentPage ?? 0)),
   )
 
+  const hoursUntilUnlock = computed(() =>
+    Math.max(0, Math.ceil(RECAP_COOLDOWN_HOURS - hoursSinceLastSession.value)),
+  )
+
+  const recapLockLabel = computed(() => {
+    if (recapLockedByPages.value) {
+      const pages = pagesUntilUnlock.value
+      return `Read ${pages} more ${pages === 1 ? 'page' : 'pages'}`
+    }
+
+    if (recapLockedByCooldown.value) {
+      const hours = hoursUntilUnlock.value
+      return `Available in ${hours} ${hours === 1 ? 'hour' : 'hours'}`
+    }
+
+    return ''
+  })
+
   return {
     recapLocked,
     recapLockedByPages,
+    recapLockedByCooldown,
+    recapUnlockedByIdleTime,
     pagesUntilUnlock,
+    hoursUntilUnlock,
+    hoursSinceLastSession,
     daysSinceLastSession,
+    recapLockLabel,
   }
 }

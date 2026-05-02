@@ -58,7 +58,7 @@ const justSaved = ref(false)
 const recapTriggered = ref<boolean>(false)
 const recapAbortController = ref<AbortController | null>(null)
 
-const { recapLocked, pagesUntilUnlock } = useRecapLock(
+const { recapLocked, pagesUntilUnlock, recapLockLabel } = useRecapLock(
   computed(() => activeBookId.value ?? ""),
 );
 
@@ -252,6 +252,7 @@ const handleSessionConflict = (startedAt: Date) => {
           :recap-triggered="recapTriggered"
           :recap-locked="recapLocked"
           :pages-until-unlock="pagesUntilUnlock"
+          :recap-lock-label="recapLockLabel"
           @update:page-input="(v) => (pageInput = v)"
           @save="saveProgress"
           @get-recap="handleGetRecap"
