@@ -26,6 +26,7 @@ const {
   entries,
   loading,
   loadingMore,
+  hasLoaded,
   error,
   hasMore,
   searchQuery,
@@ -203,7 +204,11 @@ onMounted(async () => {
 
         <Transition name="great-library__results" mode="out-in" appear>
           <!-- Skeleton loading (first page) -->
-          <div v-if="loading" key="loading" class="great-library__skeleton-list">
+          <div
+            v-if="loading || !hasLoaded"
+            key="loading"
+            class="great-library__skeleton-list"
+          >
             <Skeleton
               v-for="i in 3"
               :key="i"
@@ -214,7 +219,7 @@ onMounted(async () => {
 
           <!-- Empty state -->
           <div
-            v-else-if="!loading && entries.length === 0"
+            v-else-if="hasLoaded && entries.length === 0"
             key="empty"
             class="great-library__empty glass-surface"
           >
@@ -263,12 +268,14 @@ onMounted(async () => {
           </TransitionGroup>
         </Transition>
 
-        <!-- Load more spinner -->
+        <!-- Load more skeletons -->
         <Transition name="great-library__section">
-          <div v-if="loadingMore" class="great-library__loading-more">
-            <i
-              class="pi pi-spin pi-spinner"
-              style="font-size: 1.25rem; opacity: 0.4"
+          <div v-if="loadingMore" class="great-library__skeleton-list">
+            <Skeleton
+              v-for="i in 2"
+              :key="`more-${i}`"
+              height="90px"
+              border-radius="14px"
             />
           </div>
         </Transition>
@@ -432,12 +439,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
-}
-
-.great-library__loading-more {
-  display: flex;
-  justify-content: center;
-  padding: 0.75rem 0;
 }
 
 /* ── Entry list ──────────────────────────────────────────────────────────── */

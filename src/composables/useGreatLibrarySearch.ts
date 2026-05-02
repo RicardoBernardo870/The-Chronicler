@@ -20,9 +20,10 @@ const PAGE_SIZE = 10
 // ─────────────────────────────────────────────────────────────
 
 const _entries = ref<LexiconSearchResult[]>([])
-const _loading = ref(false)
+const _loading = ref(true)
 const _loadingMore = ref(false)
 const _error = ref<string | null>(null)
+const _hasLoaded = ref(false)
 const _hasMore = ref(true)
 const _searchQuery = ref('')
 const _typeFilter = ref<'all' | 'dictionary' | 'lore'>('all')
@@ -69,6 +70,8 @@ const _restoreCachedResults = (key: string): boolean => {
   _currentPage.value = cached.currentPage
   _hasMore.value = cached.hasMore
   _error.value = null
+  _loading.value = false
+  _hasLoaded.value = true
   return true
 }
 
@@ -152,11 +155,11 @@ const search = async (options: { force?: boolean } = {}) => {
   const key = _searchCacheKey(uid)
   if (!options.force && _restoreCachedResults(key)) return
 
+  _loading.value = true
   _currentPage.value = 0
   _entries.value = []
   _error.value = null
   _hasMore.value = true
-  _loading.value = true
   _activeCacheKey.value = key
   try {
     await _fetchBookOptions(uid, options.force)
@@ -168,6 +171,7 @@ const search = async (options: { force?: boolean } = {}) => {
     _lastFailedPage.value = 0
   } finally {
     _loading.value = false
+    _hasLoaded.value = true
   }
 }
 
@@ -231,6 +235,7 @@ export const useGreatLibrarySearch = () => ({
   entries: _entries,
   loading: _loading,
   loadingMore: _loadingMore,
+  hasLoaded: _hasLoaded,
   error: _error,
   hasMore: _hasMore,
   searchQuery: _searchQuery,
