@@ -53,8 +53,17 @@ onMounted(() => {
 </script>
 
 <template>
+  <Transition name="wotd__switch" mode="out-in" appear>
   <!-- All caught up — no words due today -->
-  <article v-if="entry && isPreview" class="wotd wotd--done glass-surface" @click="navigateToLexicon">
+  <article
+    v-if="entry && isPreview"
+    key="done"
+    class="wotd wotd--done glass-surface"
+    role="button"
+    tabindex="0"
+    @click="navigateToLexicon"
+    @keydown.enter="navigateToLexicon"
+  >
     <div class="wotd__header">
       <span class="wotd__label"><i class="pi pi-book" /> Word of the Day</span>
     </div>
@@ -70,7 +79,15 @@ onMounted(() => {
   </article>
 
   <!-- Normal review card -->
-  <article v-else-if="entry" class="wotd glass-surface" @click="navigateToLexicon">
+  <article
+    v-else-if="entry"
+    key="review"
+    class="wotd glass-surface"
+    role="button"
+    tabindex="0"
+    @click="navigateToLexicon"
+    @keydown.enter="navigateToLexicon"
+  >
     <div class="wotd__header">
       <span class="wotd__label"><i class="pi pi-book" /> Word of the Day</span>
     </div>
@@ -95,6 +112,7 @@ onMounted(() => {
       </button>
     </div>
   </article>
+  </Transition>
 </template>
 
 <style scoped>
@@ -105,11 +123,24 @@ onMounted(() => {
   flex-direction: column;
   gap: 0.75rem;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease;
   border: 1px solid rgba(99, 102, 241, 0.2);
 }
 
-.wotd:hover { opacity: 0.88; }
+.wotd:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  border-color: rgba(99, 102, 241, 0.36);
+}
+
+.wotd:focus-visible,
+.wotd__advance-btn:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+}
 
 .wotd__header {
   display: flex;
@@ -220,4 +251,32 @@ onMounted(() => {
 
 .wotd__advance-btn:hover:not(:disabled) { background: rgba(99, 102, 241, 0.28); }
 .wotd__advance-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.wotd__switch-enter-active,
+.wotd__switch-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.wotd__switch-enter-from,
+.wotd__switch-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wotd,
+  .wotd__advance-btn,
+  .wotd__switch-enter-active,
+  .wotd__switch-leave-active {
+    transition: none;
+  }
+
+  .wotd:hover,
+  .wotd__switch-enter-from,
+  .wotd__switch-leave-to {
+    transform: none;
+  }
+}
 </style>

@@ -174,55 +174,62 @@ onMounted(async () => {
       </div>
     </header>
 
-    <!-- Loading skeletons -->
-    <div v-if="booksStore.loading" class="library__skeleton-list">
-      <div
-        v-for="i in 3"
-        :key="i"
-        class="glass-surface library__skeleton-row"
-      >
-        <Skeleton width="64px" height="92px" border-radius="6px" />
-        <div class="library__skeleton-text">
-          <Skeleton height="0.875rem" width="60%" />
-          <Skeleton height="0.75rem" width="40%" />
-          <Skeleton height="4px" style="margin-top: auto" />
+    <Transition name="library-state" mode="out-in" appear>
+      <!-- Loading skeletons -->
+      <div v-if="booksStore.loading" key="loading" class="library__skeleton-list">
+        <div
+          v-for="i in 3"
+          :key="i"
+          class="glass-surface library__skeleton-row"
+        >
+          <Skeleton width="64px" height="92px" border-radius="6px" />
+          <div class="library__skeleton-text">
+            <Skeleton height="0.875rem" width="60%" />
+            <Skeleton height="0.75rem" width="40%" />
+            <Skeleton height="4px" style="margin-top: auto" />
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Empty state -->
-    <EmptyState
-      v-else-if="booksStore.books.length === 0"
-      icon="pi-book"
-      title="Your library is empty"
-      description="Scan an ISBN or add a book manually to start tracking your reading."
-    >
-      <template #action>
-        <Button
-          label="Add your first book"
-          icon="pi pi-plus"
-          @click="router.push('/books/add')"
+      <!-- Empty state -->
+      <EmptyState
+        v-else-if="booksStore.books.length === 0"
+        key="empty"
+        icon="pi-book"
+        title="Your library is empty"
+        description="Scan an ISBN or add a book manually to start tracking your reading."
+      >
+        <template #action>
+          <Button
+            label="Add your first book"
+            icon="pi pi-plus"
+            @click="router.push('/books/add')"
+          />
+        </template>
+      </EmptyState>
+
+      <Transition v-else name="library-view" mode="out-in" appear>
+        <!-- Grid view -->
+        <LibraryGridView
+          v-if="viewMode === 'grid'"
+          key="grid"
+          :books="sortedBooks"
+          :velocity-map="velocity.velocityMap.value"
         />
-      </template>
-    </EmptyState>
 
-    <!-- Grid view -->
-    <LibraryGridView
-      v-else-if="viewMode === 'grid'"
-      :books="sortedBooks"
-      :velocity-map="velocity.velocityMap.value"
-    />
-
-    <!-- List view -->
-    <LibraryListView
-      v-else
-      :reading-books="readingBooks"
-      :queued-books="queuedBooks"
-      :archived-books="archivedBooks"
-      :velocity-map="velocity.velocityMap.value"
-      @edit="openEditDialog"
-      @delete="confirmDelete"
-    />
+        <!-- List view -->
+        <LibraryListView
+          v-else
+          key="list"
+          :reading-books="readingBooks"
+          :queued-books="queuedBooks"
+          :archived-books="archivedBooks"
+          :velocity-map="velocity.velocityMap.value"
+          @edit="openEditDialog"
+          @delete="confirmDelete"
+        />
+      </Transition>
+    </Transition>
 
   </div>
 </template>
@@ -279,5 +286,38 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.library-state-enter-active,
+.library-state-leave-active,
+.library-view-enter-active,
+.library-view-leave-active {
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.library-state-enter-from,
+.library-state-leave-to,
+.library-view-enter-from,
+.library-view-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library-state-enter-active,
+  .library-state-leave-active,
+  .library-view-enter-active,
+  .library-view-leave-active {
+    transition: none;
+  }
+
+  .library-state-enter-from,
+  .library-state-leave-to,
+  .library-view-enter-from,
+  .library-view-leave-to {
+    transform: none;
+  }
 }
 </style>

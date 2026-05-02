@@ -81,6 +81,7 @@ onMounted(() => fetchLastSession());
 </script>
 
 <template>
+  <Transition name="last-session__card" appear>
   <section v-if="lastSession" class="last-session glass-surface">
     <!-- Header -->
     <h3 class="last-session__title">
@@ -146,7 +147,8 @@ onMounted(() => fetchLastSession());
     </div>
 
     <!-- Inline post-session capture prompt (015 — primary action) -->
-    <template v-if="showCaptureField && pendingHistoryRowId && pendingBookId">
+    <Transition name="last-session__detail" mode="out-in">
+    <div v-if="showCaptureField && pendingHistoryRowId && pendingBookId" class="last-session__detail-block">
       <hr class="last-session__sep" />
       <SessionCaptureField
         :history-row-id="pendingHistoryRowId"
@@ -154,17 +156,19 @@ onMounted(() => fetchLastSession());
         @saved="handleCaptureComplete"
         @skipped="handleCaptureComplete"
       />
-    </template>
+    </div>
 
     <!-- Session note (T023) -->
-    <template v-else-if="lastSession.sessionNote">
+    <div v-else-if="lastSession.sessionNote" class="last-session__detail-block">
       <hr class="last-session__sep" />
       <p class="last-session__note">
         <i class="pi pi-pencil" />
         {{ lastSession.sessionNote }}
       </p>
-    </template>
+    </div>
+    </Transition>
   </section>
+  </Transition>
 </template>
 
 <style scoped>
@@ -174,6 +178,14 @@ onMounted(() => fetchLastSession());
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.last-session:hover {
+  transform: translateY(-1px);
 }
 
 /* ── Header ──────────────────────────────────────────────────── */
@@ -285,11 +297,28 @@ onMounted(() => fetchLastSession());
   color: var(--p-indigo-300);
 }
 
+.last-session__metric {
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.last-session__metric:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
 /* ── Session note ────────────────────────────────────────────── */
 .last-session__sep {
   border: none;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   margin: 0;
+}
+
+.last-session__detail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
 .last-session__note {
@@ -308,5 +337,42 @@ onMounted(() => fetchLastSession());
   opacity: 0.5;
   margin-top: 0.2rem;
   flex-shrink: 0;
+}
+
+.last-session__card-enter-active,
+.last-session__card-leave-active,
+.last-session__detail-enter-active,
+.last-session__detail-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.last-session__card-enter-from,
+.last-session__card-leave-to,
+.last-session__detail-enter-from,
+.last-session__detail-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .last-session,
+  .last-session__metric,
+  .last-session__card-enter-active,
+  .last-session__card-leave-active,
+  .last-session__detail-enter-active,
+  .last-session__detail-leave-active {
+    transition: none;
+  }
+
+  .last-session:hover,
+  .last-session__metric:hover,
+  .last-session__card-enter-from,
+  .last-session__card-leave-to,
+  .last-session__detail-enter-from,
+  .last-session__detail-leave-to {
+    transform: none;
+  }
 }
 </style>

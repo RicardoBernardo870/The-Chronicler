@@ -46,66 +46,74 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
 </script>
 
 <template>
-  <!-- Pinned: Currently Reading -->
-  <section class="now-reading-panel">
-    <header class="now-reading-panel__header">
-      <span class="section-accent section-accent--reading"></span>
-      <span class="section-label">Now Reading</span>
-      <span class="now-reading-panel__badge">{{ readingBooks.length }}</span>
-    </header>
+  <TransitionGroup name="library-list-view__section" tag="div" class="library-list-view" appear>
+    <!-- Pinned: Currently Reading -->
+    <section key="reading" class="now-reading-panel">
+      <header class="now-reading-panel__header">
+        <span class="section-accent section-accent--reading"></span>
+        <span class="section-label">Now Reading</span>
+        <span class="now-reading-panel__badge">{{ readingBooks.length }}</span>
+      </header>
 
-    <div v-if="readingBooks.length > 0" class="library-list reading-card">
-      <SwipeableBookCard
-        v-for="entry in readingBooks"
-        :key="entry.id"
-        :book="bookFromEntry(entry)"
-        :days-left="velocityMap[entry.id] ?? null"
-        @edit="(b) => emit('edit', b)"
-        @delete="(b) => emit('delete', b)"
-      />
+      <div v-if="readingBooks.length > 0" class="library-list reading-card">
+        <SwipeableBookCard
+          v-for="entry in readingBooks"
+          :key="entry.id"
+          :book="bookFromEntry(entry)"
+          :days-left="velocityMap[entry.id] ?? null"
+          @edit="(b) => emit('edit', b)"
+          @delete="(b) => emit('delete', b)"
+        />
+      </div>
+      <p v-else class="library-list__empty">No books in progress.</p>
+    </section>
+
+    <!-- Pill tabs: Queue / Completed -->
+    <div key="tabs" class="pill-tabs" role="tablist">
+      <button
+        class="pill-tabs__tab"
+        :class="{ 'pill-tabs__tab--active': activeTab === 'queue' }"
+        role="tab"
+        :aria-selected="activeTab === 'queue'"
+        @click="activeTab = 'queue'"
+      >
+        <span class="pill-tabs__label">Queue</span>
+        <span class="pill-tabs__count">{{ queuedBooks.length }}</span>
+      </button>
+      <button
+        class="pill-tabs__tab"
+        :class="{ 'pill-tabs__tab--active': activeTab === 'completed' }"
+        role="tab"
+        :aria-selected="activeTab === 'completed'"
+        @click="activeTab = 'completed'"
+      >
+        <span class="pill-tabs__label">Completed</span>
+        <span class="pill-tabs__count">{{ archivedBooks.length }}</span>
+      </button>
     </div>
-    <p v-else class="library-list__empty">No books in progress.</p>
-  </section>
 
-  <!-- Pill tabs: Queue / Completed -->
-  <div class="pill-tabs" role="tablist">
-    <button
-      class="pill-tabs__tab"
-      :class="{ 'pill-tabs__tab--active': activeTab === 'queue' }"
-      role="tab"
-      :aria-selected="activeTab === 'queue'"
-      @click="activeTab = 'queue'"
-    >
-      <span class="pill-tabs__label">Queue</span>
-      <span class="pill-tabs__count">{{ queuedBooks.length }}</span>
-    </button>
-    <button
-      class="pill-tabs__tab"
-      :class="{ 'pill-tabs__tab--active': activeTab === 'completed' }"
-      role="tab"
-      :aria-selected="activeTab === 'completed'"
-      @click="activeTab = 'completed'"
-    >
-      <span class="pill-tabs__label">Completed</span>
-      <span class="pill-tabs__count">{{ archivedBooks.length }}</span>
-    </button>
-  </div>
-
-  <!-- Tab content -->
-  <div class="pill-tabs__content" role="tabpanel">
-    <div v-if="activeTabBooks.length > 0" class="library-list">
-      <SwipeableBookCard
-        v-for="entry in activeTabBooks"
-        :key="entry.id"
-        :book="bookFromEntry(entry)"
-        @edit="(b) => emit('edit', b)"
-        @delete="(b) => emit('delete', b)"
-      />
+    <!-- Tab content -->
+    <div key="tab-content" class="pill-tabs__content" role="tabpanel">
+      <Transition name="library-list-view__tab" mode="out-in" appear>
+        <div
+          v-if="activeTabBooks.length > 0"
+          :key="activeTab"
+          class="library-list"
+        >
+          <SwipeableBookCard
+            v-for="entry in activeTabBooks"
+            :key="entry.id"
+            :book="bookFromEntry(entry)"
+            @edit="(b) => emit('edit', b)"
+            @delete="(b) => emit('delete', b)"
+          />
+        </div>
+        <p v-else :key="`${activeTab}-empty`" class="library-list__empty">
+          {{ activeTab === 'queue' ? 'Your queue is empty.' : 'No finished books yet.' }}
+        </p>
+      </Transition>
     </div>
-    <p v-else class="library-list__empty">
-      {{ activeTab === 'queue' ? 'Your queue is empty.' : 'No finished books yet.' }}
-    </p>
-  </div>
+  </TransitionGroup>
 </template>
 
 <style scoped>
@@ -113,6 +121,12 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
+}
+
+.library-list-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .reading-card :deep(.book-card) {
@@ -266,6 +280,29 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
   margin-top: 0.75rem;
 }
 
+.library-list-view__section-enter-active,
+.library-list-view__section-leave-active,
+.library-list-view__section-move,
+.library-list-view__tab-enter-active,
+.library-list-view__tab-leave-active {
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.library-list-view__section-enter-from,
+.library-list-view__section-leave-to,
+.library-list-view__tab-enter-from,
+.library-list-view__tab-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.library-list-view__section-leave-active {
+  position: absolute;
+  width: 100%;
+}
+
 /* ── Light mode overrides ─────────────────────────────────────────────── */
 :root[data-p-theme="light"] .pill-tabs {
   background: rgba(0, 0, 0, 0.04);
@@ -294,5 +331,22 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(167, 139, 250, 0.04));
   border-color: rgba(99, 102, 241, 0.2) !important;
   box-shadow: 0 4px 20px rgba(99, 102, 241, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library-list-view__section-enter-active,
+  .library-list-view__section-leave-active,
+  .library-list-view__section-move,
+  .library-list-view__tab-enter-active,
+  .library-list-view__tab-leave-active {
+    transition: none;
+  }
+
+  .library-list-view__section-enter-from,
+  .library-list-view__section-leave-to,
+  .library-list-view__tab-enter-from,
+  .library-list-view__tab-leave-to {
+    transform: none;
+  }
 }
 </style>

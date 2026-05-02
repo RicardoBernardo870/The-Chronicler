@@ -19,12 +19,16 @@ const emit = defineEmits<{
     <h3 class="completed__title">
       <i class="pi pi-check-circle" /> Completed
     </h3>
-    <ul class="completed__list">
+    <TransitionGroup tag="ul" name="completed__list" class="completed__list" appear>
       <li
         v-for="item in books"
         :key="item.book.id"
         class="completed__item glass-subtle"
+        role="button"
+        tabindex="0"
+        :aria-label="`View ${item.book.title}`"
         @click="emit('viewBook', item.book.id)"
+        @keydown.enter="emit('viewBook', item.book.id)"
       >
         <img
           v-if="item.book.coverUrl"
@@ -42,7 +46,7 @@ const emit = defineEmits<{
           <Tag severity="success" value="Finished" class="completed__badge" />
         </div>
       </li>
-    </ul>
+    </TransitionGroup>
 
     <p v-if="overflow > 0" class="completed__overflow">
       <i class="pi pi-info-circle" />
@@ -91,10 +95,22 @@ const emit = defineEmits<{
   padding: 0.75rem;
   border-radius: 12px;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    background 0.15s ease;
 }
 
-.completed__item:hover { opacity: 0.85; }
+.completed__item:hover {
+  opacity: 0.92;
+  transform: translateX(2px);
+}
+
+.completed__item:focus-visible,
+.completed__overflow-link:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+}
 
 .completed__thumb {
   width: 44px;
@@ -159,5 +175,39 @@ const emit = defineEmits<{
   font-size: inherit;
   font-weight: 600;
   text-decoration: underline;
+}
+
+.completed__list-enter-active,
+.completed__list-leave-active,
+.completed__list-move {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.completed__list-enter-from,
+.completed__list-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.completed__list-leave-active {
+  position: absolute;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .completed__item,
+  .completed__list-enter-active,
+  .completed__list-leave-active,
+  .completed__list-move {
+    transition: none;
+  }
+
+  .completed__item:hover,
+  .completed__list-enter-from,
+  .completed__list-leave-to {
+    transform: none;
+  }
 }
 </style>

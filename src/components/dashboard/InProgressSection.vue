@@ -23,7 +23,7 @@ const progressStore = useProgressStore()
     <h3 class="in-progress__title">
       <i class="pi pi-book-open" /> In Progress
     </h3>
-    <ul class="in-progress__list">
+    <TransitionGroup tag="ul" name="in-progress__list" class="in-progress__list" appear>
       <li
         v-for="book in books"
         :key="book.id"
@@ -68,7 +68,7 @@ const progressStore = useProgressStore()
           </div>
         </div>
       </li>
-    </ul>
+    </TransitionGroup>
   </section>
 </template>
 
@@ -110,10 +110,21 @@ const progressStore = useProgressStore()
   padding: 0.75rem;
   border-radius: 12px;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    background 0.15s ease;
 }
 
-.in-progress__item:hover { opacity: 0.85; }
+.in-progress__item:hover {
+  opacity: 0.92;
+  transform: translateX(2px);
+}
+
+.in-progress__item:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+}
 
 .in-progress__thumb {
   width: 44px;
@@ -196,5 +207,40 @@ const progressStore = useProgressStore()
   transform: scale(1.04);
 }
 
+.in-progress__list-enter-active,
+.in-progress__list-leave-active,
+.in-progress__list-move {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.in-progress__list-enter-from,
+.in-progress__list-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.in-progress__list-leave-active {
+  position: absolute;
+  width: 100%;
+}
+
 .in-progress__lore-chip .pi { font-size: 0.6rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .in-progress__item,
+  .in-progress__lore-chip,
+  .in-progress__list-enter-active,
+  .in-progress__list-leave-active,
+  .in-progress__list-move {
+    transition: none;
+  }
+
+  .in-progress__item:hover,
+  .in-progress__list-enter-from,
+  .in-progress__list-leave-to {
+    transform: none;
+  }
+}
 </style>
