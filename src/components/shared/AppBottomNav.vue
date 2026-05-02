@@ -122,6 +122,9 @@ const handleAddBook = () => {
   display: flex;
   align-items: stretch;
   padding: 0 0.25rem;
+  background: rgba(18, 18, 28, 0.74);
+  isolation: isolate;
+  overflow: hidden;
 }
 
 .app-bottom-nav__item {
@@ -220,6 +223,10 @@ const handleAddBook = () => {
 /* Light mode sheet hover */
 html[data-p-theme="light"] .app-bottom-nav__sheet-item:hover {
   background: rgba(0, 0, 0, 0.05);
+}
+
+html[data-p-theme="light"] .app-bottom-nav {
+  background: rgba(255, 255, 255, 0.82);
 }
 
 /* ── Transitions ──────────────────────────────────────────────────────────── */

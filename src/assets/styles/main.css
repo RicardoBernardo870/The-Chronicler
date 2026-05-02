@@ -7,8 +7,8 @@
 /* ── CSS custom properties ────────────────────────────────────────────────── */
 
 :root {
-  /* Bottom nav clearance: nav height (4rem) + gap (0.75rem) + buffer */
-  --app-nav-bottom-clearance: 5.5rem;
+  /* Bottom nav clearance: nav height + floating gap + iOS home indicator + buffer. */
+  --app-nav-bottom-clearance: calc(6rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Reset & base ─────────────────────────────────────────────────────────── */
@@ -86,7 +86,7 @@ img {
 .page-container {
   max-width: 680px;
   margin: 0 auto;
-  padding: 0 1rem 5rem; /* bottom padding for mobile nav clearance */
+  padding: 0 1rem var(--app-nav-bottom-clearance);
   width: 100%;
 }
 
