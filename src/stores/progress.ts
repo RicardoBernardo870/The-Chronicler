@@ -56,7 +56,15 @@ export const useProgressStore = defineStore('progress', () => {
 
     const book = booksStore.bookById(bookId)
     if (book) {
-      progress.value[bookId] = mapReadingProgress(data as ReadingProgressRow, book.totalPages)
+      const confirmedProgress = mapReadingProgress(data as ReadingProgressRow, book.totalPages)
+      progress.value[bookId] = confirmedProgress
+      booksStore.applyProgressSnapshot(bookId, {
+        currentPage: confirmedProgress.currentPage,
+        percentage: confirmedProgress.percentage,
+        updatedAt: confirmedProgress.updatedAt,
+        sessionStartAt: confirmedProgress.sessionStartAt,
+        progressId: confirmedProgress.id,
+      })
     }
   }
 
@@ -88,7 +96,7 @@ export const useProgressStore = defineStore('progress', () => {
       const map: Record<string, ReadingProgress> = {}
       for (const entry of booksStore.libraryEntries) {
         if (entry.progressId === null) continue  // no progress row — skip
-        map[entry.id] = {
+        const derivedProgress = {
           id: entry.progressId,
           bookId: entry.id,
           userId: authStore.user?.id ?? '',
@@ -97,6 +105,14 @@ export const useProgressStore = defineStore('progress', () => {
           updatedAt: entry.lastReadAt ?? new Date().toISOString(),
           sessionStartAt: entry.sessionStartAt,
         }
+        const existingProgress = progress.value[entry.id]
+        const derivedTime = new Date(derivedProgress.updatedAt).getTime()
+        const existingTime = existingProgress
+          ? new Date(existingProgress.updatedAt).getTime()
+          : 0
+        map[entry.id] = existingProgress && existingTime >= derivedTime
+          ? existingProgress
+          : derivedProgress
       }
       progress.value = map
       // Mark progress cache fresh so downstream SWR checks see 'fresh'
@@ -163,7 +179,16 @@ export const useProgressStore = defineStore('progress', () => {
     // Update local Pinia state optimistically after confirmed server write
     if (progress.value[bookId]) {
       progress.value[bookId] = { ...progress.value[bookId], sessionStartAt: now }
+      const booksStore = useBooksStore()
+      booksStore.applyProgressSnapshot(bookId, {
+        currentPage: progress.value[bookId].currentPage,
+        percentage: progress.value[bookId].percentage,
+        updatedAt: progress.value[bookId].updatedAt,
+        sessionStartAt: now,
+        progressId: progress.value[bookId].id,
+      })
     }
+    invalidate(cacheKeys.library(authStore.user.id))
   }
 
   // ── clearSession (013) ────────────────────────────────────────────────────
@@ -182,7 +207,16 @@ export const useProgressStore = defineStore('progress', () => {
 
     if (progress.value[bookId]) {
       progress.value[bookId] = { ...progress.value[bookId], sessionStartAt: null }
+      const booksStore = useBooksStore()
+      booksStore.applyProgressSnapshot(bookId, {
+        currentPage: progress.value[bookId].currentPage,
+        percentage: progress.value[bookId].percentage,
+        updatedAt: progress.value[bookId].updatedAt,
+        sessionStartAt: null,
+        progressId: progress.value[bookId].id,
+      })
     }
+    invalidate(cacheKeys.library(authStore.user.id))
   }
 
   // ── saveSessionNote (T021, 013) ────────────────────────────────────────────
@@ -229,6 +263,8 @@ export const useProgressStore = defineStore('progress', () => {
 
     // Snapshot for rollback
     const snapshot = progress.value[bookId]
+    const libraryEntrySnapshot = booksStore.libraryEntries.find(entry => entry.id === bookId)
+    const optimisticUpdatedAt = new Date().toISOString()
 
     // Optimistic update — reflects in UI before network round-trip
     progress.value[bookId] = {
@@ -237,15 +273,24 @@ export const useProgressStore = defineStore('progress', () => {
       userId: authStore.user.id,
       currentPage,
       percentage: newPct,
-      updatedAt: new Date().toISOString(),
+      updatedAt: optimisticUpdatedAt,
       sessionStartAt: progress.value[bookId]?.sessionStartAt ?? null,
     }
+    booksStore.applyProgressSnapshot(bookId, {
+      currentPage,
+      percentage: newPct,
+      updatedAt: optimisticUpdatedAt,
+      sessionStartAt: capturedSessionStartAt,
+      progressId: progress.value[bookId].id || undefined,
+    })
+    invalidate(cacheKeys.library(authStore.user.id))
 
     if (navigator.onLine) {
       try {
         await syncToSupabase(bookId, currentPage)
         // Mark progress cache fresh with server-confirmed data
         swrTouch(cacheKeys.progress(authStore.user.id))
+        invalidate(cacheKeys.library(authStore.user.id))
         // Invalidate RPC aggregate caches so they revalidate on next access (017)
         invalidate(cacheKeys.lastSession(authStore.user.id))
         invalidate(cacheKeys.readingStats(authStore.user.id))
@@ -282,7 +327,15 @@ export const useProgressStore = defineStore('progress', () => {
           // Update local Pinia state to reflect cleared session
           if (progress.value[bookId]) {
             progress.value[bookId] = { ...progress.value[bookId], sessionStartAt: null }
+            booksStore.applyProgressSnapshot(bookId, {
+              currentPage: progress.value[bookId].currentPage,
+              percentage: progress.value[bookId].percentage,
+              updatedAt: progress.value[bookId].updatedAt,
+              sessionStartAt: null,
+              progressId: progress.value[bookId].id,
+            })
           }
+          invalidate(cacheKeys.library(authStore.user.id))
 
           // 019 — A new progress_history row with session_start_at just landed,
           // so any cached reading-velocity result is now stale.
@@ -319,9 +372,18 @@ export const useProgressStore = defineStore('progress', () => {
         // Rollback optimistic update on server error
         if (snapshot !== undefined) {
           progress.value[bookId] = snapshot
+          booksStore.applyProgressSnapshot(bookId, {
+            currentPage: snapshot.currentPage,
+            percentage: snapshot.percentage,
+            updatedAt: snapshot.updatedAt,
+            sessionStartAt: snapshot.sessionStartAt,
+            progressId: snapshot.id,
+          })
         } else {
           delete progress.value[bookId]
+          if (libraryEntrySnapshot) booksStore.replaceLibraryEntry(libraryEntrySnapshot)
         }
+        invalidate(cacheKeys.library(authStore.user.id))
         throw e
       }
     } else {

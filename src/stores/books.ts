@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/services/supabase'
-import { mapBook, type Book, type BookRow, type LibraryBookEntry } from '@/types'
+import { mapBook, type Book, type BookRow, type BookStatus, type LibraryBookEntry } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import {
   swrStatus,
@@ -123,6 +123,41 @@ export const useBooksStore = defineStore('books', () => {
 
   const bookById = (id: string): Book | undefined => books.value.find(b => b.id === id)
 
+  const applyProgressSnapshot = (
+    bookId: string,
+    snapshot: {
+      currentPage: number
+      percentage: number
+      updatedAt: string
+      sessionStartAt: string | null
+      progressId?: string | null
+    },
+  ) => {
+    const idx = libraryEntries.value.findIndex(entry => entry.id === bookId)
+    if (idx === -1) return
+
+    const status: BookStatus = snapshot.percentage >= 100
+      ? 'finished'
+      : snapshot.currentPage > 0
+        ? 'reading'
+        : 'unread'
+
+    libraryEntries.value[idx] = {
+      ...libraryEntries.value[idx],
+      currentPage: snapshot.currentPage,
+      percentage: snapshot.percentage,
+      status,
+      lastReadAt: snapshot.updatedAt,
+      sessionStartAt: snapshot.sessionStartAt,
+      progressId: snapshot.progressId ?? libraryEntries.value[idx].progressId,
+    }
+  }
+
+  const replaceLibraryEntry = (entry: LibraryBookEntry) => {
+    const idx = libraryEntries.value.findIndex(item => item.id === entry.id)
+    if (idx !== -1) libraryEntries.value[idx] = entry
+  }
+
   // ── Mutations (T012) ───────────────────────────────────────────────────────
 
   const addBook = async (input: Omit<Book, 'id' | 'userId' | 'createdAt'>): Promise<Book> => {
@@ -207,6 +242,7 @@ export const useBooksStore = defineStore('books', () => {
   return {
     books, libraryEntries, loading, error,
     fetchLibrary, fetchLibraryWithProgress,
+    applyProgressSnapshot, replaceLibraryEntry,
     bookById, addBook, updateBook, removeBook,
   }
 })
