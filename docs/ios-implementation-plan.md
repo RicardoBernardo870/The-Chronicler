@@ -678,3 +678,33 @@ When using this plan with an AI assistant, prompt structure:
 ---
 
 **End of plan.** Ship Phase 1 first. Everything else builds on a working foundation.
+
+---
+
+## Spec Files (Speckit-ready)
+
+Each phase has a corresponding `spec.md` in `specs/`. To begin implementation, point Speckit at the relevant directory:
+
+```
+/speckit-plan       (when at the spec dir)
+/speckit-tasks
+/speckit-implement
+```
+
+| Phase | Spec directory | Primary deliverable |
+|---|---|---|
+| 1 — MVP | `specs/100-ios-mvp/` | Native auth + library + progress + queue + offline |
+| 2 — AI Parity | `specs/101-ios-ai-parity/` | Recaps, Lexicon, Lore, DNA, Passport, Captures |
+| 3 — Native Polish | `specs/102-ios-native-polish/` | Widgets, Live Activity, haptics, App Store v1.0 |
+| 4 — Subscriptions | `specs/103-ios-subscriptions/` | StoreKit 2, three-tier paywall, server validation |
+| 5 — Community | `specs/104-ios-community/` | Profiles, follows, feed, circles, book clubs |
+| 6 — Platform Expansion | `specs/105-ios-platform-expansion/` | iPad, Watch, Mac Catalyst, Vision Pro |
+| Cross-cutting | `specs/106-notifications-system/` | APNS + local + scheduled notifications |
+
+Each spec is independently testable and shippable per the Speckit user-story prioritization model.
+
+## Companion Documents
+
+- `docs/ios-native-migration-details.md` — backend reuse rules, repository mapping, contract preservation
+- `docs/wiki/` — full project wiki (existing features + planned features + conventions)
+- `.specify/memory/constitution.md` — non-negotiable engineering principles

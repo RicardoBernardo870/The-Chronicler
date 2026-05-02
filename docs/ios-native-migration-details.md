@@ -679,3 +679,30 @@ Recommended first implementation task:
 Create the BookHero-iOS Xcode project, app shell, Supabase client setup, auth gate, SwiftData container, and empty main tabs for Dashboard, Library, Lexicon, and Profile. No AI features yet.
 ```
 
+## 17. Spec Files Per Phase
+
+Speckit-ready specifications exist for each phase. Use these as the entry point for `/speckit-plan` and `/speckit-tasks` when starting implementation:
+
+| Phase | Spec | Maps to section |
+|---|---|---|
+| 1 — Native MVP | `specs/100-ios-mvp/spec.md` | Section 7 Phase 1 |
+| 2 — AI Parity | `specs/101-ios-ai-parity/spec.md` | Section 7 Phase 2 |
+| 3 — Native Polish | `specs/102-ios-native-polish/spec.md` | Section 7 Phase 3 |
+| 4 — Subscriptions | `specs/103-ios-subscriptions/spec.md` | Section 7 Phase 4 |
+| 5 — Community | `specs/104-ios-community/spec.md` | Section 7 Phase 5 (expanded) |
+| 6 — Platform Expansion | `specs/105-ios-platform-expansion/spec.md` | (new — iPad/Watch/Mac/Vision) |
+| Cross-cutting | `specs/106-notifications-system/spec.md` | Section 7 Phase 5 cross-cutting |
+
+Each spec contains user stories with priorities (P1/P2/P3), acceptance scenarios, edge cases, functional requirements, key entities, and measurable success criteria. They are designed to feed directly into `/speckit-plan`.
+
+## 18. Gaps Filled Outside This Document
+
+The following details are NOT in this migration doc but are documented elsewhere:
+
+- **Notification architecture** — see `specs/106-notifications-system/spec.md`
+- **Community sub-feature breakdown** — see `specs/104-ios-community/spec.md` and `docs/wiki/Planned-Community.md`
+- **Subscription tier matrix** — see `specs/103-ios-subscriptions/spec.md`
+- **Recap quality improvements** (formats, continuity, audio) — folded into Phase 2 spec as P3 stories
+- **Lexicon quality improvements** (memory hooks, share extension) — folded into Phase 2 (server-side) and Phase 6 (iOS-native Share Extension)
+- **Existing PWA architecture** — see `docs/wiki/Architecture-*.md`
+
