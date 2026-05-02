@@ -53,6 +53,17 @@ const router = createRouter({
           name: "profile",
           component: () => import("@/pages/ProfilePage.vue"),
         },
+        {
+          path: "profile/community",
+          name: "community-profile-edit",
+          component: () => import("@/pages/CommunityProfileEditPage.vue"),
+        },
+        {
+          path: "u/:username",
+          name: "public-profile",
+          component: () => import("@/pages/PublicProfilePage.vue"),
+          props: true,
+        },
       ],
     },
     {

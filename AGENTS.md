@@ -1,6 +1,6 @@
 # BookHero Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-26
+Auto-generated from all feature plans. Last updated: 2026-05-02
 
 ## Active Technologies
 - TypeScript 6 + Vue 3.5+ + PrimeVue 4 (Accordion component), Pinia 3, Supabase JS v2, Vue Router 4 (master)
@@ -31,6 +31,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-26
 - Supabase PostgreSQL — new `page_captures` table; existing `recaps` table extended with a `mode text` column. No new buckets in Supabase Storage (images are not persisted). (015-corpus-recaps)
 - TypeScript 6 (strict) + Vue 3.5 (`<script setup>`) + PrimeVue 4, Pinia 3, Supabase JS v2, Vue Router 4, Deno (edge functions), Gemini 2.5 Flash (016-reader-profile-page)
 - Supabase PostgreSQL — new `reading_dna` table, new `vocabulary_extractions` ledger table, `lexicon_entries.source` column extension. All Profile-page stats are computed client-side from existing stores; no new derived tables. (016-reader-profile-page)
+- TypeScript 6.x, Vue 3.5 Composition API, SQL for Supabase PostgreSQL + Vue Router 4, Pinia 3, Supabase JS v2, PrimeVue 4, existing SWR cache primitive (020-community-profiles)
+- Supabase PostgreSQL; no new client persistence beyond existing in-memory/SWR caches (020-community-profiles)
 
 - TypeScript 5.x + Vue 3.5+ + PrimeVue 4.x, Pinia 2.x, Vue Router 4.x, Supabase JS v2, (001-the-chronicler)
 
@@ -51,6 +53,7 @@ npm test; npm run lint
 TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 ## Recent Changes
+- 020-community-profiles: Added public reader profile foundation with additive Supabase tables (`community_profiles`, `community_profile_privacy`, `follows`, `blocks`), RLS-first policies, indexed username/follow/block lookup paths, stable community RPCs, anonymous execute revokes for authenticated-only RPCs, and Vue PWA routes for profile editing plus `/u/:username` public viewing. Sensitive sections default to `nobody`; hidden public sections are omitted server-side.
 - 018-great-library: `GreatLibraryPage.vue` Lexicon tab refactored from in-memory `lexiconStore.allEntries` to server-side paginated query; new `useGreatLibrarySearch` composable (module-level singleton refs, PAGE_SIZE=20, offset pagination, server-side `.or()` search with 300ms debounce via VueUse `watchDebounced`, type + book filter, `useIntersectionObserver` infinite scroll); `LexiconCard.vue` extended with optional `bookTitle` prop (shown on front face below term); new `LexiconSearchResult` + `BookFilterOption` types + `mapSearchResult` mapper in `src/types/index.ts`; no schema changes, no new npm packages.
 - 017-supabase-rpc-aggregations: Four Supabase PostgreSQL RPC functions replace client-side JS aggregation; `get_library_with_progress` eliminates sequential store dependency chain and the Profile→Dashboard race condition; `get_reading_stats`/`get_last_session`/`get_library_breakdown` replace full-history fetches; four new cacheKeys (`library`, `readingStats`, `lastSession`, `libraryBreakdown`); `ProfilePage.vue` now loads all data in parallel via `fetchLibraryWithProgress`; `progressStore.fetchProgress` hydrates from `libraryEntries` (zero network when RPC ran first); `useReadingProfile`, `useLastSession`, `useLibraryBreakdown` composables rewritten to single RPC calls; `LibraryBreakdownCard.vue` updated to RPC field names; no new tables, no edge functions.
 - 016-reader-profile-page: New `/profile` route (Reader Profile page) + new tables `reading_dna` and `vocabulary_extractions`; `lexicon_entries.source` column ('manual'|'auto') added; new edge functions `generate-reading-dna` and `extract-vocabulary` (Gemini 2.5 Flash); new Pinia store `readingDna`; new composables `useReadingProfile`, `useTopThemes`, `useLibraryBreakdown`, `useVocabularyExtraction`; auto-vocabulary fires fire-and-forget after `captures.saveCapture` (silent, non-blocking, FR-020); DNA threshold-gated client-side (3 books OR 90 days); zero custom UI components — every Profile-page element is a PrimeVue primitive (Constitution VI).
@@ -65,5 +68,5 @@ TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+shell commands, and other important information, read the current plan: specs/020-community-profiles/plan.md
 <!-- SPECKIT END -->

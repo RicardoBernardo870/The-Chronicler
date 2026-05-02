@@ -199,6 +199,9 @@ export const cacheKeys = {
   libraryBreakdown:(uid: string)                  => `libraryBreakdown:${uid}`,
   // 019 — reading-velocity RPC: cached until a session ends or the page reloads
   velocity:        (uid: string)                  => `velocity:${uid}`,
+  // 020 — community profile RPC cache keys
+  communityProfile:(uid: string)                  => `communityProfile:${uid}`,
+  publicProfile:   (username: string)             => `publicProfile:${username.toLowerCase()}`,
 } as const
 
 // ── Dev-only observability (T004 / data-model.md § Observability) ─────────────

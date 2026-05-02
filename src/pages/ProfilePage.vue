@@ -3,6 +3,8 @@
 // Orchestrates state and layout only; substantive UI is delegated to
 // components under src/components/profile/. (Constitution VI.)
 import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import Button from "primevue/button";
 import { Skeleton } from "primevue";
 import { useBooksStore } from "@/stores/books";
 import { useProgressStore } from "@/stores/progress";
@@ -20,6 +22,7 @@ const dnaStore = useReadingDnaStore();
 const { booksFinished, fetchStats } = useReadingProfile();
 const { fetchBreakdown } = useLibraryBreakdown();
 const profileReady = ref(false);
+const router = useRouter();
 
 onMounted(async () => {
   try {
@@ -46,6 +49,13 @@ onMounted(async () => {
   <section class="profile-page">
     <header class="profile-page__header">
       <h1 class="profile-page__title">Profile</h1>
+      <Button
+        icon="pi pi-users"
+        label="Community"
+        size="small"
+        outlined
+        @click="router.push({ name: 'community-profile-edit' })"
+      />
     </header>
 
     <Transition name="profile-state" mode="out-in" appear>
