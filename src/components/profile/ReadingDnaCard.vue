@@ -28,52 +28,54 @@ const isError = computed(() => dnaStore.status === 'error' && !dnaStore.dna)
       Your Reading DNA
     </h2>
 
-    <!-- Below threshold and no DNA yet -->
-    <div v-if="belowThreshold" class="dna-card__threshold">
-      <Message severity="info" class="dna-card__inline-msg">
-        Finish {{ FINISHED_THRESHOLD - booksFinished }} more
-        {{ FINISHED_THRESHOLD - booksFinished === 1 ? 'book' : 'books' }} to unlock your Reading DNA.
+    <Transition name="dna-card__content" mode="out-in" appear>
+      <!-- Below threshold and no DNA yet -->
+      <div v-if="belowThreshold" key="threshold" class="dna-card__threshold">
+        <Message severity="info" class="dna-card__inline-msg">
+          Finish {{ FINISHED_THRESHOLD - booksFinished }} more
+          {{ FINISHED_THRESHOLD - booksFinished === 1 ? 'book' : 'books' }} to unlock your Reading DNA.
+        </Message>
+        <p class="dna-card__threshold-label">
+          {{ booksFinished }} of {{ FINISHED_THRESHOLD }} books finished
+        </p>
+        <ProgressBar :value="thresholdPercent" :show-value="false" class="dna-card__progress" />
+      </div>
+
+      <!-- Generating (first time or regeneration with no prior DNA visible) -->
+      <div v-else-if="isGenerating && !dnaStore.dna" key="loading" class="dna-card__loading">
+        <Skeleton width="100%" height="3.5rem" class="dna-card__skel" />
+        <Skeleton width="40%" height="1.25rem" class="dna-card__skel" />
+        <div class="dna-card__suggestion-skeletons">
+          <Skeleton width="100%" height="4rem" />
+          <Skeleton width="100%" height="4rem" />
+          <Skeleton width="100%" height="4rem" />
+        </div>
+      </div>
+
+      <!-- Error path with no prior DNA -->
+      <Message v-else-if="isError" key="error" severity="secondary">
+        We'll try again later.
       </Message>
-      <p class="dna-card__threshold-label">
-        {{ booksFinished }} of {{ FINISHED_THRESHOLD }} books finished
-      </p>
-      <ProgressBar :value="thresholdPercent" :show-value="false" class="dna-card__progress" />
-    </div>
 
-    <!-- Generating (first time or regeneration with no prior DNA visible) -->
-    <div v-else-if="isGenerating && !dnaStore.dna" class="dna-card__loading">
-      <Skeleton width="100%" height="3.5rem" class="dna-card__skel" />
-      <Skeleton width="40%" height="1.25rem" class="dna-card__skel" />
-      <div class="dna-card__suggestion-skeletons">
-        <Skeleton width="100%" height="4rem" />
-        <Skeleton width="100%" height="4rem" />
-        <Skeleton width="100%" height="4rem" />
-      </div>
-    </div>
-
-    <!-- Error path with no prior DNA -->
-    <Message v-else-if="isError" severity="secondary">
-      We'll try again later.
-    </Message>
-
-    <!-- Populated DNA -->
-    <div v-else-if="dnaStore.dna" class="dna-card__body">
-      <p class="dna-card__personality">{{ dnaStore.dna.personality }}</p>
-      <MoodSignature
-        :tone="dnaStore.dna.moodSignature.tone"
-        :emojis="dnaStore.dna.moodSignature.emojis"
-      />
-      <div class="dna-card__suggestions">
-        <h3 class="dna-card__heading">Books for you</h3>
-        <BookSuggestionItem
-          v-for="(s, i) in dnaStore.dna.suggestions"
-          :key="i"
-          :title="s.title"
-          :author="s.author"
-          :reason="s.reason"
+      <!-- Populated DNA -->
+      <div v-else-if="dnaStore.dna" key="dna" class="dna-card__body">
+        <p class="dna-card__personality">{{ dnaStore.dna.personality }}</p>
+        <MoodSignature
+          :tone="dnaStore.dna.moodSignature.tone"
+          :emojis="dnaStore.dna.moodSignature.emojis"
         />
+        <div class="dna-card__suggestions">
+          <h3 class="dna-card__heading">Books for you</h3>
+          <BookSuggestionItem
+            v-for="(s, i) in dnaStore.dna.suggestions"
+            :key="i"
+            :title="s.title"
+            :author="s.author"
+            :reason="s.reason"
+          />
+        </div>
       </div>
-    </div>
+    </Transition>
   </section>
 </template>
 
@@ -137,5 +139,30 @@ const isError = computed(() => dnaStore.status === 'error' && !dnaStore.dna)
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.dna-card__content-enter-active,
+.dna-card__content-leave-active {
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.dna-card__content-enter-from,
+.dna-card__content-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dna-card__content-enter-active,
+  .dna-card__content-leave-active {
+    transition: none;
+  }
+
+  .dna-card__content-enter-from,
+  .dna-card__content-leave-to {
+    transform: none;
+  }
 }
 </style>

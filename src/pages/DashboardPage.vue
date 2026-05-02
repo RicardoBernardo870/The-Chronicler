@@ -208,8 +208,9 @@ const handleSessionConflict = (startedAt: Date) => {
     <ConfirmDialog />
     <h1 class="dashboard__heading">Your Reading</h1>
 
+    <Transition name="dashboard-switch" mode="out-in" appear>
     <!-- Loading -->
-    <template v-if="loading">
+    <template v-if="loading" key="loading">
       <div class="dashboard__skeleton glass-surface">
         <Skeleton height="160px" border-radius="12px" />
         <Skeleton height="1.25rem" width="55%" style="margin-top: 1rem" />
@@ -220,6 +221,7 @@ const handleSessionConflict = (startedAt: Date) => {
     <!-- No books -->
     <EmptyState
       v-else-if="!hasAnyBooks"
+      key="empty"
       icon="pi-book"
       title="No current read"
       description="Add your first book to start tracking your reading journey."
@@ -229,53 +231,70 @@ const handleSessionConflict = (startedAt: Date) => {
       </template>
     </EmptyState>
 
-    <template v-else>
-      <HeroBookCard
-        v-if="currentBook"
-        :book="currentBook"
-        :progress="currentProgress"
-        :saving="saving"
-        :just-saved="justSaved"
-        :save-error="saveError"
-        :page-input="pageInput"
-        :hero-warning="heroWarning"
-        :pending-sync="pendingSync"
-        :recap-triggered="recapTriggered"
-        :recap-locked="recapLocked"
-        :pages-until-unlock="pagesUntilUnlock"
-        @update:page-input="(v) => (pageInput = v)"
-        @save="saveProgress"
-        @get-recap="handleGetRecap"
-        @dismiss-recap="handleDismissRecap"
-        @view-book="router.push({ name: 'book-detail', params: { id: currentBook!.id } })"
-        @session-conflict="handleSessionConflict"
-      />
+    <TransitionGroup
+      v-else
+      key="sections"
+      name="dashboard-section"
+      tag="div"
+      class="dashboard__sections"
+      appear
+    >
+      <div v-if="currentBook" :key="`hero-${currentBook.id}`" class="dashboard__section">
+        <HeroBookCard
+          :book="currentBook"
+          :progress="currentProgress"
+          :saving="saving"
+          :just-saved="justSaved"
+          :save-error="saveError"
+          :page-input="pageInput"
+          :hero-warning="heroWarning"
+          :pending-sync="pendingSync"
+          :recap-triggered="recapTriggered"
+          :recap-locked="recapLocked"
+          :pages-until-unlock="pagesUntilUnlock"
+          @update:page-input="(v) => (pageInput = v)"
+          @save="saveProgress"
+          @get-recap="handleGetRecap"
+          @dismiss-recap="handleDismissRecap"
+          @view-book="router.push({ name: 'book-detail', params: { id: currentBook!.id } })"
+          @session-conflict="handleSessionConflict"
+        />
+      </div>
 
-      <WordOfTheDay />
-      <LastSessionCard />
+      <div key="word-of-day" class="dashboard__section">
+        <WordOfTheDay />
+      </div>
 
-      <InProgressSection
-        v-if="inProgressUpNext.length > 0"
-        :books="inProgressUpNext"
-        @select="setActive"
-        @view-book="(id) => router.push({ name: 'book-detail', params: { id } })"
-      />
+      <div key="last-session" class="dashboard__section">
+        <LastSessionCard />
+      </div>
 
-      <UpNextSection
-        v-if="upNextBooks.length > 0"
-        :books="upNextBooks"
-        @update:books="(newOrder) => upNextStore.saveOrder(newOrder.map((b) => b.id))"
-        @select="setActive"
-      />
+      <div v-if="inProgressUpNext.length > 0" key="in-progress" class="dashboard__section">
+        <InProgressSection
+          :books="inProgressUpNext"
+          @select="setActive"
+          @view-book="(id) => router.push({ name: 'book-detail', params: { id } })"
+        />
+      </div>
 
-      <CompletedSection
-        v-if="completedPreview.length > 0"
-        :books="completedPreview"
-        :overflow="completedOverflow"
-        @view-book="(id) => router.push({ name: 'book-detail', params: { id } })"
-        @view-library="router.push('/library')"
-      />
-    </template>
+      <div v-if="upNextBooks.length > 0" key="up-next" class="dashboard__section">
+        <UpNextSection
+          :books="upNextBooks"
+          @update:books="(newOrder) => upNextStore.saveOrder(newOrder.map((b) => b.id))"
+          @select="setActive"
+        />
+      </div>
+
+      <div v-if="completedPreview.length > 0" key="completed" class="dashboard__section">
+        <CompletedSection
+          :books="completedPreview"
+          :overflow="completedOverflow"
+          @view-book="(id) => router.push({ name: 'book-detail', params: { id } })"
+          @view-library="router.push('/library')"
+        />
+      </div>
+    </TransitionGroup>
+    </Transition>
   </div>
 </template>
 
@@ -299,5 +318,66 @@ const handleSessionConflict = (startedAt: Date) => {
 .dashboard__skeleton {
   border-radius: var(--p-border-radius-xl, 16px);
   padding: 1.5rem;
+}
+
+.dashboard__sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.dashboard__section {
+  min-width: 0;
+  will-change: transform, opacity;
+}
+
+.dashboard-switch-enter-active,
+.dashboard-switch-leave-active {
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.dashboard-switch-enter-from,
+.dashboard-switch-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.dashboard-section-enter-active,
+.dashboard-section-leave-active,
+.dashboard-section-move {
+  transition:
+    opacity 0.24s ease,
+    transform 0.24s ease;
+}
+
+.dashboard-section-enter-from,
+.dashboard-section-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.dashboard-section-leave-active {
+  position: absolute;
+  width: calc(100% - 2rem);
+  max-width: 680px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-switch-enter-active,
+  .dashboard-switch-leave-active,
+  .dashboard-section-enter-active,
+  .dashboard-section-leave-active,
+  .dashboard-section-move {
+    transition: none;
+  }
+
+  .dashboard-switch-enter-from,
+  .dashboard-switch-leave-to,
+  .dashboard-section-enter-from,
+  .dashboard-section-leave-to {
+    transform: none;
+  }
 }
 </style>

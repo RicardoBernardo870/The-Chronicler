@@ -1,22 +1,38 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { LoreCard } from '@/types'
 import { useLoreCardsStore } from '@/stores/loreCards'
 import LoreCardDetail from '@/components/lore/LoreCardDetail.vue'
 import { sortDescByDate } from '@/utils/date'
+import Skeleton from 'primevue/skeleton'
 
 const props = defineProps<{ bookId?: string }>()
 
 const loreStore = useLoreCardsStore()
 const expandedId = ref<string | null>(null)
+const loading = ref(true)
+let requestId = 0
 
-onMounted(async () => {
-  if (props.bookId) {
-    await loreStore.fetchLoreForBook(props.bookId)
-  } else {
-    await loreStore.fetchLoreForAllBooks()
-  }
-})
+watch(
+  () => props.bookId,
+  async (bookId) => {
+    const currentRequest = ++requestId
+    loading.value = true
+    expandedId.value = null
+    try {
+      if (bookId) {
+        await loreStore.fetchLoreForBook(bookId)
+      } else {
+        await loreStore.fetchLoreForAllBooks()
+      }
+    } finally {
+      if (currentRequest === requestId) {
+        loading.value = false
+      }
+    }
+  },
+  { immediate: true },
+)
 
 // Sorted by createdAt descending (most recent first, FR-015)
 const cards = computed<LoreCard[]>(() => {
@@ -47,8 +63,13 @@ const excerpt = (text: string): string =>
 </script>
 
 <template>
+  <!-- Skeleton loading -->
+  <div v-if="loading" class="lore-list__skeleton-list">
+    <Skeleton v-for="i in 3" :key="i" height="104px" border-radius="14px" />
+  </div>
+
   <!-- Empty state (FR-017) -->
-  <div v-if="cards.length === 0" class="lore-list__empty glass-surface">
+  <div v-else-if="cards.length === 0" class="lore-list__empty glass-surface">
     <i class="pi pi-book" style="font-size: 2rem; opacity: 0.25; margin-bottom: 0.5rem" />
     <p>Keep reading to unlock your first lore card.</p>
     <p style="font-size: 0.85rem; opacity: 0.55">
@@ -99,6 +120,12 @@ const excerpt = (text: string): string =>
 }
 
 .lore-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.lore-list__skeleton-list {
   display: flex;
   flex-direction: column;
   gap: 0.875rem;

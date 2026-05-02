@@ -113,20 +113,26 @@ const loreStore = useLoreCardsStore()
       />
     </div>
 
-    <p v-if="saveError" class="hero-card__error">
-      <i class="pi pi-exclamation-triangle" /> {{ saveError }}
-    </p>
+    <Transition name="hero-card__fade">
+      <p v-if="saveError" class="hero-card__error">
+        <i class="pi pi-exclamation-triangle" /> {{ saveError }}
+      </p>
+    </Transition>
 
-    <Message v-if="heroWarning" severity="warn" class="hero-card__continuity-warning">
-      It's been a while — time for a Memory Jogger?
-    </Message>
+    <Transition name="hero-card__fade">
+      <Message v-if="heroWarning" severity="warn" class="hero-card__continuity-warning">
+        It's been a while — time for a Memory Jogger?
+      </Message>
+    </Transition>
 
-    <Tag
-      v-if="pendingSync"
-      severity="warn"
-      value="Progress will sync when you're back online"
-      class="hero-card__offline-badge"
-    />
+    <Transition name="hero-card__fade">
+      <Tag
+        v-if="pendingSync"
+        severity="warn"
+        value="Progress will sync when you're back online"
+        class="hero-card__offline-badge"
+      />
+    </Transition>
 
     <div class="hero-card__actions">
       <Button
@@ -154,19 +160,21 @@ const loreStore = useLoreCardsStore()
   </article>
 
   <!-- Inline Recap Panel -->
-  <div v-if="recapTriggered" class="hero-card__inline-panel glass-surface">
-    <div class="hero-card__inline-panel-header">
-      <span class="hero-card__inline-panel-title">AI Recap</span>
-      <button
-        class="hero-card__inline-dismiss"
-        aria-label="Dismiss recap"
-        @click="emit('dismissRecap')"
-      >
-        <i class="pi pi-times" />
-      </button>
+  <Transition name="hero-card__panel">
+    <div v-if="recapTriggered" class="hero-card__inline-panel glass-surface">
+      <div class="hero-card__inline-panel-header">
+        <span class="hero-card__inline-panel-title">AI Recap</span>
+        <button
+          class="hero-card__inline-dismiss"
+          aria-label="Dismiss recap"
+          @click="emit('dismissRecap')"
+        >
+          <i class="pi pi-times" />
+        </button>
+      </div>
+      <RecapStream :bookId="book.id" />
     </div>
-    <RecapStream :bookId="book.id" />
-  </div>
+  </Transition>
 </template>
 
 <style scoped>
@@ -177,6 +185,15 @@ const loreStore = useLoreCardsStore()
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  transition:
+    border-color 0.22s ease,
+    background 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.22s ease;
+}
+
+.hero-card:hover {
+  transform: translateY(-1px);
 }
 
 .hero-card--warning {
@@ -210,6 +227,14 @@ const loreStore = useLoreCardsStore()
   object-fit: cover;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.hero-card:hover .hero-card__cover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.38);
 }
 
 .hero-card__cover-placeholder {
@@ -367,6 +392,12 @@ const loreStore = useLoreCardsStore()
   transform: scale(1.04);
 }
 
+.hero-card__new-lore-chip:focus-visible,
+.hero-card__inline-dismiss:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+}
+
 .hero-card__new-lore-chip .pi { font-size: 0.65rem; }
 
 /* Inline recap panel */
@@ -405,4 +436,63 @@ const loreStore = useLoreCardsStore()
 
 .hero-card__inline-dismiss:hover { opacity: 0.9; }
 .hero-card__inline-dismiss .pi { font-size: 0.8rem; }
+
+.hero-card__fade-enter-active,
+.hero-card__fade-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.hero-card__fade-enter-from,
+.hero-card__fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.hero-card__panel-enter-active,
+.hero-card__panel-leave-active {
+  overflow: hidden;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease,
+    max-height 0.22s ease;
+}
+
+.hero-card__panel-enter-from,
+.hero-card__panel-leave-to {
+  opacity: 0;
+  max-height: 0;
+  transform: translateY(-8px);
+}
+
+.hero-card__panel-enter-to,
+.hero-card__panel-leave-from {
+  opacity: 1;
+  max-height: 900px;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-card,
+  .hero-card__cover,
+  .hero-card__new-lore-chip,
+  .hero-card__inline-dismiss,
+  .hero-card__fade-enter-active,
+  .hero-card__fade-leave-active,
+  .hero-card__panel-enter-active,
+  .hero-card__panel-leave-active {
+    transition: none;
+    animation: none;
+  }
+
+  .hero-card:hover,
+  .hero-card:hover .hero-card__cover,
+  .hero-card__fade-enter-from,
+  .hero-card__fade-leave-to,
+  .hero-card__panel-enter-from,
+  .hero-card__panel-leave-to {
+    transform: none;
+  }
+}
 </style>

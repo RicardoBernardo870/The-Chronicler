@@ -23,6 +23,8 @@ const emit = defineEmits<{
       item-key="id"
       handle=".up-next__handle"
       :animation="150"
+      ghost-class="up-next__item--ghost"
+      chosen-class="up-next__item--chosen"
       tag="ul"
       class="up-next__list"
       @update:model-value="(v: Book[]) => emit('update:books', v)"
@@ -30,6 +32,9 @@ const emit = defineEmits<{
       <template #item="{ element: book }">
         <li
           class="up-next__item glass-subtle"
+          role="button"
+          tabindex="0"
+          :aria-label="`Make ${book.title} the active read`"
           @click="emit('select', book.id)"
           @keydown.enter="emit('select', book.id)"
         >
@@ -94,10 +99,31 @@ const emit = defineEmits<{
   padding: 0.75rem;
   border-radius: 12px;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
-.up-next__item:hover { opacity: 0.85; }
+.up-next__item:hover {
+  opacity: 0.92;
+  transform: translateX(2px);
+}
+
+.up-next__item:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+}
+
+.up-next__item--chosen {
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+}
+
+.up-next__item--ghost {
+  opacity: 0.45;
+  transform: scale(0.985);
+}
 
 .up-next__handle {
   font-size: 1.1rem;
@@ -117,6 +143,10 @@ const emit = defineEmits<{
 }
 
 .up-next__handle:active { cursor: grabbing; }
+
+.up-next__handle:hover {
+  opacity: 0.75;
+}
 
 .up-next__thumb {
   width: 44px;
@@ -153,5 +183,16 @@ const emit = defineEmits<{
 .up-next__book-author {
   font-size: 0.78rem;
   opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .up-next__item {
+    transition: none;
+  }
+
+  .up-next__item:hover,
+  .up-next__item--ghost {
+    transform: none;
+  }
 }
 </style>

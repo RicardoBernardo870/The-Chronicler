@@ -26,6 +26,7 @@ const {
   entries,
   loading,
   loadingMore,
+  hasLoaded,
   error,
   hasMore,
   searchQuery,
@@ -86,7 +87,7 @@ const addDialogVisible = ref(false);
 const onWordSaved = () => {
   addDialogVisible.value = false;
   // Re-fetch so the new entry appears at the top
-  search();
+  search({ force: true });
 };
 
 // ── Infinite scroll sentinel ───────────────────────────────────────────────
@@ -146,146 +147,177 @@ onMounted(async () => {
     />
 
     <!-- ── Lexicon panel ──────────────────────────────────────────────────── -->
-    <div v-show="activeIndex === 0" class="great-library__panel">
-      <!-- Lexicon filters -->
-      <div class="great-library__lexicon-filters">
-        <InputText
-          v-model="searchQuery"
-          placeholder="Search terms or definitions…"
-          class="great-library__search"
+    <Transition name="great-library__panel-switch" appear>
+      <div v-show="activeIndex === 0" class="great-library__panel">
+        <!-- Lexicon filters -->
+        <div class="great-library__lexicon-filters">
+          <InputText
+            v-model="searchQuery"
+            placeholder="Search terms or definitions…"
+            class="great-library__search"
+          />
+          <div class="great-library__filter-row">
+            <Select
+              v-model="bookFilter"
+              :options="lexiconBookOptions"
+              option-label="label"
+              option-value="value"
+              placeholder="All Books"
+              :filter="true"
+              fluid
+              show-clear
+            />
+            <SelectButton
+              v-model="typeFilter"
+              :options="typeFilterOptions"
+              option-label="label"
+              option-value="value"
+              fluid
+              class="great-library__type-toggle"
+            />
+          </div>
+        </div>
+
+        <!-- Add word button -->
+        <div class="great-library__tab-actions">
+          <Button
+            icon="pi pi-plus"
+            label="Add Word"
+            size="small"
+            @click="addDialogVisible = true"
+          />
+        </div>
+
+        <!-- Error state -->
+        <Transition name="great-library__section" appear>
+          <Message v-if="error" severity="error" class="great-library__error">
+            <span>{{ error }}</span>
+            <Button
+              label="Retry"
+              size="small"
+              text
+              @click="retry"
+              style="margin-left: 0.5rem"
+            />
+          </Message>
+        </Transition>
+
+        <Transition name="great-library__results" mode="out-in" appear>
+          <!-- Skeleton loading (first page) -->
+          <div
+            v-if="loading || !hasLoaded"
+            key="loading"
+            class="great-library__skeleton-list"
+          >
+            <Skeleton
+              v-for="i in 3"
+              :key="i"
+              height="90px"
+              border-radius="14px"
+            />
+          </div>
+
+          <!-- Empty state -->
+          <div
+            v-else-if="hasLoaded && entries.length === 0"
+            key="empty"
+            class="great-library__empty glass-surface"
+          >
+            <i
+              class="pi pi-book"
+              style="font-size: 2rem; opacity: 0.25; margin-bottom: 0.5rem"
+            />
+            <template v-if="isSearchActive">
+              <p>No results found.</p>
+              <p style="font-size: 0.85rem; opacity: 0.55">
+                Try a different search term or filter.
+              </p>
+              <Button
+                label="Clear filters"
+                size="small"
+                text
+                @click="clearSearch"
+                style="margin-top: 0.5rem"
+              />
+            </template>
+            <template v-else>
+              <p>No words saved yet.</p>
+              <p style="font-size: 0.85rem; opacity: 0.55">
+                Add a word while reading to build your vocabulary vault.
+              </p>
+            </template>
+          </div>
+
+          <!-- Cards -->
+          <TransitionGroup
+            v-else
+            key="list"
+            name="great-library__entry"
+            tag="div"
+            class="great-library__list"
+            appear
+          >
+            <LexiconCard
+              v-for="entry in entries"
+              :key="entry.id"
+              :entry="entry"
+              :book-title="entry.bookTitle"
+              @advance="onAdvance(entry.id)"
+              @reset="onReset(entry.id)"
+            />
+          </TransitionGroup>
+        </Transition>
+
+        <!-- Load more skeletons -->
+        <Transition name="great-library__section">
+          <div v-if="loadingMore" class="great-library__skeleton-list">
+            <Skeleton
+              v-for="i in 2"
+              :key="`more-${i}`"
+              height="90px"
+              border-radius="14px"
+            />
+          </div>
+        </Transition>
+
+        <!-- Infinite scroll sentinel -->
+        <div
+          v-if="hasMore && !loading"
+          ref="sentinelRef"
+          class="great-library__sentinel"
         />
-        <div class="great-library__filter-row">
+
+        <!-- All entries loaded -->
+        <Transition name="great-library__section">
+          <p
+            v-if="!hasMore && entries.length > 0 && !loading"
+            class="great-library__all-loaded"
+          >
+            All entries loaded
+          </p>
+        </Transition>
+      </div>
+    </Transition>
+
+    <!-- ── Lore Cards panel ───────────────────────────────────────────────── -->
+    <Transition name="great-library__panel-switch" appear>
+      <div v-show="activeIndex === 1" class="great-library__panel">
+        <!-- Lore tab book filter -->
+        <div class="great-library__filters">
           <Select
-            v-model="bookFilter"
-            :options="lexiconBookOptions"
+            v-model="loreBookId"
+            :options="loreBookOptions"
             option-label="label"
             option-value="value"
             placeholder="All Books"
-            :filter="true"
-            fluid
             show-clear
-          />
-          <SelectButton
-            v-model="typeFilter"
-            :options="typeFilterOptions"
-            option-label="label"
-            option-value="value"
+            filter
             fluid
-            class="great-library__type-toggle"
           />
         </div>
+        <LoreCardList :book-id="loreBookId ?? undefined" />
       </div>
-
-      <!-- Add word button -->
-      <div class="great-library__tab-actions">
-        <Button
-          icon="pi pi-plus"
-          label="Add Word"
-          size="small"
-          @click="addDialogVisible = true"
-        />
-      </div>
-
-      <!-- Error state -->
-      <Message v-if="error" severity="error" class="great-library__error">
-        <span>{{ error }}</span>
-        <Button
-          label="Retry"
-          size="small"
-          text
-          @click="retry"
-          style="margin-left: 0.5rem"
-        />
-      </Message>
-
-      <!-- Skeleton loading (first page) -->
-      <div v-if="loading" class="great-library__skeleton-list">
-        <Skeleton v-for="i in 3" :key="i" height="90px" border-radius="14px" />
-      </div>
-
-      <!-- Empty state -->
-      <div
-        v-else-if="!loading && entries.length === 0"
-        class="great-library__empty glass-surface"
-      >
-        <i
-          class="pi pi-book"
-          style="font-size: 2rem; opacity: 0.25; margin-bottom: 0.5rem"
-        />
-        <template v-if="isSearchActive">
-          <p>No results found.</p>
-          <p style="font-size: 0.85rem; opacity: 0.55">
-            Try a different search term or filter.
-          </p>
-          <Button
-            label="Clear filters"
-            size="small"
-            text
-            @click="clearSearch"
-            style="margin-top: 0.5rem"
-          />
-        </template>
-        <template v-else>
-          <p>No words saved yet.</p>
-          <p style="font-size: 0.85rem; opacity: 0.55">
-            Add a word while reading to build your vocabulary vault.
-          </p>
-        </template>
-      </div>
-
-      <!-- Cards -->
-      <div v-else class="great-library__list">
-        <LexiconCard
-          v-for="entry in entries"
-          :key="entry.id"
-          :entry="entry"
-          :book-title="entry.bookTitle"
-          @advance="onAdvance(entry.id)"
-          @reset="onReset(entry.id)"
-        />
-      </div>
-
-      <!-- Load more spinner -->
-      <div v-if="loadingMore" class="great-library__loading-more">
-        <i
-          class="pi pi-spin pi-spinner"
-          style="font-size: 1.25rem; opacity: 0.4"
-        />
-      </div>
-
-      <!-- Infinite scroll sentinel -->
-      <div
-        v-if="hasMore && !loading"
-        ref="sentinelRef"
-        class="great-library__sentinel"
-      />
-
-      <!-- All entries loaded -->
-      <p
-        v-if="!hasMore && entries.length > 0 && !loading"
-        class="great-library__all-loaded"
-      >
-        All entries loaded
-      </p>
-    </div>
-
-    <!-- ── Lore Cards panel ───────────────────────────────────────────────── -->
-    <div v-show="activeIndex === 1" class="great-library__panel">
-      <!-- Lore tab book filter -->
-      <div class="great-library__filters">
-        <Select
-          v-model="loreBookId"
-          :options="loreBookOptions"
-          option-label="label"
-          option-value="value"
-          placeholder="All Books"
-          show-clear
-          filter
-          fluid
-        />
-      </div>
-      <LoreCardList :book-id="loreBookId ?? undefined" />
-    </div>
+    </Transition>
 
     <AddWordDialog
       v-if="addDialogVisible"
@@ -409,15 +441,10 @@ onMounted(async () => {
   gap: 0.875rem;
 }
 
-.great-library__loading-more {
-  display: flex;
-  justify-content: center;
-  padding: 0.75rem 0;
-}
-
 /* ── Entry list ──────────────────────────────────────────────────────────── */
 
 .great-library__list {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
@@ -454,5 +481,61 @@ onMounted(async () => {
   opacity: 0.35;
   margin: 0.25rem 0 0;
   letter-spacing: 0.03em;
+}
+
+.great-library__panel-switch-enter-active,
+.great-library__panel-switch-leave-active,
+.great-library__results-enter-active,
+.great-library__results-leave-active,
+.great-library__section-enter-active,
+.great-library__section-leave-active,
+.great-library__entry-enter-active,
+.great-library__entry-leave-active,
+.great-library__entry-move {
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.great-library__panel-switch-enter-from,
+.great-library__panel-switch-leave-to,
+.great-library__results-enter-from,
+.great-library__results-leave-to,
+.great-library__section-enter-from,
+.great-library__section-leave-to,
+.great-library__entry-enter-from,
+.great-library__entry-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.great-library__entry-leave-active {
+  position: absolute;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .great-library__panel-switch-enter-active,
+  .great-library__panel-switch-leave-active,
+  .great-library__results-enter-active,
+  .great-library__results-leave-active,
+  .great-library__section-enter-active,
+  .great-library__section-leave-active,
+  .great-library__entry-enter-active,
+  .great-library__entry-leave-active,
+  .great-library__entry-move {
+    transition: none;
+  }
+
+  .great-library__panel-switch-enter-from,
+  .great-library__panel-switch-leave-to,
+  .great-library__results-enter-from,
+  .great-library__results-leave-to,
+  .great-library__section-enter-from,
+  .great-library__section-leave-to,
+  .great-library__entry-enter-from,
+  .great-library__entry-leave-to {
+    transform: none;
+  }
 }
 </style>

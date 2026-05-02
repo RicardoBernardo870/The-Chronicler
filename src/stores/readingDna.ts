@@ -26,15 +26,25 @@ export type ReadingDnaStatus = "idle" | "loading" | "generating" | "error";
 export const useReadingDnaStore = defineStore("readingDna", () => {
   const dna = ref<ReadingDna | null>(null);
   const status = ref<ReadingDnaStatus>("idle");
+  const fetchedForUserId = ref<string | null>(null);
 
-  const fetchDna = async (): Promise<void> => {
+  const fetchDna = async (options: { force?: boolean } = {}): Promise<void> => {
     const authStore = useAuthStore();
     if (!authStore.user) return;
+    const userId = authStore.user.id;
+
+    if (fetchedForUserId.value && fetchedForUserId.value !== userId) {
+      dna.value = null;
+      fetchedForUserId.value = null;
+    }
+
+    if (!options.force && fetchedForUserId.value === userId) return;
+
     status.value = "loading";
     const { data, error } = await supabase
       .from("reading_dna")
       .select("*")
-      .eq("user_id", authStore.user.id)
+      .eq("user_id", userId)
       .maybeSingle();
     if (error) {
       // PGRST116 = no row found — treat as null, not error.
@@ -43,6 +53,7 @@ export const useReadingDnaStore = defineStore("readingDna", () => {
       return;
     }
     dna.value = data ? mapReadingDna(data as ReadingDnaRow) : null;
+    fetchedForUserId.value = userId;
     status.value = "idle";
   };
 
@@ -103,7 +114,7 @@ export const useReadingDnaStore = defineStore("readingDna", () => {
       }
 
       // Refetch to get the canonical row
-      await fetchDna();
+      await fetchDna({ force: true });
     } catch (err) {
       console.warn("[readingDna] unexpected error", err);
       status.value = dna.value ? "idle" : "error";

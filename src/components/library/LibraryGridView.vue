@@ -29,10 +29,10 @@ const archive = computed(() =>
 </script>
 
 <template>
-  <div class="library-grid">
+  <TransitionGroup name="library-grid__section-transition" tag="div" class="library-grid" appear>
 
     <!-- Currently Reading — wide horizontal cards -->
-    <section v-if="reading.length > 0" class="library-grid__section">
+    <section v-if="reading.length > 0" key="reading" class="library-grid__section">
       <header class="library-grid__section-header">
         <span class="section-accent section-accent--reading"></span>
         <span class="section-label">Now Reading</span>
@@ -49,7 +49,7 @@ const archive = computed(() =>
     </section>
 
     <!-- The Queue — standard cover grid -->
-    <section v-if="queue.length > 0" class="library-grid__section">
+    <section v-if="queue.length > 0" key="queue" class="library-grid__section">
       <header class="library-grid__section-header">
         <span class="section-accent section-accent--queue"></span>
         <span class="section-label">The Queue</span>
@@ -61,7 +61,7 @@ const archive = computed(() =>
     </section>
 
     <!-- Completed — dimmed cover grid -->
-    <section v-if="archive.length > 0" class="library-grid__section library-grid__section--completed">
+    <section v-if="archive.length > 0" key="archive" class="library-grid__section library-grid__section--completed">
       <header class="library-grid__section-header">
         <span class="section-accent section-accent--archive"></span>
         <span class="section-label section-label--dim">Completed</span>
@@ -72,7 +72,7 @@ const archive = computed(() =>
       </div>
     </section>
 
-  </div>
+  </TransitionGroup>
 </template>
 
 <style scoped>
@@ -166,5 +166,37 @@ const archive = computed(() =>
 :root[data-p-theme="light"] .section-badge--queue {
   background: rgba(167, 139, 250, 0.12);
   color: var(--p-violet-600, #7c3aed);
+}
+
+.library-grid__section-transition-enter-active,
+.library-grid__section-transition-leave-active,
+.library-grid__section-transition-move {
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.library-grid__section-transition-enter-from,
+.library-grid__section-transition-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.library-grid__section-transition-leave-active {
+  position: absolute;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library-grid__section-transition-enter-active,
+  .library-grid__section-transition-leave-active,
+  .library-grid__section-transition-move {
+    transition: none;
+  }
+
+  .library-grid__section-transition-enter-from,
+  .library-grid__section-transition-leave-to {
+    transform: none;
+  }
 }
 </style>
