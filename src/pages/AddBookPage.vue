@@ -5,7 +5,7 @@ import { useBooksStore } from '@/stores/books'
 import { useIsbn } from '@/composables/useIsbn'
 import IsbnScanner from '@/components/books/IsbnScanner.vue'
 import BookForm from '@/components/books/BookForm.vue'
-import type { BookMetadata } from '@/types'
+import type { BookMetadata, InitialBookStatus } from '@/types'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 
@@ -51,13 +51,22 @@ const lookupManualIsbn = async () => {
   step.value = 'form'
 }
 
-const onFormSubmit = async (data: Required<Omit<BookMetadata, 'coverUrl'>> & { coverUrl: string | null; isbn: string | null }) => {
+const onFormSubmit = async (data: Required<Omit<BookMetadata, 'coverUrl'>> & {
+  coverUrl: string | null
+  isbn: string | null
+  initialStatus: InitialBookStatus
+  currentPage: number | null
+}) => {
   saving.value = true
   saveError.value = null
   try {
     // data.isbn comes from BookForm (user may have typed one manually); resolvedIsbn is the fallback from scan
-    await booksStore.addBook({ ...data, isbn: data.isbn ?? resolvedIsbn.value, totalPages: data.totalPages ?? 0 })
-    router.push('/library')
+    await booksStore.addBookWithInitialStatus({
+      ...data,
+      isbn: data.isbn ?? resolvedIsbn.value,
+      totalPages: data.totalPages ?? 0,
+    })
+    router.push(data.initialStatus === 'currentlyReading' ? '/' : '/library')
   } catch (e: unknown) {
     saveError.value = e instanceof Error ? e.message : 'Failed to save book'
     saving.value = false
