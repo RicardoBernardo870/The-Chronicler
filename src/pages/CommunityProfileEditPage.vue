@@ -12,7 +12,7 @@ import UsernameField from '@/components/community/UsernameField.vue'
 import {
   sanitizeCommunityProfileForm,
   useCommunityProfile,
-  usernameFormatError,
+  //usernameFormatError,
 } from '@/composables/useCommunityProfile'
 
 const router = useRouter()
