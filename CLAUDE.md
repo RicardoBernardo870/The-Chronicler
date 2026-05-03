@@ -1,6 +1,6 @@
-# BookHero Development Guidelines
+﻿# BookHero Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-26
+Auto-generated from all feature plans. Last updated: 2026-05-03
 
 ## Active Technologies
 - TypeScript 6 + Vue 3.5+ + PrimeVue 4 (Accordion component), Pinia 3, Supabase JS v2, Vue Router 4 (master)
@@ -31,6 +31,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-26
 - Supabase PostgreSQL — new `page_captures` table; existing `recaps` table extended with a `mode text` column. No new buckets in Supabase Storage (images are not persisted). (015-corpus-recaps)
 - TypeScript 6 (strict) + Vue 3.5 (`<script setup>`) + PrimeVue 4, Pinia 3, Supabase JS v2, Vue Router 4, Deno (edge functions), Gemini 2.5 Flash (016-reader-profile-page)
 - Supabase PostgreSQL — new `reading_dna` table, new `vocabulary_extractions` ledger table, `lexicon_entries.source` column extension. All Profile-page stats are computed client-side from existing stores; no new derived tables. (016-reader-profile-page)
+- TypeScript 6.x, Vue 3.5 Composition API, PostgreSQL SQL/PLpgSQL for Supabase migration/RPC work + Vue Router 4, Pinia 3, Supabase JS v2, PrimeVue 4, existing SWR cache primitive, existing community profile/follow/block stores (023-also-reading-card)
+- Supabase PostgreSQL; existing `books`, `reading_progress`, `community_profiles`, `community_profile_privacy`, `follows`, and `blocks`; no new data table required (023-also-reading-card)
 
 - TypeScript 5.x + Vue 3.5+ + PrimeVue 4.x, Pinia 2.x, Vue Router 4.x, Supabase JS v2, (001-the-chronicler)
 
@@ -51,13 +53,9 @@ npm test; npm run lint
 TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 ## Recent Changes
+- 023-also-reading-card: Added TypeScript 6.x, Vue 3.5 Composition API, PostgreSQL SQL/PLpgSQL for Supabase migration/RPC work + Vue Router 4, Pinia 3, Supabase JS v2, PrimeVue 4, existing SWR cache primitive, existing community profile/follow/block stores
 - 018-great-library: `GreatLibraryPage.vue` Lexicon tab refactored from in-memory `lexiconStore.allEntries` to server-side paginated query; new `useGreatLibrarySearch` composable (module-level singleton refs, PAGE_SIZE=20, offset pagination, server-side `.or()` search with 300ms debounce via VueUse `watchDebounced`, type + book filter, `useIntersectionObserver` infinite scroll); `LexiconCard.vue` extended with optional `bookTitle` prop (shown on front face below term); new `LexiconSearchResult` + `BookFilterOption` types + `mapSearchResult` mapper in `src/types/index.ts`; no schema changes, no new npm packages.
 - 017-supabase-rpc-aggregations: Four Supabase PostgreSQL RPC functions replace client-side JS aggregation; `get_library_with_progress` eliminates sequential store dependency chain and the Profile→Dashboard race condition; `get_reading_stats`/`get_last_session`/`get_library_breakdown` replace full-history fetches; four new cacheKeys (`library`, `readingStats`, `lastSession`, `libraryBreakdown`); `ProfilePage.vue` now loads all data in parallel via `fetchLibraryWithProgress`; `progressStore.fetchProgress` hydrates from `libraryEntries` (zero network when RPC ran first); `useReadingProfile`, `useLastSession`, `useLibraryBreakdown` composables rewritten to single RPC calls; `LibraryBreakdownCard.vue` updated to RPC field names; no new tables, no edge functions.
-- 016-reader-profile-page: New `/profile` route (Reader Profile page) + new tables `reading_dna` and `vocabulary_extractions`; `lexicon_entries.source` column ('manual'|'auto') added; new edge functions `generate-reading-dna` and `extract-vocabulary` (Gemini 2.5 Flash); new Pinia store `readingDna`; new composables `useReadingProfile`, `useTopThemes`, `useLibraryBreakdown`, `useVocabularyExtraction`; auto-vocabulary fires fire-and-forget after `captures.saveCapture` (silent, non-blocking, FR-020); DNA threshold-gated client-side (3 books OR 90 days); zero custom UI components — every Profile-page element is a PrimeVue primitive (Constitution VI).
-- 015-corpus-recaps: New `page_captures` table + `ocr-page` edge function (Gemini 2.5 Flash multimodal OCR); `generate-recap` extended with corpus mode (≥30% delta-range coverage triggers; captures sent inline by client); `recaps.mode` column added; `SessionCaptureField` replaces post-session note prompt as primary action on LastSessionCard; new `captures` Pinia store + `useCapture` composable; image bytes never persisted (in-memory OCR only).
-- 014-vue-modernization: Pure refactor — install date-fns v4; src/utils/date.ts + coverFallback.ts; DashboardPage decomposed into HeroBookCard/InProgressSection/UpNextSection/CompletedSection; BookDetailPage into BookDetailHeader/BookProgressPanel; PrimeVue Chip/Tag/InlineMessage for badges; all manual date arithmetic migrated to date-fns
-- 019-library-page-overhaul: Fix genre missing from `get_library_with_progress` RPC (`LibraryBookEntry` gains `genre` field); fix ISBN silently discarded on edit (`updateBook` + `BookEditDialog` + `BookForm` updated); `LibraryPage.vue` decomposed into three status sections (Currently Reading / The Queue / The Archives) via new `LibrarySectionHeader` component; Archives collapsed by default; `BookCard` extended with "Page X of Y" + "~N days left" (new `useReadingVelocity` composable); new `SwipeableBookCard` component adds swipe-left Edit/Delete on touch viewports; `upNextStore.saveOrder` made optimistic (revert + toast on failure). No new npm packages. One SQL amendment to `get_library_with_progress`.
-- 013-session-stats-card: Added explicit session tracking (session_start_at, session_note) to progress tables; new useReadingSession composable + SessionStartButton + SessionNoteField; LastSessionCard upgraded with full 5-metric grid (time, velocity, completion delta, finish prediction, note)
 
 
 <!-- MANUAL ADDITIONS START -->

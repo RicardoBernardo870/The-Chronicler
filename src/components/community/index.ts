@@ -1,3 +1,5 @@
+export { default as AlsoReadingCard } from './AlsoReadingCard.vue'
+export { default as AlsoReadingListDialog } from './AlsoReadingListDialog.vue'
 export { default as ProfilePrivacyControls } from './ProfilePrivacyControls.vue'
 export { default as PublicProfileCard } from './PublicProfileCard.vue'
 export { default as PublicProfilePreview } from './PublicProfilePreview.vue'

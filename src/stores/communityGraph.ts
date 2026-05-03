@@ -76,6 +76,7 @@ export const useCommunityGraphStore = defineStore('communityGraph', () => {
     invalidate(cacheKeys.communityFollowers(uid, ''), { prefix: true })
     invalidate(cacheKeys.communityFollowing(uid, ''), { prefix: true })
     invalidate(cacheKeys.communityBlocked(uid))
+    invalidate(`alsoReading:${uid}:`, { prefix: true })
     invalidate('publicProfile:', { prefix: true })
     if (targetUserId) invalidate(cacheKeys.communityRelationship(uid, targetUserId))
   }

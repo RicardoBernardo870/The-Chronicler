@@ -208,6 +208,8 @@ export const cacheKeys = {
   communityFollowers:   (uid: string, targetUserId: string) => `communityFollowers:${uid}:${targetUserId}`,
   communityFollowing:   (uid: string, targetUserId: string) => `communityFollowing:${uid}:${targetUserId}`,
   communityBlocked:     (uid: string)                       => `communityBlocked:${uid}`,
+  // 023 — Also Reading card RPC cache
+  alsoReading:           (uid: string, bookId: string)       => `alsoReading:${uid}:${bookId}`,
 } as const
 
 // ── Dev-only observability (T004 / data-model.md § Observability) ─────────────

@@ -12,6 +12,7 @@ import BookDetailHeader from "@/components/book/BookDetailHeader.vue";
 import BookProgressPanel from "@/components/book/BookProgressPanel.vue";
 import RecapStream from "@/components/recap/RecapStream.vue";
 import LoreChronoscopeCard from "@/components/lore/LoreChronoscopeCard.vue";
+import AlsoReadingCard from "@/components/community/AlsoReadingCard.vue";
 import AddWordDialog from "@/components/lexicon/AddWordDialog.vue";
 import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 import Button from "primevue/button";
@@ -146,6 +147,12 @@ const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
         @view-journey="router.push({ name: 'book-passport', params: { id: bookId } })"
         @open-add-word="addWordVisible = true"
         @view-lexicon="router.push({ name: 'lexicon', query: { bookId } })"
+      />
+
+      <AlsoReadingCard
+        :book-id="book.id"
+        :isbn="book.isbn"
+        :viewer-progress-percentage="progress?.percentage ?? null"
       />
 
       <!-- Post-session page capture prompt (appears immediately after saving progress with an active session) -->

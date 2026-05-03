@@ -341,6 +341,34 @@ export interface CommunityInteractionResult {
   reason: CommunityInteractionReason
 }
 
+// ---------------------------------------------------------------------------
+// Also Reading Card (023)
+// ---------------------------------------------------------------------------
+
+export type AlsoReadingMatchType = 'same_book' | 'same_isbn'
+export type AlsoReadingRelativeStatus = 'ahead' | 'behind' | 'same_area' | null
+
+export interface AlsoReadingItem {
+  userId: string
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+  matchType: AlsoReadingMatchType
+  matchedBookId: string
+  matchedIsbn: string | null
+  currentPage: number | null
+  totalPages: number | null
+  percentage: number | null
+  relativeStatus: AlsoReadingRelativeStatus
+  updatedAt: string
+}
+
+export interface AlsoReadingPage {
+  items: AlsoReadingItem[]
+  nextCursor: string | null
+  totalVisible: number
+}
+
 export interface ReadingProgressRow {
   id: string
   book_id: string
