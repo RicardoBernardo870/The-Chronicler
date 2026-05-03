@@ -18,6 +18,8 @@ const CaptureVerifyView = defineAsyncComponent(
 );
 
 const props = defineProps<{
+  // Only render this component from a real progress_history-backed
+  // lastSessionEnded event. Initial completed imports never create that event.
   historyRowId: string;
   bookId: string;
 }>();

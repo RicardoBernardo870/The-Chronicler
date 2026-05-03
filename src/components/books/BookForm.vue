@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import type { BookMetadata } from '@/types'
+import type { BookMetadata, InitialBookStatus } from '@/types'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
+import RadioButton from 'primevue/radiobutton'
 
 const props = defineProps<{
   initial?: Partial<BookMetadata> & { isbn?: string | null }
@@ -11,7 +12,12 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  submit: [data: Required<Omit<BookMetadata, 'coverUrl'>> & { coverUrl: string | null; isbn: string | null }]
+  submit: [data: Required<Omit<BookMetadata, 'coverUrl'>> & {
+    coverUrl: string | null
+    isbn: string | null
+    initialStatus: InitialBookStatus
+    currentPage: number | null
+  }]
   cancel: []
 }>()
 
@@ -21,6 +27,13 @@ const totalPages = ref<number | null>(props.initial?.totalPages ?? null)
 const genre = ref<string | null>(props.initial?.genre ?? '')
 const coverUrl = ref<string | null>(props.initial?.coverUrl ?? null)
 const isbn = ref<string | null>(props.initial?.isbn ?? null)
+const initialStatus = ref<InitialBookStatus>('queued')
+const currentPage = ref<number | null>(null)
+const statusOptions = [
+  { label: 'Want to read', value: 'queued' },
+  { label: 'Reading now', value: 'currentlyReading' },
+  { label: 'Already finished', value: 'completed' },
+] satisfies Array<{ label: string; value: InitialBookStatus }>
 
 const errors = ref<Record<string, string>>({})
 
@@ -40,6 +53,14 @@ const validate = () => {
   if (!title.value.trim()) e.title = 'Title is required'
   if (!author.value.trim()) e.author = 'Author is required'
   if (!totalPages.value || totalPages.value < 1) e.totalPages = 'Enter a valid page count'
+  if (initialStatus.value === 'currentlyReading') {
+    const maxPage = Math.max(0, (totalPages.value ?? 0) - 1)
+    if (!currentPage.value || currentPage.value < 1 || currentPage.value > maxPage) {
+      e.currentPage = maxPage > 0
+        ? `Enter a page between 1 and ${maxPage}`
+        : 'Use Already finished for one-page books'
+    }
+  }
   errors.value = e
   return Object.keys(e).length === 0
 }
@@ -53,6 +74,8 @@ const onSubmit = () => {
     genre: genre.value,
     coverUrl: coverUrl.value,
     isbn: isbn.value?.trim().toUpperCase() || null,
+    initialStatus: initialStatus.value,
+    currentPage: initialStatus.value === 'currentlyReading' ? currentPage.value : null,
   })
 }
 </script>
@@ -100,6 +123,42 @@ const onSubmit = () => {
         fluid
       />
       <small v-if="errors.totalPages" class="book-form__error">{{ errors.totalPages }}</small>
+    </div>
+
+    <div class="book-form__field">
+      <fieldset class="book-form__status-fieldset">
+        <legend class="book-form__label">Library status</legend>
+        <div class="book-form__status-options">
+          <label
+            v-for="option in statusOptions"
+            :key="option.value"
+            class="book-form__status-option"
+            :for="`bf-status-${option.value}`"
+          >
+            <RadioButton
+              :input-id="`bf-status-${option.value}`"
+              v-model="initialStatus"
+              name="library-status"
+              :value="option.value"
+            />
+            <span>{{ option.label }}</span>
+          </label>
+        </div>
+      </fieldset>
+    </div>
+
+    <div v-if="initialStatus === 'currentlyReading'" class="book-form__field">
+      <label class="book-form__label" for="bf-current-page">Current Page *</label>
+      <InputNumber
+        id="bf-current-page"
+        v-model="currentPage"
+        :min="1"
+        :max="Math.max(1, (totalPages ?? 1) - 1)"
+        placeholder="Where are you now?"
+        :invalid="!!errors.currentPage"
+        fluid
+      />
+      <small v-if="errors.currentPage" class="book-form__error">{{ errors.currentPage }}</small>
     </div>
 
     <div class="book-form__field">
@@ -197,5 +256,33 @@ const onSubmit = () => {
   gap: 0.75rem;
   justify-content: flex-end;
   padding-top: 0.5rem;
+}
+
+.book-form__status-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+
+.book-form__status-options {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.book-form__status-option {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  cursor: pointer;
+}
+
+.book-form__status-option span {
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 </style>

@@ -47,6 +47,8 @@ export const useRecapsStore = defineStore('recaps', () => {
   }
 
   async function generateRecap(bookId: string, signal?: AbortSignal) {
+    // First-run completed imports must not call this path automatically.
+    // Generation stays bound to explicit UI actions such as "Get recap".
     // Lockout guard: prevent duplicate requests while streaming (FR-010)
     if (generationStatus.value === 'streaming') return
 

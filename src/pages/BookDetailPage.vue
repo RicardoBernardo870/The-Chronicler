@@ -93,6 +93,7 @@ watch(progress, (p) => {
 
 const percentage = computed(() => progress.value?.percentage ?? 0);
 const isComplete = computed(() => percentage.value >= 100);
+const canViewJourney = computed(() => Boolean(passportStore.passportFor(bookId.value)));
 const isGenerating = computed(() => recapsStore.generationStatus === "streaming");
 const recapCount = computed(() => recapsStore.recapHistoryForBook(bookId.value).length);
 
@@ -135,6 +136,7 @@ const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
         :progress-error="progressError"
         :percentage="percentage"
         :is-complete="isComplete"
+        :can-view-journey="canViewJourney"
         :lexicon-count="lexiconCount"
         :recap-locked="recapLocked"
         :pages-until-unlock="pagesUntilUnlock"

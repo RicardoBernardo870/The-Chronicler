@@ -13,6 +13,7 @@ const props = defineProps<{
   progressError: string | null
   percentage: number
   isComplete: boolean
+  canViewJourney: boolean
   lexiconCount: number
   recapLocked: boolean
   pagesUntilUnlock: number
@@ -87,7 +88,7 @@ const emit = defineEmits<{
     </div>
 
     <Button
-      v-if="isComplete"
+      v-if="isComplete && canViewJourney"
       label="✦ View Reading Journey"
       icon="pi pi-star"
       class="progress-panel__passport-btn"

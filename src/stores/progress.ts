@@ -219,6 +219,54 @@ export const useProgressStore = defineStore('progress', () => {
     invalidate(cacheKeys.library(authStore.user.id))
   }
 
+  /**
+   * Confirmed progress write for add-book initial status only.
+   * This intentionally bypasses updateProgress so imports do not create
+   * progress_history rows, session-ended events, capture prompts, lore cards,
+   * recaps, or completion-passport side effects.
+   */
+  const setInitialProgress = async (bookId: string, currentPage: number): Promise<ReadingProgress> => {
+    const authStore = useAuthStore()
+    const booksStore = useBooksStore()
+    const book = booksStore.bookById(bookId)
+    if (!book) throw new Error('Book not found')
+    if (!authStore.user) throw new Error('Not authenticated')
+
+    const page = Math.max(0, Math.min(currentPage, book.totalPages))
+    const { data, error } = await supabase
+      .from('reading_progress')
+      .upsert(
+        {
+          book_id: bookId,
+          user_id: authStore.user.id,
+          current_page: page,
+          session_start_at: null,
+        },
+        { onConflict: 'book_id,user_id' },
+      )
+      .select('id, book_id, user_id, current_page, updated_at, session_start_at')
+      .single()
+    if (error) throw error
+
+    const confirmedProgress = mapReadingProgress(data as ReadingProgressRow, book.totalPages)
+    progress.value[bookId] = confirmedProgress
+    booksStore.applyProgressSnapshot(bookId, {
+      currentPage: confirmedProgress.currentPage,
+      percentage: confirmedProgress.percentage,
+      updatedAt: confirmedProgress.updatedAt,
+      sessionStartAt: null,
+      progressId: confirmedProgress.id,
+    })
+
+    swrTouch(cacheKeys.progress(authStore.user.id))
+    invalidate(cacheKeys.library(authStore.user.id))
+    invalidate(cacheKeys.readingStats(authStore.user.id))
+    invalidate(cacheKeys.libraryBreakdown(authStore.user.id))
+    invalidate(cacheKeys.velocity(authStore.user.id))
+
+    return confirmedProgress
+  }
+
   // ── saveSessionNote (T021, 013) ────────────────────────────────────────────
   // Fire-and-forget PATCH on progress_history. Errors are logged silently.
 
@@ -405,6 +453,10 @@ export const useProgressStore = defineStore('progress', () => {
   const percentageForBook = (bookId: string): number =>
     progress.value[bookId]?.percentage ?? 0
 
+  const removeLocalProgress = (bookId: string): void => {
+    delete progress.value[bookId]
+  }
+
   const inProgressBooks = computed(() => {
     const booksStore = useBooksStore()
     return Object.values(progress.value)
@@ -440,12 +492,14 @@ export const useProgressStore = defineStore('progress', () => {
     completedBooks,
     fetchProgress,
     updateProgress,
+    setInitialProgress,
     startSession,
     clearSession,
     saveSessionNote,
     consumeSessionEnded,
     progressForBook,
     percentageForBook,
+    removeLocalProgress,
     setupListeners,
     teardownListeners,
     drainQueue,
