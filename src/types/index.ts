@@ -190,6 +190,90 @@ export interface LibraryBreakdown {
   avgCompletionPct: number
 }
 
+// ---------------------------------------------------------------------------
+// Community Reader Profiles (020)
+// ---------------------------------------------------------------------------
+
+export type ProfileVisibility = 'everyone' | 'followers' | 'nobody'
+
+export interface CommunityProfileIdentity {
+  userId: string
+  username: string
+  displayName: string | null
+  bio: string | null
+  avatarUrl: string | null
+  isPublic?: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface CommunityProfilePrivacy {
+  progress: ProfileVisibility
+  currentlyReading: ProfileVisibility
+  lexicon: ProfileVisibility
+  readerDna: ProfileVisibility
+}
+
+export interface MyCommunityProfile {
+  profile: CommunityProfileIdentity & {
+    isPublic: boolean
+    createdAt: string
+    updatedAt: string
+  }
+  privacy: CommunityProfilePrivacy
+}
+
+export interface CommunityProfileInput {
+  username: string
+  displayName: string | null
+  bio: string | null
+  avatarUrl: string | null
+  isPublic: boolean
+  privacy: CommunityProfilePrivacy
+}
+
+export interface UsernameAvailability {
+  available: boolean
+  normalizedUsername: string
+}
+
+export interface PublicProfileStats {
+  booksRead: number
+  totalPagesRead: number
+  currentStreakDays: number
+  longestStreakDays: number
+}
+
+export interface PublicCurrentlyReading {
+  bookId: string
+  title: string
+  author: string
+  coverUrl: string | null
+  currentPage: number
+  totalPages: number
+  percentage: number
+}
+
+export interface PublicLexiconHighlight {
+  term: string
+  bookTitle: string | null
+  masteredAt: string
+}
+
+export interface PublicReaderDna {
+  personality: string
+  moodTone: string
+  moodEmojis: string[]
+}
+
+export interface PublicCommunityProfile {
+  profile: Omit<CommunityProfileIdentity, 'isPublic' | 'createdAt' | 'updatedAt'>
+  stats?: PublicProfileStats
+  currentlyReading?: PublicCurrentlyReading
+  lexiconHighlights?: PublicLexiconHighlight[]
+  readerDna?: PublicReaderDna
+}
+
 export interface ReadingProgressRow {
   id: string
   book_id: string

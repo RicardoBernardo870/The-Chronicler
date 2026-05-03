@@ -53,7 +53,7 @@ const isError = computed(() => dnaStore.status === 'error' && !dnaStore.dna)
       </div>
 
       <!-- Error path with no prior DNA -->
-      <Message v-else-if="isError" key="error" severity="secondary">
+      <Message v-else-if="isError" key="error" severity="warn">
         We'll try again later.
       </Message>
 

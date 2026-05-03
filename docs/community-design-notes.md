@@ -268,3 +268,15 @@ Community features are a strong subscriber retention mechanism. Once someone has
 6. Book Clubs: most complex, highest retention value, build last.
 
 The spoiler-safe page-gated reaction system is the feature worth putting on App Store screenshots.
+
+## Implementation Notes
+
+The first community slice now exists as the public reader profile foundation:
+
+- Additive Supabase schema: `community_profiles`, `community_profile_privacy`, `follows`, and `blocks`.
+- Stable PWA/iOS RPC contracts: `get_my_community_profile`, `upsert_my_community_profile`, `is_username_available`, and `get_public_profile_by_username`.
+- Privacy is enforced in the public profile RPC. Hidden sections are omitted, not returned with reason codes.
+- Sensitive section defaults are `nobody`; the whole profile can also be made non-public.
+- Minimal follow/block tables are present now so follower-only visibility and future blocking semantics have real backend predicates.
+
+Current lexicon highlights use `leitner_box >= 5` and expose the existing lexicon `created_at` timestamp as `masteredAt`, because the current Leitner schema does not yet persist a separate mastered timestamp.
