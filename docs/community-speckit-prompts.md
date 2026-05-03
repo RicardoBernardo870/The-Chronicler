@@ -18,6 +18,13 @@ Backend expectations for all community specs:
 - Privacy and blocking must be enforced server-side, not only in the client.
 - PWA UI can be minimal, but data contracts should be final or close to final.
 
+Reusable interaction rule:
+
+- Features after the follow/block graph should call `can_community_users_interact(p_target_user_id)` or reuse the same server-side helper semantics before showing user-to-user data.
+- Treat `blocked` as a hard deny across feeds, reading circles, social lexicon, discovery, notifications, and also-reading results.
+- Treat `self` as display-safe but action-denied for follow/block style mutations.
+- Treat `profile_unavailable` as a quiet omission in lists and feeds rather than a visible error row.
+
 Recommended order:
 
 1. Profiles and privacy

@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
+import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Textarea from 'primevue/textarea'
 import { useToast } from 'primevue/usetoast'
+import BlockedUsersPanel from '@/components/community/BlockedUsersPanel.vue'
 import ProfilePrivacyControls from '@/components/community/ProfilePrivacyControls.vue'
 import PublicProfilePreview from '@/components/community/PublicProfilePreview.vue'
+import ReaderSearchCard from '@/components/community/ReaderSearchCard.vue'
 import UsernameField from '@/components/community/UsernameField.vue'
 import {
   sanitizeCommunityProfileForm,
@@ -25,15 +28,21 @@ const {
   error,
   getMyProfile,
   saveProfile,
+  uploadAvatar,
   syncForm,
 } = useCommunityProfile()
 
 const loading = ref(true)
 const saveError = ref<string | null>(null)
 const usernameState = ref({ valid: false, pending: false, message: null as string | null })
+const editDialogVisible = ref(false)
+const avatarFile = ref<File | null>(null)
+const avatarPreviewUrl = ref<string | null>(null)
+const avatarInput = ref<HTMLInputElement | null>(null)
 
 const saving = computed(() => status.value === 'saving')
 const bioRemaining = computed(() => 160 - (form.bio?.length ?? 0))
+const avatarPreview = computed(() => avatarPreviewUrl.value || form.avatarUrl || null)
 // const saveDisabled = computed(() => {
 //   const normalized = form.username.trim().toLowerCase()
 //   const formatError = usernameFormatError(normalized)
@@ -59,11 +68,60 @@ onMounted(async () => {
   loading.value = false
 })
 
+onBeforeUnmount(() => {
+  revokeAvatarPreview()
+})
+
+const revokeAvatarPreview = () => {
+  if (avatarPreviewUrl.value) {
+    URL.revokeObjectURL(avatarPreviewUrl.value)
+    avatarPreviewUrl.value = null
+  }
+}
+
+const onAvatarSelected = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] ?? null
+  saveError.value = null
+  revokeAvatarPreview()
+  avatarFile.value = null
+
+  if (!file) return
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    saveError.value = 'Use a JPG, PNG, or WebP image.'
+    input.value = ''
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    saveError.value = 'Choose an image smaller than 5 MB.'
+    input.value = ''
+    return
+  }
+
+  avatarFile.value = file
+  avatarPreviewUrl.value = URL.createObjectURL(file)
+}
+
+const clearAvatar = () => {
+  revokeAvatarPreview()
+  avatarFile.value = null
+  form.avatarUrl = null
+  if (avatarInput.value) avatarInput.value.value = ''
+}
+
 const onSave = async () => {
   saveError.value = null
   try {
+    if (avatarFile.value) {
+      form.avatarUrl = await uploadAvatar(avatarFile.value)
+    }
+
     const saved = await saveProfile(sanitizeCommunityProfileForm(form))
+    avatarFile.value = null
+    revokeAvatarPreview()
+    if (avatarInput.value) avatarInput.value.value = ''
     syncForm()
+    editDialogVisible.value = false
     toast.add({
       severity: 'success',
       summary: 'Profile saved',
@@ -73,6 +131,15 @@ const onSave = async () => {
   } catch (err) {
     saveError.value = err instanceof Error ? err.message : 'Could not save profile.'
   }
+}
+
+const openEditDialog = () => {
+  syncForm()
+  saveError.value = null
+  avatarFile.value = null
+  revokeAvatarPreview()
+  if (avatarInput.value) avatarInput.value.value = ''
+  editDialogVisible.value = true
 }
 </script>
 
@@ -100,8 +167,26 @@ const onSave = async () => {
       Loading community profile...
     </div>
 
-    <div v-else class="community-edit-page__layout">
-      <form class="community-edit-page__form glass-surface" @submit.prevent="onSave">
+    <div v-else class="community-edit-page__cards">
+      <PublicProfilePreview
+        :profile="previewProfile"
+        mode="viewer"
+        editable
+        @edit="openEditDialog"
+      />
+
+      <ReaderSearchCard />
+
+      <BlockedUsersPanel />
+    </div>
+
+    <Dialog
+      v-model:visible="editDialogVisible"
+      modal
+      header="Edit community profile"
+      :style="{ width: 'min(93vw, 38rem)' }"
+    >
+      <form class="community-edit-page__form" @submit.prevent="onSave">
         <UsernameField
           v-model="form.username"
           :current-username="myProfile?.profile.username"
@@ -115,8 +200,46 @@ const onSave = async () => {
         </label>
 
         <label class="community-edit-page__field">
-          <span>Avatar URL</span>
-          <InputText v-model="form.avatarUrl" :disabled="saving" inputmode="url" />
+          <span>Profile picture</span>
+          <div class="community-edit-page__avatar-control">
+            <div class="community-edit-page__avatar-preview">
+              <img
+                v-if="avatarPreview"
+                :src="avatarPreview"
+                :alt="form.displayName || form.username || 'Profile picture'"
+              >
+              <span v-else>{{ (form.username || '?').slice(0, 1).toUpperCase() }}</span>
+            </div>
+            <div class="community-edit-page__avatar-actions">
+              <input
+                ref="avatarInput"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                class="community-edit-page__avatar-input"
+                :disabled="saving"
+                @change="onAvatarSelected"
+              >
+              <div class="community-edit-page__avatar-buttons">
+                <Button
+                  type="button"
+                  label="Upload image"
+                  icon="pi pi-upload"
+                  outlined
+                  :disabled="saving"
+                  @click="avatarInput?.click()"
+                />
+                <Button
+                  type="button"
+                  label="Remove"
+                  icon="pi pi-times"
+                  text
+                  :disabled="saving || !avatarPreview"
+                  @click="clearAvatar"
+                />
+              </div>
+              <small>JPG, PNG, or WebP. Max 5 MB.</small>
+            </div>
+          </div>
         </label>
 
         <label class="community-edit-page__field">
@@ -143,14 +266,6 @@ const onSave = async () => {
 
         <div class="community-edit-page__actions">
           <Button
-            type="button"
-            label="View public page"
-            icon="pi pi-external-link"
-            text
-            :disabled="!myProfile?.profile.username"
-            @click="router.push({ name: 'public-profile', params: { username: myProfile?.profile.username } })"
-          />
-          <Button
             type="submit"
             label="Save profile"
             icon="pi pi-check"
@@ -158,12 +273,7 @@ const onSave = async () => {
           />
         </div>
       </form>
-
-      <aside class="community-edit-page__preview">
-        <h2>Preview</h2>
-        <PublicProfilePreview :profile="previewProfile" mode="viewer" />
-      </aside>
-    </div>
+    </Dialog>
   </section>
 </template>
 
@@ -186,8 +296,7 @@ const onSave = async () => {
 }
 
 .community-edit-page__header h1,
-.community-edit-page__header p,
-.community-edit-page__preview h2 {
+.community-edit-page__header p {
   margin: 0;
 }
 
@@ -209,13 +318,8 @@ const onSave = async () => {
   padding: 1.25rem;
 }
 
-.community-edit-page__layout {
-  display: grid;
-  gap: 1rem;
-}
-
+.community-edit-page__cards,
 .community-edit-page__form {
-  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -239,6 +343,49 @@ const onSave = async () => {
   opacity: 1;
 }
 
+.community-edit-page__avatar-control {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.community-edit-page__avatar-preview {
+  width: 4.25rem;
+  height: 4.25rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-card);
+  font-size: 1.35rem;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.community-edit-page__avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.community-edit-page__avatar-actions {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.community-edit-page__avatar-input {
+  display: none;
+}
+
+.community-edit-page__avatar-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
 .community-edit-page__actions {
   display: flex;
   justify-content: flex-end;
@@ -247,24 +394,11 @@ const onSave = async () => {
   flex-wrap: wrap;
 }
 
-.community-edit-page__preview {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.community-edit-page__preview h2 {
-  font-size: 0.85rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  opacity: 0.65;
-}
-
 @media (min-width: 860px) {
-  .community-edit-page__layout {
-    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
-    align-items: start;
+  .community-edit-page__cards {
+    max-width: 42rem;
+    width: 100%;
+    align-self: center;
   }
 }
 </style>

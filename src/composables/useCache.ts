@@ -202,6 +202,12 @@ export const cacheKeys = {
   // 020 — community profile RPC cache keys
   communityProfile:(uid: string)                  => `communityProfile:${uid}`,
   publicProfile:   (username: string)             => `publicProfile:${username.toLowerCase()}`,
+  // 022 — community graph RPC cache keys
+  communityRelationship:(uid: string, targetUserId: string) => `communityRelationship:${uid}:${targetUserId}`,
+  communitySearch:      (uid: string, query: string)        => `communitySearch:${uid}:${query.trim().toLowerCase()}`,
+  communityFollowers:   (uid: string, targetUserId: string) => `communityFollowers:${uid}:${targetUserId}`,
+  communityFollowing:   (uid: string, targetUserId: string) => `communityFollowing:${uid}:${targetUserId}`,
+  communityBlocked:     (uid: string)                       => `communityBlocked:${uid}`,
 } as const
 
 // ── Dev-only observability (T004 / data-model.md § Observability) ─────────────

@@ -1,29 +1,40 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import Message from 'primevue/message'
-import type { CommunityProfileIdentity, CommunityProfilePrivacy } from '@/types'
+import { computed } from "vue";
+import Button from "primevue/button";
+import Message from "primevue/message";
+import type {
+  CommunityProfileIdentity,
+  CommunityProfilePrivacy,
+} from "@/types";
+import { useRouter } from "vue-router";
 
 const props = defineProps<{
   profile: {
-    profile: CommunityProfileIdentity & { isPublic: boolean }
-    privacy: CommunityProfilePrivacy
-  }
-  mode?: 'owner' | 'viewer'
-}>()
+    profile: CommunityProfileIdentity & { isPublic: boolean };
+    privacy: CommunityProfilePrivacy;
+  };
+  mode?: "owner" | "viewer";
+  editable?: boolean;
+}>();
 
-const mode = computed(() => props.mode ?? 'viewer')
-const canSee = (visibility: 'everyone' | 'followers' | 'nobody') =>
-  mode.value === 'owner' || visibility === 'everyone'
+defineEmits<{
+  edit: [];
+}>();
+
+const mode = computed(() => props.mode ?? "viewer");
+const canSee = (visibility: "everyone" | "followers" | "nobody") =>
+  mode.value === "owner" || visibility === "everyone";
+const router = useRouter();
 
 const sections = computed(() => {
-  if (mode.value === 'viewer' && !props.profile.profile.isPublic) return []
+  if (mode.value === "viewer" && !props.profile.profile.isPublic) return [];
   return [
-    canSee(props.profile.privacy.readerDna) && 'Reader DNA',
-    canSee(props.profile.privacy.currentlyReading) && 'Currently reading',
-    canSee(props.profile.privacy.progress) && 'Progress stats',
-    canSee(props.profile.privacy.lexicon) && 'Recently mastered words',
-  ].filter(Boolean) as string[]
-})
+    canSee(props.profile.privacy.readerDna) && "Reader DNA",
+    canSee(props.profile.privacy.currentlyReading) && "Currently reading",
+    canSee(props.profile.privacy.progress) && "Progress stats",
+    canSee(props.profile.privacy.lexicon) && "Recently mastered words",
+  ].filter(Boolean) as string[];
+});
 </script>
 
 <template>
@@ -34,13 +45,30 @@ const sections = computed(() => {
           v-if="profile.profile.avatarUrl"
           :src="profile.profile.avatarUrl"
           :alt="profile.profile.displayName ?? profile.profile.username"
-        >
-        <span v-else>{{ (profile.profile.username || '?').slice(0, 1).toUpperCase() }}</span>
+        />
+        <span v-else>{{
+          (profile.profile.username || "?").slice(0, 1).toUpperCase()
+        }}</span>
       </div>
       <div class="profile-preview__identity">
-        <h3>{{ profile.profile.displayName || profile.profile.username || 'Your reader name' }}</h3>
-        <p>@{{ profile.profile.username || 'username' }}</p>
+        <h3>
+          {{
+            profile.profile.displayName ||
+            profile.profile.username ||
+            "Your reader name"
+          }}
+        </h3>
+        <p>@{{ profile.profile.username || "username" }}</p>
       </div>
+      <Button
+        v-if="editable"
+        icon="pi pi-pencil"
+        text
+        rounded
+        aria-label="Edit community profile"
+        class="profile-preview__edit"
+        @click="$emit('edit')"
+      />
     </header>
 
     <p v-if="profile.profile.bio" class="profile-preview__bio">
@@ -71,6 +99,20 @@ const sections = computed(() => {
         No public sections are visible in this preview.
       </Message>
     </div>
+
+    <Button
+      type="button"
+      label="View Profile"
+      icon="pi pi-user"
+      text
+      :disabled="!profile.profile.username"
+      @click="
+        router.push({
+          name: 'public-profile',
+          params: { username: profile.profile.username },
+        })
+      "
+    />
   </section>
 </template>
 
@@ -108,6 +150,7 @@ const sections = computed(() => {
 
 .profile-preview__identity {
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .profile-preview__identity h3,
@@ -149,5 +192,9 @@ const sections = computed(() => {
 
 .profile-preview__message {
   margin: 0;
+}
+
+.profile-preview__edit {
+  flex: 0 0 auto;
 }
 </style>

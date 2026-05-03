@@ -29,7 +29,7 @@ const setVisibility = (
     <div class="privacy-controls__public-row">
       <div>
         <h3 class="privacy-controls__title">Public profile</h3>
-        <p class="privacy-controls__hint">Turn this off to hide the public profile completely.</p>
+        <p class="privacy-controls__hint">Turn off to hide profile from the public</p>
       </div>
       <ToggleSwitch
         :model-value="isPublic"

@@ -96,6 +96,7 @@ export const useCommunityProfile = () => {
     syncForm,
     getMyProfile: store.getMyProfile,
     saveProfile: store.saveProfile,
+    uploadAvatar: store.uploadAvatar,
     checkUsernameAvailability: store.checkUsernameAvailability,
     fetchPublicProfileByUsername: store.fetchPublicProfileByUsername,
   }

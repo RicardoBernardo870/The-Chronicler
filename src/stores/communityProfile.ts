@@ -20,6 +20,9 @@ import type {
 export type CommunityProfileStatus = 'idle' | 'loading' | 'saving' | 'error'
 
 const TTL = 60_000
+const AVATAR_BUCKET = 'community-avatars'
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024
+const AVATAR_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 const normalizeUsername = (value: string): string => value.trim().toLowerCase()
 
@@ -102,6 +105,31 @@ export const useCommunityProfileStore = defineStore('communityProfile', () => {
     return profile
   }
 
+  const uploadAvatar = async (file: File): Promise<string> => {
+    const authStore = useAuthStore()
+    if (!authStore.user) throw new Error('Not authenticated')
+    if (!AVATAR_MIME_TYPES.has(file.type)) {
+      throw new Error('Use a JPG, PNG, or WebP image.')
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      throw new Error('Choose an image smaller than 5 MB.')
+    }
+
+    const path = `${authStore.user.id}/profile`
+    const { error: uploadError } = await supabase.storage
+      .from(AVATAR_BUCKET)
+      .upload(path, file, {
+        cacheControl: '3600',
+        contentType: file.type,
+        upsert: true,
+      })
+
+    if (uploadError) throw new Error(uploadError.message)
+
+    const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path)
+    return `${data.publicUrl}?v=${Date.now()}`
+  }
+
   const checkUsernameAvailability = async (username: string): Promise<UsernameAvailability> => {
     const { data, error: err } = await supabase.rpc('is_username_available', {
       p_username: username,
@@ -158,6 +186,7 @@ export const useCommunityProfileStore = defineStore('communityProfile', () => {
     hasProfile,
     getMyProfile,
     saveProfile,
+    uploadAvatar,
     checkUsernameAvailability,
     fetchPublicProfileByUsername,
   }

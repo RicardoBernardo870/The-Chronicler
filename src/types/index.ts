@@ -274,6 +274,73 @@ export interface PublicCommunityProfile {
   readerDna?: PublicReaderDna
 }
 
+// ---------------------------------------------------------------------------
+// Community Follow Graph And Blocking (022)
+// ---------------------------------------------------------------------------
+
+export type CommunityInteractionReason = 'allowed' | 'self' | 'blocked' | 'profile_unavailable'
+
+export interface CommunityRelationshipState {
+  targetUserId: string
+  isFollowing: boolean
+  followsViewer: boolean
+  isBlockedByViewer: boolean
+  hasBlockedViewer: boolean
+  followersCount: number
+  followingCount: number
+  canInteract: boolean
+  reason: CommunityInteractionReason
+  changed?: boolean
+}
+
+export interface CommunityReaderSearchResult {
+  userId: string
+  username: string
+  displayName: string | null
+  bio: string | null
+  avatarUrl: string | null
+  isFollowing: boolean
+  followsViewer: boolean
+  followersCount: number
+  followingCount: number
+}
+
+export interface CommunityFollowListItem {
+  userId: string
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+  followedAt: string
+  isFollowing: boolean
+}
+
+export interface CommunityBlockedUser {
+  userId: string
+  username: string | null
+  displayName: string | null
+  avatarUrl: string | null
+  blockedAt: string
+}
+
+export interface CommunityCursorPage<T> {
+  items: T[]
+  nextCursor: string | null
+}
+
+export interface CommunityBlockResult {
+  targetUserId: string
+  isBlockedByViewer: boolean
+  removedFollowsCount?: number
+  changed: boolean
+  reason?: CommunityInteractionReason
+}
+
+export interface CommunityInteractionResult {
+  targetUserId: string
+  allowed: boolean
+  reason: CommunityInteractionReason
+}
+
 export interface ReadingProgressRow {
   id: string
   book_id: string
