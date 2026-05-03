@@ -1,40 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted } from "vue";
 import { useLastSession } from "@/composables/useLastSession";
 import { useBooksStore } from "@/stores/books";
-import { useProgressStore } from "@/stores/progress";
 import { formatRelativeToNow as formatRelative } from "@/utils/date";
 import { Image } from "primevue";
-import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 
 const { lastSession, fetchLastSession } = useLastSession();
 const booksStore = useBooksStore();
-const progressStore = useProgressStore();
 
-// ── Inline post-session prompt (015 — capture replaces note as primary) ─
-const showCaptureField = ref(false);
-const pendingHistoryRowId = ref<string | null>(null);
-const pendingBookId = ref<string | null>(null);
-
-// Watch for session-ended events that weren't consumed on BookDetailPage
-// (e.g. user ended session and navigated directly to Dashboard).
-// Uses { immediate: true } so it also catches events already in the store
-// when this card mounts.
-watch(() => progressStore.lastSessionEnded, (event) => {
-  if (event) {
-    pendingHistoryRowId.value = event.historyRowId;
-    pendingBookId.value = event.bookId;
-    showCaptureField.value = true;
-  }
-}, { immediate: true });
-
-const handleCaptureComplete = () => {
-  showCaptureField.value = false;
-  pendingHistoryRowId.value = null;
-  pendingBookId.value = null;
-  progressStore.consumeSessionEnded();
-  fetchLastSession();
-};
 
 const bookImage = computed(() => {
   if (!lastSession.value) return undefined;
@@ -146,27 +119,6 @@ onMounted(() => fetchLastSession());
       </div>
     </div>
 
-    <!-- Inline post-session capture prompt (015 — primary action) -->
-    <Transition name="last-session__detail" mode="out-in">
-    <div v-if="showCaptureField && pendingHistoryRowId && pendingBookId" class="last-session__detail-block">
-      <hr class="last-session__sep" />
-      <SessionCaptureField
-        :history-row-id="pendingHistoryRowId"
-        :book-id="pendingBookId"
-        @saved="handleCaptureComplete"
-        @skipped="handleCaptureComplete"
-      />
-    </div>
-
-    <!-- Session note (T023) -->
-    <div v-else-if="lastSession.sessionNote" class="last-session__detail-block">
-      <hr class="last-session__sep" />
-      <p class="last-session__note">
-        <i class="pi pi-pencil" />
-        {{ lastSession.sessionNote }}
-      </p>
-    </div>
-    </Transition>
   </section>
   </Transition>
 </template>
@@ -188,7 +140,6 @@ onMounted(() => fetchLastSession());
   transform: translateY(-1px);
 }
 
-/* ── Header ──────────────────────────────────────────────────── */
 .last-session__title {
   margin: 0;
   font-size: 0.85rem;
@@ -211,7 +162,6 @@ onMounted(() => fetchLastSession());
   opacity: 1;
 }
 
-/* ── Book row ────────────────────────────────────────────────── */
 .last-session__book-info {
   display: flex;
   align-items: flex-start;
@@ -255,7 +205,6 @@ onMounted(() => fetchLastSession());
   font-weight: 600;
 }
 
-/* ── Metrics grid ────────────────────────────────────────────── */
 .last-session__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -266,6 +215,14 @@ onMounted(() => fetchLastSession());
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.last-session__metric:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
 }
 
 .last-session__metric-label {
@@ -297,61 +254,15 @@ onMounted(() => fetchLastSession());
   color: var(--p-indigo-300);
 }
 
-.last-session__metric {
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
-}
-
-.last-session__metric:hover {
-  opacity: 0.92;
-  transform: translateY(-1px);
-}
-
-/* ── Session note ────────────────────────────────────────────── */
-.last-session__sep {
-  border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  margin: 0;
-}
-
-.last-session__detail-block {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.last-session__note {
-  margin: 0;
-  font-size: 0.82rem;
-  opacity: 0.7;
-  font-style: italic;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.4rem;
-  line-height: 1.5;
-}
-
-.last-session__note .pi {
-  font-size: 0.72rem;
-  opacity: 0.5;
-  margin-top: 0.2rem;
-  flex-shrink: 0;
-}
-
 .last-session__card-enter-active,
-.last-session__card-leave-active,
-.last-session__detail-enter-active,
-.last-session__detail-leave-active {
+.last-session__card-leave-active {
   transition:
     opacity 0.2s ease,
     transform 0.2s ease;
 }
 
 .last-session__card-enter-from,
-.last-session__card-leave-to,
-.last-session__detail-enter-from,
-.last-session__detail-leave-to {
+.last-session__card-leave-to {
   opacity: 0;
   transform: translateY(8px);
 }
@@ -360,19 +271,17 @@ onMounted(() => fetchLastSession());
   .last-session,
   .last-session__metric,
   .last-session__card-enter-active,
-  .last-session__card-leave-active,
-  .last-session__detail-enter-active,
-  .last-session__detail-leave-active {
+  .last-session__card-leave-active {
     transition: none;
   }
 
   .last-session:hover,
   .last-session__metric:hover,
   .last-session__card-enter-from,
-  .last-session__card-leave-to,
-  .last-session__detail-enter-from,
-  .last-session__detail-leave-to {
+  .last-session__card-leave-to {
     transform: none;
   }
 }
 </style>
+
+

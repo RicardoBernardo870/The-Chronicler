@@ -89,9 +89,7 @@ const handleSave = (): void => {
   flex-direction: column;
   gap: 0.6rem;
   padding: 0.85rem 1rem;
-  border-radius: 12px;
   background: rgba(99, 102, 241, 0.07);
-  border: 1px solid rgba(99, 102, 241, 0.2);
   animation: slide-in 0.2s ease;
 }
 

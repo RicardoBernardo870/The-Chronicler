@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue'
 import type { Book, ReadingProgress } from '@/types'
 import { useLoreCardsStore } from '@/stores/loreCards'
+import { useProgressStore } from '@/stores/progress'
+import { useLastSession } from '@/composables/useLastSession'
 import RecapStream from '@/components/recap/RecapStream.vue'
+import SessionCaptureField from '@/components/session/SessionCaptureField.vue'
 import SessionStartButton from '@/components/session/SessionStartButton.vue'
 import Button from 'primevue/button'
 import Chip from 'primevue/chip'
@@ -36,6 +40,42 @@ const emit = defineEmits<{
 }>()
 
 const loreStore = useLoreCardsStore()
+const progressStore = useProgressStore()
+const { lastSession, fetchLastSession } = useLastSession()
+
+const showCaptureField = ref(false)
+const pendingHistoryRowId = ref<string | null>(null)
+const pendingBookId = ref<string | null>(null)
+
+watch(() => progressStore.lastSessionEnded, (event) => {
+  if (event?.bookId === props.book.id) {
+    pendingHistoryRowId.value = event.historyRowId
+    pendingBookId.value = event.bookId
+    showCaptureField.value = true
+  }
+}, { immediate: true })
+
+watch(() => props.book.id, () => {
+  if (pendingBookId.value !== props.book.id) {
+    showCaptureField.value = false
+    pendingHistoryRowId.value = null
+    pendingBookId.value = null
+  }
+})
+
+const heroSessionNote = computed(() =>
+  lastSession.value?.bookId === props.book.id ? lastSession.value.sessionNote : null,
+)
+
+const handleCaptureComplete = () => {
+  showCaptureField.value = false
+  pendingHistoryRowId.value = null
+  pendingBookId.value = null
+  progressStore.consumeSessionEnded()
+  fetchLastSession()
+}
+
+onMounted(() => fetchLastSession())
 </script>
 
 <template>
@@ -158,6 +198,26 @@ const loreStore = useLoreCardsStore()
         @click="emit('viewBook')"
       />
     </div>
+
+    <Transition name="hero-card__detail" mode="out-in">
+      <div v-if="showCaptureField && pendingHistoryRowId && pendingBookId" class="hero-card__detail-block">
+        <hr class="hero-card__sep" />
+        <SessionCaptureField
+          :history-row-id="pendingHistoryRowId"
+          :book-id="pendingBookId"
+          @saved="handleCaptureComplete"
+          @skipped="handleCaptureComplete"
+        />
+      </div>
+
+      <div v-else-if="heroSessionNote" class="hero-card__detail-block">
+        <hr class="hero-card__sep" />
+        <p class="hero-card__note">
+          <i class="pi pi-pencil" />
+          {{ heroSessionNote }}
+        </p>
+      </div>
+    </Transition>
   </article>
 
   <!-- Inline Recap Panel -->
@@ -365,6 +425,36 @@ const loreStore = useLoreCardsStore()
   font-size: 0.82rem;
 }
 
+.hero-card__sep {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 0;
+}
+
+.hero-card__detail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.hero-card__note {
+  margin: 0;
+  font-size: 0.82rem;
+  opacity: 0.7;
+  font-style: italic;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  line-height: 1.5;
+}
+
+.hero-card__note .pi {
+  font-size: 0.72rem;
+  opacity: 0.5;
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
 /* New Lore chip */
 .hero-card__new-lore-chip {
   position: absolute;
@@ -452,7 +542,9 @@ const loreStore = useLoreCardsStore()
 }
 
 .hero-card__panel-enter-active,
-.hero-card__panel-leave-active {
+.hero-card__panel-leave-active,
+.hero-card__detail-enter-active,
+.hero-card__detail-leave-active {
   overflow: hidden;
   transition:
     opacity 0.22s ease,
@@ -461,14 +553,18 @@ const loreStore = useLoreCardsStore()
 }
 
 .hero-card__panel-enter-from,
-.hero-card__panel-leave-to {
+.hero-card__panel-leave-to,
+.hero-card__detail-enter-from,
+.hero-card__detail-leave-to {
   opacity: 0;
   max-height: 0;
   transform: translateY(-8px);
 }
 
 .hero-card__panel-enter-to,
-.hero-card__panel-leave-from {
+.hero-card__panel-leave-from,
+.hero-card__detail-enter-to,
+.hero-card__detail-leave-from {
   opacity: 1;
   max-height: 900px;
   transform: translateY(0);
@@ -482,7 +578,9 @@ const loreStore = useLoreCardsStore()
   .hero-card__fade-enter-active,
   .hero-card__fade-leave-active,
   .hero-card__panel-enter-active,
-  .hero-card__panel-leave-active {
+  .hero-card__panel-leave-active,
+  .hero-card__detail-enter-active,
+  .hero-card__detail-leave-active {
     transition: none;
     animation: none;
   }
@@ -492,7 +590,9 @@ const loreStore = useLoreCardsStore()
   .hero-card__fade-enter-from,
   .hero-card__fade-leave-to,
   .hero-card__panel-enter-from,
-  .hero-card__panel-leave-to {
+  .hero-card__panel-leave-to,
+  .hero-card__detail-enter-from,
+  .hero-card__detail-leave-to {
     transform: none;
   }
 }
