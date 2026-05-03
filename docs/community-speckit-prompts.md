@@ -366,3 +366,15 @@ Success criteria:
 - Private lexicon entries never appear in social surfaces.
 ```
 
+---
+
+## Implementation Note: First-Run Onboarding
+
+The first-run onboarding implementation keeps the backend schema unchanged. The add-book flow now treats initial status as an app-level command:
+
+- `queued`: create only the `books` row.
+- `currentlyReading`: create `books`, then write confirmed `reading_progress` below completion without creating a session history row.
+- `completed`: create `books`, then write confirmed `reading_progress` at the final page without session/history/capture/recap/lore/passport side effects.
+
+Dashboard state is derived from the existing library/progress data so a fresh user with one active book gets an automatic hero, while completed-only and queued-only libraries avoid active-reading UI.
+

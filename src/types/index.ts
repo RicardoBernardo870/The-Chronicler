@@ -47,6 +47,30 @@ export interface BookMetadata {
   genre: string | null
 }
 
+export type InitialBookStatus = 'queued' | 'currentlyReading' | 'completed'
+
+export interface AddBookInput extends Omit<Book, 'id' | 'userId' | 'createdAt'> {
+  initialStatus: InitialBookStatus
+  currentPage: number | null
+}
+
+export type DashboardFirstRunStateKind =
+  | 'empty'
+  | 'oneQueued'
+  | 'oneInProgress'
+  | 'completedOnly'
+  | 'standard'
+
+export interface DashboardFirstRunState {
+  kind: DashboardFirstRunStateKind
+  hasBooks: boolean
+  activeBookCount: number
+  queuedBookCount: number
+  completedBookCount: number
+  singleQueuedBook: Book | null
+  recentCompletedBooks: Book[]
+}
+
 // ─────────────────────────────────────────────────────────────
 // Auth
 // ─────────────────────────────────────────────────────────────

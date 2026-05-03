@@ -8,6 +8,7 @@ import { useLexiconStore } from "@/stores/lexicon";
 import { useAuthStore } from "@/stores/auth";
 import { useReadingPulse } from "@/composables/useReadingPulse";
 import { useActiveBook } from "@/composables/useActiveBook";
+import { useDashboardOnboardingState } from "@/composables/useDashboardOnboardingState";
 import { useLoreCardsStore } from "@/stores/loreCards";
 import { useRecapsStore } from "@/stores/recaps";
 import { useRecapLock } from "@/composables/useRecapLock";
@@ -18,9 +19,9 @@ import UpNextSection from "@/components/dashboard/UpNextSection.vue";
 import CompletedSection from "@/components/dashboard/CompletedSection.vue";
 import LastSessionCard from "@/components/dashboard/LastSessionCard.vue";
 import WordOfTheDay from "@/components/dashboard/WordOfTheDay.vue";
-import Button from "primevue/button";
 import Skeleton from "primevue/skeleton";
-import EmptyState from "@/components/shared/EmptyState.vue";
+import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState.vue";
+import CompletedOnlyState from "@/components/dashboard/CompletedOnlyState.vue";
 import { useConfirm } from "primevue/useconfirm";
 import ConfirmDialog from "primevue/confirmdialog";
 
@@ -45,6 +46,7 @@ const {
 } = useActiveBook();
 
 const currentBook = activeBook;
+const { state: dashboardState } = useDashboardOnboardingState();
 
 const currentProgress = computed(() =>
   activeBookId.value ? (progressStore.progressForBook(activeBookId.value) ?? null) : null,
@@ -94,6 +96,12 @@ watch(activeBookId, (newId, _oldId, onCleanup) => {
     }
     nextHeroPulse(newId);
     recapsStore.fetchRecapsForBook(newId).catch(() => {});
+  } else {
+    pageInput.value = 0;
+    if (recapTriggered.value) {
+      recapTriggered.value = false;
+      recapsStore.resetStatus();
+    }
   }
 });
 
@@ -140,6 +148,13 @@ onMounted(async () => {
   } finally { loading.value = false }
 })
 
+watch(
+  () => progressStore.inProgressBooks.map(item => `${item.book.id}:${item.progress.updatedAt}`).join('|'),
+  () => {
+    if (!loading.value) initializeIfNeeded()
+  },
+)
+
 const upNextBooks = computed(() => {
   const zeroBooks = booksStore.books.filter(
     (b) => progressStore.percentageForBook(b.id) === 0,
@@ -156,7 +171,18 @@ const upNextBooks = computed(() => {
 const completedPreview = computed(() => progressStore.completedBooks.slice(0, 2))
 const completedOverflow = computed(() => Math.max(0, progressStore.completedBooks.length - 2))
 const pendingSync = computed(() => progressStore.pendingSync)
-const hasAnyBooks = computed(() => booksStore.books.length > 0)
+const showReadingSupportSections = computed(() =>
+  dashboardState.value.kind === 'standard' || dashboardState.value.kind === 'oneInProgress',
+)
+const showInProgressSection = computed(() =>
+  showReadingSupportSections.value && inProgressUpNext.value.length > 0,
+)
+const showUpNextSection = computed(() =>
+  dashboardState.value.kind === 'standard' && upNextBooks.value.length > 0,
+)
+const showCompletedSection = computed(() =>
+  dashboardState.value.kind !== 'completedOnly' && completedPreview.value.length > 0,
+)
 
 const saveProgress = async () => {
   if (!currentBook.value) return;
@@ -219,17 +245,31 @@ const handleSessionConflict = (startedAt: Date) => {
     </template>
 
     <!-- No books -->
-    <EmptyState
-      v-else-if="!hasAnyBooks"
+    <DashboardEmptyState
+      v-else-if="dashboardState.kind === 'empty'"
       key="empty"
-      icon="pi-book"
-      title="No current read"
-      description="Add your first book to start tracking your reading journey."
-    >
-      <template #action>
-        <Button label="Add a book" icon="pi pi-plus" @click="router.push('/books/add')" />
-      </template>
-    </EmptyState>
+      variant="empty"
+      @add-book="router.push('/books/add')"
+    />
+
+    <DashboardEmptyState
+      v-else-if="dashboardState.kind === 'oneQueued'"
+      key="one-queued"
+      variant="queued"
+      :book="dashboardState.singleQueuedBook"
+      @add-book="router.push('/books/add')"
+      @start-book="(id) => router.push({ name: 'book-detail', params: { id } })"
+    />
+
+    <CompletedOnlyState
+      v-else-if="dashboardState.kind === 'completedOnly'"
+      key="completed-only"
+      :books="dashboardState.recentCompletedBooks"
+      :count="dashboardState.completedBookCount"
+      @add-book="router.push('/books/add')"
+      @view-book="(id) => router.push({ name: 'book-detail', params: { id } })"
+      @view-library="router.push('/library')"
+    />
 
     <TransitionGroup
       v-else
@@ -262,15 +302,15 @@ const handleSessionConflict = (startedAt: Date) => {
         />
       </div>
 
-      <div key="word-of-day" class="dashboard__section">
+      <div v-if="showReadingSupportSections" key="word-of-day" class="dashboard__section">
         <WordOfTheDay />
       </div>
 
-      <div key="last-session" class="dashboard__section">
+      <div v-if="showReadingSupportSections" key="last-session" class="dashboard__section">
         <LastSessionCard />
       </div>
 
-      <div v-if="inProgressUpNext.length > 0" key="in-progress" class="dashboard__section">
+      <div v-if="showInProgressSection" key="in-progress" class="dashboard__section">
         <InProgressSection
           :books="inProgressUpNext"
           @select="setActive"
@@ -278,7 +318,7 @@ const handleSessionConflict = (startedAt: Date) => {
         />
       </div>
 
-      <div v-if="upNextBooks.length > 0" key="up-next" class="dashboard__section">
+      <div v-if="showUpNextSection" key="up-next" class="dashboard__section">
         <UpNextSection
           :books="upNextBooks"
           @update:books="(newOrder) => upNextStore.saveOrder(newOrder.map((b) => b.id))"
@@ -286,7 +326,7 @@ const handleSessionConflict = (startedAt: Date) => {
         />
       </div>
 
-      <div v-if="completedPreview.length > 0" key="completed" class="dashboard__section">
+      <div v-if="showCompletedSection" key="completed" class="dashboard__section">
         <CompletedSection
           :books="completedPreview"
           :overflow="completedOverflow"

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/services/supabase'
-import { mapBook, type Book, type BookRow, type BookStatus, type LibraryBookEntry } from '@/types'
+import { mapBook, type AddBookInput, type Book, type BookRow, type BookStatus, type LibraryBookEntry } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import {
   swrStatus,
@@ -188,6 +188,38 @@ export const useBooksStore = defineStore('books', () => {
     return book
   }
 
+  const normalizeInitialPage = (input: AddBookInput): number => {
+    if (input.initialStatus === 'queued') return 0
+    if (input.initialStatus === 'completed') return input.totalPages
+
+    const requestedPage = input.currentPage ?? 1
+    const lastInProgressPage = Math.max(0, input.totalPages - 1)
+    return Math.max(1, Math.min(requestedPage, lastInProgressPage))
+  }
+
+  const addBookWithInitialStatus = async (input: AddBookInput): Promise<Book> => {
+    const authStore = useAuthStore()
+    if (!authStore.user) throw new Error('Not authenticated')
+
+    const book = await addBook(input)
+    const uid = authStore.user.id
+
+    if (input.initialStatus !== 'queued') {
+      const { useProgressStore } = await import('@/stores/progress')
+      const progressStore = useProgressStore()
+      await progressStore.setInitialProgress(book.id, normalizeInitialPage(input))
+    }
+
+    swrTouch(cacheKeys.books(uid))
+    invalidate(cacheKeys.progress(uid))
+    invalidate(cacheKeys.library(uid))
+    invalidate(cacheKeys.readingStats(uid))
+    invalidate(cacheKeys.libraryBreakdown(uid))
+    invalidate(cacheKeys.velocity(uid))
+
+    return book
+  }
+
   const updateBook = async (
     id: string,
     changes: Partial<Pick<Book, 'title' | 'author' | 'totalPages' | 'genre' | 'coverUrl' | 'isbn'>>
@@ -227,7 +259,10 @@ export const useBooksStore = defineStore('books', () => {
     if (err) throw err
 
     books.value = books.value.filter(b => b.id !== id)
+    libraryEntries.value = libraryEntries.value.filter(entry => entry.id !== id)
     const uid = authStore.user.id
+    const { useProgressStore } = await import('@/stores/progress')
+    useProgressStore().removeLocalProgress(id)
 
     // Touch books + broad invalidation of all per-book keys
     swrTouch(cacheKeys.books(uid))
@@ -243,6 +278,6 @@ export const useBooksStore = defineStore('books', () => {
     books, libraryEntries, loading, error,
     fetchLibrary, fetchLibraryWithProgress,
     applyProgressSnapshot, replaceLibraryEntry,
-    bookById, addBook, updateBook, removeBook,
+    bookById, addBook, addBookWithInitialStatus, updateBook, removeBook,
   }
 })

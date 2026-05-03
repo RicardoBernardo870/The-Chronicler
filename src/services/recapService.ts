@@ -40,6 +40,8 @@ export async function streamRecap(
   onToken: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<StreamRecapResult> {
+  // Low-level transport only. Callers decide when AI is appropriate; completed
+  // book imports never route here unless the user explicitly requests a recap.
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) throw new Error('Not authenticated')
 
