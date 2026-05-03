@@ -34,15 +34,15 @@ const usernameState = ref({ valid: false, pending: false, message: null as strin
 
 const saving = computed(() => status.value === 'saving')
 const bioRemaining = computed(() => 160 - (form.bio?.length ?? 0))
-const saveDisabled = computed(() => {
-  const normalized = form.username.trim().toLowerCase()
-  const formatError = usernameFormatError(normalized)
-  return saving.value ||
-    usernameState.value.pending ||
-    !!formatError ||
-    bioRemaining.value < 0 ||
-    !usernameState.value.valid
-})
+// const saveDisabled = computed(() => {
+//   const normalized = form.username.trim().toLowerCase()
+//   const formatError = usernameFormatError(normalized)
+//   return saving.value ||
+//     usernameState.value.pending ||
+//     !!formatError ||
+//     bioRemaining.value < 0 ||
+//     !usernameState.value.valid
+// })
 
 const friendlyError = computed(() => {
   const code = saveError.value || error.value
