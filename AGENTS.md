@@ -39,6 +39,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-03
 - Supabase PostgreSQL; existing `community_profiles`, `community_profile_privacy`, `follows`, and `blocks`; new additive follow-count and search/index support (022-community-follows-blocks)
 - TypeScript 6.x, Vue 3.5 Composition API, PostgreSQL SQL/PLpgSQL for Supabase migration/RPC work + Vue Router 4, Pinia 3, Supabase JS v2, PrimeVue 4, existing SWR cache primitive, existing community profile/follow/block stores (023-also-reading-card)
 - Supabase PostgreSQL; existing `books`, `reading_progress`, `community_profiles`, `community_profile_privacy`, `follows`, and `blocks`; no new data table required (023-also-reading-card)
+- TypeScript 6.x, Vue 3.5 Composition API, PostgreSQL SQL/PLpgSQL for Supabase migration/RPC work + Vue Router 4, Pinia 3, Supabase JS v2, PrimeVue 4, existing SWR cache primitive, existing community profile/follow/block stores, existing also-reading/book detail surfaces (024-reading-circles)
+- Supabase PostgreSQL; existing `books`, `reading_progress`, `community_profiles`, `community_profile_privacy`, `follows`, and `blocks`; new `reading_circles`, `circle_invitations`, `circle_members`, and `circle_reactions` tables (024-reading-circles)
 
 - TypeScript 5.x + Vue 3.5+ + PrimeVue 4.x, Pinia 2.x, Vue Router 4.x, Supabase JS v2, (001-the-chronicler)
 
@@ -59,9 +61,9 @@ npm test; npm run lint
 TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 ## Recent Changes
+- 024-reading-circles: Added TypeScript 6.x, Vue 3.5 Composition API, PostgreSQL SQL/PLpgSQL for Supabase migration/RPC work + Vue Router 4, Pinia 3, Supabase JS v2, PrimeVue 4, existing SWR cache primitive, existing community profile/follow/block stores, existing also-reading/book detail surfaces
 - 023-also-reading-card: Added TypeScript 6.x, Vue 3.5 Composition API, PostgreSQL SQL/PLpgSQL for Supabase migration/RPC work + Vue Router 4, Pinia 3, Supabase JS v2, PrimeVue 4, existing SWR cache primitive, existing community profile/follow/block stores
 - 022-community-follows-blocks: Added durable community follow/block graph infrastructure: `community_follow_counts`, indexed follow/block cursor paths, block cleanup triggers, count reconciliation, stable RPCs for relationship state, follow/unfollow, reader search, follower/following lists, block/unblock, blocked-user management, and reusable interaction checks. Added `communityGraph` Pinia store/composable, follow/list/search/block management components, and public/settings profile page integrations. SQL follows Supabase RLS practices with fixed `search_path`, `(select auth.uid())`, indexed joins/filters, and server-side block/privacy enforcement.
-- 020-community-profiles: Added public reader profile foundation with additive Supabase tables (`community_profiles`, `community_profile_privacy`, `follows`, `blocks`), RLS-first policies, indexed username/follow/block lookup paths, stable community RPCs, anonymous execute revokes for authenticated-only RPCs, and Vue PWA routes for profile editing plus `/u/:username` public viewing. Sensitive sections default to `nobody`; hidden public sections are omitted server-side.
 
 
 <!-- MANUAL ADDITIONS START -->
@@ -69,5 +71,5 @@ TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan: specs/023-also-reading-card/plan.md
+shell commands, and other important information, read the current plan: specs/024-reading-circles/plan.md
 <!-- SPECKIT END -->

@@ -369,6 +369,160 @@ export interface AlsoReadingPage {
   totalVisible: number
 }
 
+// ---------------------------------------------------------------------------
+// Reading Circles (024)
+// ---------------------------------------------------------------------------
+
+export type CircleMemberRole = 'owner' | 'member'
+export type CircleInvitationStatus = 'pending' | 'accepted' | 'declined' | 'revoked' | 'expired'
+
+export interface ReadingCircleBookSummary {
+  bookId: string
+  title: string
+  author: string
+  coverUrl: string | null
+  normalizedIsbn?: string | null
+}
+
+export interface ReadingCircleSummary {
+  circleId: string
+  name: string
+  book: ReadingCircleBookSummary
+  memberCount: number
+  pendingInviteCount: number
+  latestReactionAt: string | null
+}
+
+export interface ReadingCircleListCircleItem {
+  type: 'circle'
+  circle: ReadingCircleSummary
+  viewerRole: CircleMemberRole
+}
+
+export interface ReadingCircleListInvitationItem {
+  type: 'invitation'
+  invitationId: string
+  circle: ReadingCircleSummary
+  invitedBy: {
+    userId: string
+    username: string
+    displayName: string | null
+    avatarUrl: string | null
+  }
+}
+
+export type ReadingCircleListItem = ReadingCircleListCircleItem | ReadingCircleListInvitationItem
+
+export interface ReadingCircleListPage {
+  items: ReadingCircleListItem[]
+  nextCursor: string | null
+}
+
+export interface ReadingCircleMember {
+  userId: string
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+  role: CircleMemberRole
+  joinedAt: string
+}
+
+export interface ReadingCirclePendingInvitation {
+  invitationId: string
+  userId: string
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+  status: CircleInvitationStatus
+  createdAt: string
+}
+
+export interface ReadingCircleViewerProgress {
+  role: CircleMemberRole
+  currentPage: number | null
+  totalPages: number | null
+  normalizedLocation: number | null
+}
+
+export interface ReadingCircleDetail {
+  circleId: string
+  name: string
+  book: ReadingCircleBookSummary
+  viewer: ReadingCircleViewerProgress
+  members: ReadingCircleMember[]
+  pendingInvitations: ReadingCirclePendingInvitation[]
+  createdAt: string
+}
+
+export interface ReadingCircleCreateResult {
+  circleId: string
+  created: boolean
+  invitedUserIds: string[]
+  skippedUserIds: string[]
+}
+
+export interface ReadingCircleInvitationResponse {
+  circleId: string
+  invitationId: string
+  status: CircleInvitationStatus
+  member: {
+    userId: string
+    role: CircleMemberRole
+    joinedAt: string
+  } | null
+}
+
+export interface ReadingCircleInviteResult {
+  circleId: string
+  invitedUserIds: string[]
+  skippedUserIds: string[]
+}
+
+export interface CircleReactionAuthor {
+  userId: string
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+}
+
+export interface CircleReaction {
+  reactionId: string
+  circleId: string
+  author: CircleReactionAuthor
+  content: string
+  sourcePage: number
+  sourceTotalPages: number
+  normalizedLocation: number
+  viewerEquivalentPage: number | null
+  createdAt: string
+}
+
+export interface CircleReactionPage {
+  items: CircleReaction[]
+  nextCursor: string | null
+  viewerProgressMissing?: boolean
+}
+
+export interface CircleReactionCreateResult {
+  reactionId: string
+  circleId: string
+  normalizedLocation: number
+  createdAt: string
+}
+
+export interface ReadingCircleLeaveResult {
+  circleId: string
+  left: boolean
+  newOwnerId: string | null
+}
+
+export interface ReadingCircleRemoveMemberResult {
+  circleId: string
+  userId: string
+  removed: boolean
+  revokedInvitation: boolean
+}
+
 export interface ReadingProgressRow {
   id: string
   book_id: string

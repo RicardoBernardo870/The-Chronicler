@@ -13,6 +13,7 @@ import BookProgressPanel from "@/components/book/BookProgressPanel.vue";
 import RecapStream from "@/components/recap/RecapStream.vue";
 import LoreChronoscopeCard from "@/components/lore/LoreChronoscopeCard.vue";
 import AlsoReadingCard from "@/components/community/AlsoReadingCard.vue";
+import ReadingCirclesPanel from "@/components/community/ReadingCirclesPanel.vue";
 import AddWordDialog from "@/components/lexicon/AddWordDialog.vue";
 import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 import Button from "primevue/button";
@@ -153,6 +154,12 @@ const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
         :book-id="book.id"
         :isbn="book.isbn"
         :viewer-progress-percentage="progress?.percentage ?? null"
+      />
+
+      <ReadingCirclesPanel
+        :book-id="book.id"
+        :current-page="progress?.currentPage ?? null"
+        :progress-percentage="progress?.percentage ?? null"
       />
 
       <!-- Post-session page capture prompt (appears immediately after saving progress with an active session) -->
