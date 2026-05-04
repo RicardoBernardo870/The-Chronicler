@@ -3,9 +3,11 @@ import { createClient } from "@supabase/supabase-js"
 import { corsHeaders } from "../cors.ts"
 import { handleImageGeneration } from "./image.ts"
 import type { RecapImageRequestBody } from "../types.ts"
+import type { OpenAIClient } from "../openaiClient.ts"
 
 export const handleRecapImage = async (
   ai: any,
+  openai: OpenAIClient,
   body: RecapImageRequestBody,
   userId: string,
 ): Promise<Response> => {
@@ -14,7 +16,7 @@ export const handleRecapImage = async (
     return jsonResponse(503, { error: "Supabase admin client not configured" })
   }
 
-  waitUntil(handleImageGeneration(admin, ai, {
+  waitUntil(handleImageGeneration(admin, ai, openai, {
     recapId: body.recapId,
     userId,
     bookTitle: body.title,

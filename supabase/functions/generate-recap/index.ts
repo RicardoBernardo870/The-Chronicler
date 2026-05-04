@@ -5,6 +5,7 @@
 import { corsHeaders, handleOptions } from "./cors.ts"
 import { manualJwtDecode } from "./auth.ts"
 import { createGeminiClient } from "./aiClient.ts"
+import { createOpenAIClient } from "./openaiClient.ts"
 import { resolveMode } from "./router.ts"
 import { handleBlurb } from "./handlers/blurb.ts"
 import { handlePassport } from "./handlers/passport.ts"
@@ -44,13 +45,18 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(503, { error: "AI service not configured" })
     }
 
+    const openai = body.mode === "recap_image" ? createOpenAIClient() : null
+    if (body.mode === "recap_image" && !openai) {
+      return jsonResponse(503, { error: "OpenAI image service not configured" })
+    }
+
     // ── Dispatch ────────────────────────────────────────────────────────────
     const mode = resolveMode(body as RequestBody)
     switch (mode) {
       case "passport_summary": return await handlePassport(ai, body as RequestBody)
       case "blurb":             return await handleBlurb(ai, body as RequestBody)
       case "recap":             return await handleRecap(ai, body as RequestBody)
-      case "recap_image":        return await handleRecapImage(ai, body as RecapImageRequestBody, userId)
+      case "recap_image":        return await handleRecapImage(ai, openai!, body as RecapImageRequestBody, userId)
     }
   } catch (err) {
     console.error("Edge function error:", err)

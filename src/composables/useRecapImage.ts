@@ -3,7 +3,7 @@ import { supabase } from '@/services/supabase'
 import type { RecapImageStatus } from '@/types'
 
 interface UseRecapImageInput {
-  recapId: MaybeRefOrGetter<string>
+  recapId: MaybeRefOrGetter<string | null | undefined>
   imageStatus: MaybeRefOrGetter<RecapImageStatus>
   imagePath: MaybeRefOrGetter<string | null>
 }
@@ -91,6 +91,11 @@ export const useRecapImage = (input: UseRecapImageInput) => {
     (recapId) => {
       unsubscribe()
       clearPoll()
+      if (!recapId) {
+        signedUrl.value = null
+        return
+      }
+
       channel = supabase
         .channel(`recap-image:${recapId}`)
         .on(
