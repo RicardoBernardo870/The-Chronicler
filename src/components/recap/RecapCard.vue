@@ -5,6 +5,7 @@ import AccordionPanel from 'primevue/accordionpanel'
 import AccordionHeader from 'primevue/accordionheader'
 import AccordionContent from 'primevue/accordioncontent'
 import { formatShortDate } from '@/utils/date'
+import RecapImagePanel from '@/components/recap/RecapImagePanel.vue'
 
 const props = defineProps<{
   recap: Recap
@@ -30,6 +31,12 @@ const formatDate = (iso: string): string => formatShortDate(iso)
         {{ formatDate(recap.createdAt) }}
       </time>
     </header>
+
+    <RecapImagePanel
+      :recap-id="recap.id"
+      :image-status="recap.imageStatus"
+      :image-path="recap.imagePath"
+    />
 
     <Accordion :value="['0']" multiple class="recap-accordion">
       <AccordionPanel value="0">

@@ -9,7 +9,8 @@ import { resolveMode } from "./router.ts"
 import { handleBlurb } from "./handlers/blurb.ts"
 import { handlePassport } from "./handlers/passport.ts"
 import { handleRecap } from "./handlers/recap.ts"
-import type { RequestBody } from "./types.ts"
+import { handleRecapImage } from "./handlers/recapImage.ts"
+import type { RecapImageRequestBody, RequestBody } from "./types.ts"
 
 Deno.serve(async (req: Request) => {
   const preflight = handleOptions(req)
@@ -28,8 +29,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Body validation ─────────────────────────────────────────────────────
-    const body = (await req.json()) as RequestBody
-    if (!body.title || !body.author || body.percentage === undefined || !body.totalPages) {
+    const body = (await req.json()) as RequestBody | RecapImageRequestBody
+    if (body.mode === "recap_image") {
+      if (!body.recapId || !body.title || !body.memoryJogger) {
+        return jsonResponse(400, { error: "Missing required image fields" })
+      }
+    } else if (!body.title || !body.author || body.percentage === undefined || !body.totalPages) {
       return jsonResponse(400, { error: "Missing required fields" })
     }
 
@@ -40,11 +45,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Dispatch ────────────────────────────────────────────────────────────
-    const mode = resolveMode(body)
+    const mode = resolveMode(body as RequestBody)
     switch (mode) {
-      case "passport_summary": return await handlePassport(ai, body)
-      case "blurb":             return await handleBlurb(ai, body)
-      case "recap":             return await handleRecap(ai, body)
+      case "passport_summary": return await handlePassport(ai, body as RequestBody)
+      case "blurb":             return await handleBlurb(ai, body as RequestBody)
+      case "recap":             return await handleRecap(ai, body as RequestBody)
+      case "recap_image":        return await handleRecapImage(ai, body as RecapImageRequestBody, userId)
     }
   } catch (err) {
     console.error("Edge function error:", err)

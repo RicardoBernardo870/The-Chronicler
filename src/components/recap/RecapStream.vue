@@ -6,6 +6,7 @@ import Accordion from 'primevue/accordion'
 import AccordionPanel from 'primevue/accordionpanel'
 import AccordionHeader from 'primevue/accordionheader'
 import AccordionContent from 'primevue/accordioncontent'
+import RecapImagePanel from '@/components/recap/RecapImagePanel.vue'
 
 const props = defineProps<{
   bookId: string
@@ -20,6 +21,7 @@ const recapsStore = useRecapsStore()
 const status = computed(() => recapsStore.generationStatus)
 const streamingText = computed(() => recapsStore.streamingText)
 const error = computed(() => recapsStore.error)
+const currentRecap = computed(() => recapsStore.latestRecapForBook(props.bookId))
 
 // Parse streaming text as JSON sections when complete
 const parsedRecap = computed(() => {
@@ -68,6 +70,13 @@ const parsedRecap = computed(() => {
 
   <!-- Complete recap -->
    <div v-else-if="status === 'complete' && parsedRecap" class="recap-stream recap-stream--done">
+    <RecapImagePanel
+      v-if="currentRecap"
+      :recap-id="currentRecap.id"
+      :image-status="currentRecap.imageStatus"
+      :image-path="currentRecap.imagePath"
+    />
+
     <Accordion :value="['0']" multiple class="recap-accordion">
       <AccordionPanel value="0">
         <AccordionHeader class="recap-accordion__header recap-accordion__header--memory">
