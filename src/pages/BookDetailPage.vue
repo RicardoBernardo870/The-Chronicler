@@ -165,7 +165,7 @@ const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
       <LoreChronoscopeCard :book-id="bookId" :collapsible="true" :initial-collapsed="true" />
 
       <CompletedRecapImageCarousel
-        v-if="completedRecapImages.length > 0"
+        v-if="isComplete && completedRecapImages.length > 0"
         :recaps="completedRecapImages"
       />
 
