@@ -1,81 +1,90 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import type { Book, ReadingProgress } from '@/types'
-import { useLoreCardsStore } from '@/stores/loreCards'
-import { useProgressStore } from '@/stores/progress'
-import { useLastSession } from '@/composables/useLastSession'
-import RecapStream from '@/components/recap/RecapStream.vue'
-import SessionCaptureField from '@/components/session/SessionCaptureField.vue'
-import SessionStartButton from '@/components/session/SessionStartButton.vue'
-import Button from 'primevue/button'
-import Chip from 'primevue/chip'
-import Tag from 'primevue/tag'
-import ProgressBar from 'primevue/progressbar'
-import InputNumber from 'primevue/inputnumber'
-import { coverFallback } from '@/utils/coverFallback'
-import { Message } from 'primevue'
+import { computed, onMounted, ref, watch } from "vue";
+import type { Book, ReadingProgress } from "@/types";
+import { useLoreCardsStore } from "@/stores/loreCards";
+import { useProgressStore } from "@/stores/progress";
+import { useLastSession } from "@/composables/useLastSession";
+import RecapStream from "@/components/recap/RecapStream.vue";
+import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
+import SessionStartButton from "@/components/session/SessionStartButton.vue";
+import Button from "primevue/button";
+import Chip from "primevue/chip";
+import Tag from "primevue/tag";
+import ProgressBar from "primevue/progressbar";
+import InputNumber from "primevue/inputnumber";
+import { coverFallback } from "@/utils/coverFallback";
+import { Message } from "primevue";
 
 const props = defineProps<{
-  book: Book
-  progress: ReadingProgress | null
-  saving: boolean
-  justSaved: boolean
-  saveError: string | null
-  pageInput: number
-  heroWarning: boolean
-  pendingSync: boolean
-  recapTriggered: boolean
-  recapLocked: boolean
-  pagesUntilUnlock: number
-  recapLockLabel: string
-}>()
+  book: Book;
+  progress: ReadingProgress | null;
+  saving: boolean;
+  justSaved: boolean;
+  saveError: string | null;
+  pageInput: number;
+  heroWarning: boolean;
+  pendingSync: boolean;
+  recapTriggered: boolean;
+  recapLocked: boolean;
+  pagesUntilUnlock: number;
+  recapLockLabel: string;
+}>();
 
 const emit = defineEmits<{
-  'update:pageInput': [value: number]
-  save: []
-  getRecap: []
-  dismissRecap: []
-  viewBook: []
-  sessionConflict: [startedAt: Date]
-}>()
+  "update:pageInput": [value: number];
+  save: [];
+  getRecap: [];
+  dismissRecap: [];
+  viewBook: [];
+  sessionConflict: [startedAt: Date];
+}>();
 
-const loreStore = useLoreCardsStore()
-const progressStore = useProgressStore()
-const { lastSession, fetchLastSession } = useLastSession()
+const loreStore = useLoreCardsStore();
+const progressStore = useProgressStore();
+const { lastSession, fetchLastSession } = useLastSession();
 
-const showCaptureField = ref(false)
-const pendingHistoryRowId = ref<string | null>(null)
-const pendingBookId = ref<string | null>(null)
+const showCaptureField = ref(false);
+const pendingHistoryRowId = ref<string | null>(null);
+const pendingBookId = ref<string | null>(null);
 
-watch(() => progressStore.lastSessionEnded, (event) => {
-  if (event?.bookId === props.book.id) {
-    pendingHistoryRowId.value = event.historyRowId
-    pendingBookId.value = event.bookId
-    showCaptureField.value = true
-  }
-}, { immediate: true })
+watch(
+  () => progressStore.lastSessionEnded,
+  (event) => {
+    if (event?.bookId === props.book.id) {
+      pendingHistoryRowId.value = event.historyRowId;
+      pendingBookId.value = event.bookId;
+      showCaptureField.value = true;
+    }
+  },
+  { immediate: true },
+);
 
-watch(() => props.book.id, () => {
-  if (pendingBookId.value !== props.book.id) {
-    showCaptureField.value = false
-    pendingHistoryRowId.value = null
-    pendingBookId.value = null
-  }
-})
+watch(
+  () => props.book.id,
+  () => {
+    if (pendingBookId.value !== props.book.id) {
+      showCaptureField.value = false;
+      pendingHistoryRowId.value = null;
+      pendingBookId.value = null;
+    }
+  },
+);
 
 const heroSessionNote = computed(() =>
-  lastSession.value?.bookId === props.book.id ? lastSession.value.sessionNote : null,
-)
+  lastSession.value?.bookId === props.book.id
+    ? lastSession.value.sessionNote
+    : null,
+);
 
 const handleCaptureComplete = () => {
-  showCaptureField.value = false
-  pendingHistoryRowId.value = null
-  pendingBookId.value = null
-  progressStore.consumeSessionEnded()
-  fetchLastSession()
-}
+  showCaptureField.value = false;
+  pendingHistoryRowId.value = null;
+  pendingBookId.value = null;
+  progressStore.consumeSessionEnded();
+  fetchLastSession();
+};
 
-onMounted(() => fetchLastSession())
+onMounted(() => fetchLastSession());
 </script>
 
 <template>
@@ -119,7 +128,9 @@ onMounted(() => fetchLastSession())
             :show-value="false"
             class="hero-card__progress-bar"
           />
-          <span class="hero-card__pct">{{ (progress?.percentage ?? 0).toFixed(1) }}%</span>
+          <span class="hero-card__pct"
+            >{{ (progress?.percentage ?? 0).toFixed(1) }}%</span
+          >
         </div>
 
         <p class="hero-card__page-hint">
@@ -161,7 +172,11 @@ onMounted(() => fetchLastSession())
     </Transition>
 
     <Transition name="hero-card__fade">
-      <Message v-if="heroWarning" severity="warn" class="hero-card__continuity-warning">
+      <Message
+        v-if="heroWarning"
+        severity="warn"
+        class="hero-card__continuity-warning"
+      >
         It's been a while — time for a Memory Jogger?
       </Message>
     </Transition>
@@ -200,7 +215,10 @@ onMounted(() => fetchLastSession())
     </div>
 
     <Transition name="hero-card__detail" mode="out-in">
-      <div v-if="showCaptureField && pendingHistoryRowId && pendingBookId" class="hero-card__detail-block">
+      <div
+        v-if="showCaptureField && pendingHistoryRowId && pendingBookId"
+        class="hero-card__detail-block"
+      >
         <hr class="hero-card__sep" />
         <SessionCaptureField
           :history-row-id="pendingHistoryRowId"
@@ -270,8 +288,13 @@ onMounted(() => fetchLastSession())
 }
 
 @keyframes pulse-amber {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
-  50%       { box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.15); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.15);
+  }
 }
 
 .hero-card__hero {
@@ -280,7 +303,9 @@ onMounted(() => fetchLastSession())
   align-items: flex-start;
 }
 
-.hero-card__cover-wrap { flex-shrink: 0; }
+.hero-card__cover-wrap {
+  flex-shrink: 0;
+}
 
 .hero-card__cover {
   width: 88px;
@@ -351,7 +376,9 @@ onMounted(() => fetchLastSession())
   margin-top: 0.5rem;
 }
 
-.hero-card__progress-bar { flex: 1; }
+.hero-card__progress-bar {
+  flex: 1;
+}
 
 .hero-card__pct {
   font-size: 0.8rem;
@@ -373,7 +400,9 @@ onMounted(() => fetchLastSession())
   align-items: center;
 }
 
-.hero-card__page-input { flex: 1; }
+.hero-card__page-input {
+  flex: 1;
+}
 
 .hero-card__error {
   margin: 0;
@@ -471,11 +500,17 @@ onMounted(() => fetchLastSession())
   padding: 0.25rem 0.55rem 0.25rem 0.45rem;
   border-radius: 999px;
   border: none;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.85), rgba(167, 139, 250, 0.85));
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.85),
+    rgba(167, 139, 250, 0.85)
+  );
   color: #fff;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
-  transition: opacity 0.15s, transform 0.15s;
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
 }
 
 .hero-card__new-lore-chip:hover {
@@ -489,7 +524,9 @@ onMounted(() => fetchLastSession())
   outline-offset: 2px;
 }
 
-.hero-card__new-lore-chip .pi { font-size: 0.65rem; }
+.hero-card__new-lore-chip .pi {
+  font-size: 0.65rem;
+}
 
 /* Inline recap panel */
 .hero-card__inline-panel {
@@ -525,8 +562,12 @@ onMounted(() => fetchLastSession())
   transition: opacity 0.15s;
 }
 
-.hero-card__inline-dismiss:hover { opacity: 0.9; }
-.hero-card__inline-dismiss .pi { font-size: 0.8rem; }
+.hero-card__inline-dismiss:hover {
+  opacity: 0.9;
+}
+.hero-card__inline-dismiss .pi {
+  font-size: 0.8rem;
+}
 
 .hero-card__fade-enter-active,
 .hero-card__fade-leave-active {

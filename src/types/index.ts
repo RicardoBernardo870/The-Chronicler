@@ -26,6 +26,13 @@ export interface ReadingProgress {
 
 export type RecapMode = 'corpus' | 'inferred'
 
+export type RecapImageStatus =
+  | 'pending'
+  | 'succeeded'
+  | 'failed_safety'
+  | 'failed_transient'
+  | 'skipped'
+
 export interface Recap {
   id: string
   bookId: string
@@ -37,6 +44,9 @@ export interface Recap {
   thematicBridge: string
   mode: RecapMode               // 015 — which generation path produced this row
   createdAt: string
+  imagePath: string | null
+  imageStatus: RecapImageStatus
+  imageGeneratedAt: string | null
 }
 
 export interface BookMetadata {
@@ -210,6 +220,9 @@ export interface RecapRow {
   thematic_bridge: string
   mode: RecapMode               // 015
   created_at: string
+  image_path: string | null
+  image_status: RecapImageStatus | null
+  image_generated_at: string | null
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -249,6 +262,9 @@ export const mapRecap = (row: RecapRow): Recap => ({
   thematicBridge: row.thematic_bridge,
   mode: row.mode ?? 'inferred',  // 015 — DEFAULT 'inferred' on historical rows
   createdAt: row.created_at,
+  imagePath: row.image_path ?? null,
+  imageStatus: row.image_status ?? 'skipped',
+  imageGeneratedAt: row.image_generated_at ?? null,
 })
 
 // ─────────────────────────────────────────────────────────────

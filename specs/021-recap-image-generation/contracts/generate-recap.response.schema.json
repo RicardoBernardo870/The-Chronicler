@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bookhero.app/contracts/021/generate-recap.response.schema.json",
+  "title": "GenerateRecapResponse",
+  "description": "Response shape returned by the supabase.functions.invoke('generate-recap') call after feature 021. The `image` field is forward-additive: clients written before feature 021 continue to work because they ignore unknown properties.",
+  "type": "object",
+  "required": [
+    "id",
+    "memory_jogger",
+    "thematic_bridge",
+    "concept_watchlist",
+    "image"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Recap row id; client uses this to subscribe to image-status updates via Realtime."
+    },
+    "memory_jogger": {
+      "type": "string",
+      "description": "EXISTING — recent events recap. Source-of-truth for the image prompt."
+    },
+    "thematic_bridge": {
+      "type": "string",
+      "description": "EXISTING — current narrative vibe."
+    },
+    "concept_watchlist": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "EXISTING — key figures/ideas."
+    },
+    "progress_snapshot": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "EXISTING — percentage at time of recap."
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["standard", "corpus"],
+      "description": "EXISTING — recap mode."
+    },
+    "image": {
+      "type": "object",
+      "description": "NEW (021) — image metadata. The actual image bytes are NOT in the response; the client retrieves them via a signed URL minted from `path`.",
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pending", "succeeded", "failed_safety", "failed_transient", "skipped"],
+          "description": "Initial state; will be 'pending' for newly generated recaps. Clients subscribe to the recap row via Realtime to observe transitions."
+        },
+        "path": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f-]{36}/[0-9a-f-]{36}\\.(png|jpe?g|webp)$",
+          "description": "Bucket-relative path inside `recap-images`. Null until status='succeeded'."
+        },
+        "generated_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "ISO timestamp when status flipped to 'succeeded'. Null otherwise."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}
