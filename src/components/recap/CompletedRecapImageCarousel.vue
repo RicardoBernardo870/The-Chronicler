@@ -23,7 +23,6 @@ defineProps<{
       :num-scroll="1"
       :circular="recaps.length > 1"
       :show-indicators="recaps.length > 1"
-      :show-navigators="recaps.length > 1"
       class="completed-recap-carousel__carousel"
     >
       <template #item="{ data }">
