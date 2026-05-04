@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { refineImagePrompt, type ImagePromptInput } from "../prompts/imagePromptRefiner.ts"
 import { uploadRecapImage } from "../utils/storage.ts"
+import type { OpenAIClient } from "../openaiClient.ts"
 
 type FinalImageStatus = "succeeded" | "failed_safety" | "failed_transient"
 
@@ -33,48 +34,53 @@ const updateRecapImage = async (
   if (error) throw error
 }
 
-const isSafetyResponse = (response: any): boolean => {
-  const reason = String(
-    response?.promptFeedback?.blockReason
-      ?? response?.candidates?.[0]?.finishReason
-      ?? "",
-  ).toLowerCase()
-  return reason.includes("safety") || reason.includes("block") || reason.includes("prohibited")
-}
-
-const extractImageBytes = (response: any): Uint8Array => {
-  if (isSafetyResponse(response)) {
-    throw new ImageGenerationError("safety", "Image generation blocked by safety filters")
-  }
-
-  const parts = response?.candidates?.[0]?.content?.parts ?? []
-  const imagePart = parts.find((part: any) => part?.inlineData?.data || part?.inline_data?.data)
-  const base64 = imagePart?.inlineData?.data ?? imagePart?.inline_data?.data
-  if (!base64) throw new ImageGenerationError("transient", "Image generation returned no image bytes")
-
-  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0))
-}
-
 const classifyThrownError = (err: unknown): ImageGenerationError => {
   if (err instanceof ImageGenerationError) return err
   const status = Number((err as { status?: number })?.status ?? (err as { code?: number })?.code ?? 0)
   const message = err instanceof Error ? err.message : String(err)
+  if (/safety|policy|moderation|content policy|blocked/i.test(message)) {
+    return new ImageGenerationError("safety", message)
+  }
   if (status === 429 || status >= 500 || /network|fetch|timeout|temporar/i.test(message)) {
     return new ImageGenerationError("transient", message)
   }
   return new ImageGenerationError("transient", message)
 }
 
-const generateImageBytes = async (ai: any, prompt: string): Promise<Uint8Array> => {
+const generateImageBytes = async (openai: OpenAIClient, prompt: string): Promise<Uint8Array> => {
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: {
-        responseModalities: ["IMAGE"],
+    const response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openai.apiKey}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        model: openai.imageModel,
+        prompt,
+        size: "1024x1024",
+        n: 1,
+        quality: "low",
+      }),
     })
-    return extractImageBytes(response)
+
+    const payload = await response.json().catch(() => null)
+    if (!response.ok) {
+      const message = payload?.error?.message ?? `OpenAI image generation failed with HTTP ${response.status}`
+      const kind = response.status === 429 || response.status >= 500
+        ? "transient"
+        : /safety|policy|moderation|content policy|blocked/i.test(message)
+          ? "safety"
+          : "transient"
+      throw new ImageGenerationError(kind, message)
+    }
+
+    const base64 = payload?.data?.[0]?.b64_json
+    if (!base64) {
+      throw new ImageGenerationError("transient", "OpenAI image generation returned no image bytes")
+    }
+
+    return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0))
   } catch (err) {
     throw classifyThrownError(err)
   }
@@ -83,6 +89,7 @@ const generateImageBytes = async (ai: any, prompt: string): Promise<Uint8Array> 
 export const handleImageGeneration = async (
   adminClient: any,
   ai: any,
+  openai: OpenAIClient,
   job: ImageGenerationJob,
 ): Promise<void> => {
   const startedAt = Date.now()
@@ -101,7 +108,7 @@ export const handleImageGeneration = async (
     let imageBytes: Uint8Array | null = null
 
     try {
-      imageBytes = await generateImageBytes(ai, prompt)
+      imageBytes = await generateImageBytes(openai, prompt)
     } catch (err) {
       const imageErr = classifyThrownError(err)
 
@@ -109,7 +116,7 @@ export const handleImageGeneration = async (
         safetyRetryUsed = true
         prompt = await refineImagePrompt(ai, { ...job, softer: true })
         try {
-          imageBytes = await generateImageBytes(ai, prompt)
+          imageBytes = await generateImageBytes(openai, prompt)
         } catch (retryErr) {
           const retryImageErr = classifyThrownError(retryErr)
           finalStatus = retryImageErr.kind === "safety" ? "failed_safety" : "failed_transient"
@@ -118,7 +125,7 @@ export const handleImageGeneration = async (
         transientRetryUsed = true
         await sleep(job.retryBackoffMs ?? 2000)
         try {
-          imageBytes = await generateImageBytes(ai, prompt)
+          imageBytes = await generateImageBytes(openai, prompt)
         } catch {
           finalStatus = "failed_transient"
         }

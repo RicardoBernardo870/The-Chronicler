@@ -11,6 +11,7 @@ import { useRecapLock } from "@/composables/useRecapLock";
 import BookDetailHeader from "@/components/book/BookDetailHeader.vue";
 import BookProgressPanel from "@/components/book/BookProgressPanel.vue";
 import RecapStream from "@/components/recap/RecapStream.vue";
+import CompletedRecapImageCarousel from "@/components/recap/CompletedRecapImageCarousel.vue";
 import LoreChronoscopeCard from "@/components/lore/LoreChronoscopeCard.vue";
 import AddWordDialog from "@/components/lexicon/AddWordDialog.vue";
 import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
@@ -96,6 +97,10 @@ const isComplete = computed(() => percentage.value >= 100);
 const canViewJourney = computed(() => Boolean(passportStore.passportFor(bookId.value)));
 const isGenerating = computed(() => recapsStore.generationStatus === "streaming");
 const recapCount = computed(() => recapsStore.recapHistoryForBook(bookId.value).length);
+const completedRecapImages = computed(() =>
+  recapsStore.recapHistoryForBook(bookId.value)
+    .filter((recap) => Boolean(recap.id) && recap.imageStatus === "succeeded" && Boolean(recap.imagePath)),
+);
 
 const { recapLocked, pagesUntilUnlock, recapLockLabel } = useRecapLock(bookId);
 
@@ -158,6 +163,11 @@ const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
       />
 
       <LoreChronoscopeCard :book-id="bookId" :collapsible="true" :initial-collapsed="true" />
+
+      <CompletedRecapImageCarousel
+        v-if="completedRecapImages.length > 0"
+        :recaps="completedRecapImages"
+      />
 
       <section v-if="!isComplete" class="book-detail__recap glass-surface">
         <div class="book-detail__recap-header">
