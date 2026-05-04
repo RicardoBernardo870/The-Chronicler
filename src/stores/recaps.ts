@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 import { supabase } from '@/services/supabase'
-import { streamRecap, type StreamRecapResult } from '@/services/recapService'
+import { requestRecapImage, streamRecap, type StreamRecapResult } from '@/services/recapService'
 import { mapRecap, type Recap, type RecapRow, type RecapGenerationStatus, type RecapMode } from '@/types'
 import { useBooksStore } from '@/stores/books'
 import { useProgressStore } from '@/stores/progress'
@@ -123,6 +123,7 @@ export const useRecapsStore = defineStore('recaps', () => {
           concept_watchlist: result.conceptWatchlist,
           thematic_bridge: result.thematicBridge,
           mode: selectedMode,  // 015-corpus-recaps
+          image_status: 'pending',
         })
         .select()
         .single()
@@ -131,6 +132,18 @@ export const useRecapsStore = defineStore('recaps', () => {
       const newRecap = mapRecap(data as RecapRow)
       if (!recapsByBook[bookId]) recapsByBook[bookId] = []
       recapsByBook[bookId].unshift(newRecap)
+
+      requestRecapImage({
+        recapId: newRecap.id,
+        title: book.title,
+        author: book.author,
+        genre: book.genre,
+        memoryJogger: newRecap.memoryJogger,
+        fromPage,
+        currentPage,
+      }).catch((imageErr) => {
+        console.warn('Recap image generation request failed:', imageErr)
+      })
 
       // T015: invalidate the history cache so the Recap History page refetches
       // on next visit. Only the history list key — streaming paths untouched.

@@ -49,16 +49,18 @@ const currentBook = activeBook;
 const { state: dashboardState } = useDashboardOnboardingState();
 
 const currentProgress = computed(() =>
-  activeBookId.value ? (progressStore.progressForBook(activeBookId.value) ?? null) : null,
+  activeBookId.value
+    ? (progressStore.progressForBook(activeBookId.value) ?? null)
+    : null,
 );
 
-const loading = ref(true)
-const pageInput = ref<number>(0)
-const saving = ref(false)
-const saveError = ref<string | null>(null)
-const justSaved = ref(false)
-const recapTriggered = ref<boolean>(false)
-const recapAbortController = ref<AbortController | null>(null)
+const loading = ref(true);
+const pageInput = ref<number>(0);
+const saving = ref(false);
+const saveError = ref<string | null>(null);
+const justSaved = ref(false);
+const recapTriggered = ref<boolean>(false);
+const recapAbortController = ref<AbortController | null>(null);
 
 const { recapLocked, pagesUntilUnlock, recapLockLabel } = useRecapLock(
   computed(() => activeBookId.value ?? ""),
@@ -86,7 +88,9 @@ onUnmounted(() => {
 
 watch(activeBookId, (newId, _oldId, onCleanup) => {
   const ctrl = recapAbortController.value;
-  onCleanup(() => { ctrl?.abort(); });
+  onCleanup(() => {
+    ctrl?.abort();
+  });
 
   if (newId) {
     pageInput.value = progressStore.progressForBook(newId)?.currentPage ?? 0;
@@ -125,35 +129,42 @@ const heroPulse = computed(() => {
   return _pulse;
 });
 
-const heroWarning = computed(() => (heroPulse.value?.continuityScore.value ?? 100) < 40)
+const heroWarning = computed(
+  () => (heroPulse.value?.continuityScore.value ?? 100) < 40,
+);
 
 onMounted(async () => {
   try {
     // 017 — single RPC replaces sequential fetchLibrary + fetchProgress pair
-    await booksStore.fetchLibraryWithProgress()
+    await booksStore.fetchLibraryWithProgress();
     await Promise.all([
       progressStore.fetchProgress(),
       upNextStore.fetchOrder(),
-    ])
-    await lexiconStore.fetchEntriesForAllBooks()
-    if (authStore.user) lexiconStore.resolveWordOfTheDay(authStore.user.id)
-    loreStore.fetchLoreForAllBooks().catch(() => {})
-    initializeIfNeeded()
-    const id = activeBookId.value
+    ]);
+    await lexiconStore.fetchEntriesForAllBooks();
+    if (authStore.user) lexiconStore.resolveWordOfTheDay(authStore.user.id);
+    loreStore.fetchLoreForAllBooks().catch(() => {});
+    initializeIfNeeded();
+    const id = activeBookId.value;
     if (id) {
-      recapsStore.fetchRecapsForBook(id).catch(() => {})
-      nextHeroPulse(id)
-      pageInput.value = progressStore.progressForBook(id)?.currentPage ?? 0
+      recapsStore.fetchRecapsForBook(id).catch(() => {});
+      nextHeroPulse(id);
+      pageInput.value = progressStore.progressForBook(id)?.currentPage ?? 0;
     }
-  } finally { loading.value = false }
-})
+  } finally {
+    loading.value = false;
+  }
+});
 
 watch(
-  () => progressStore.inProgressBooks.map(item => `${item.book.id}:${item.progress.updatedAt}`).join('|'),
+  () =>
+    progressStore.inProgressBooks
+      .map((item) => `${item.book.id}:${item.progress.updatedAt}`)
+      .join("|"),
   () => {
-    if (!loading.value) initializeIfNeeded()
+    if (!loading.value) initializeIfNeeded();
   },
-)
+);
 
 const upNextBooks = computed(() => {
   const zeroBooks = booksStore.books.filter(
@@ -168,25 +179,37 @@ const upNextBooks = computed(() => {
   ];
 });
 
-const completedPreview = computed(() => progressStore.completedBooks.slice(0, 2))
-const completedOverflow = computed(() => Math.max(0, progressStore.completedBooks.length - 2))
-const pendingSync = computed(() => progressStore.pendingSync)
-const showReadingSupportSections = computed(() =>
-  dashboardState.value.kind === 'standard' || dashboardState.value.kind === 'oneInProgress',
-)
-const showInProgressSection = computed(() =>
-  showReadingSupportSections.value && inProgressUpNext.value.length > 0,
-)
-const showUpNextSection = computed(() =>
-  dashboardState.value.kind === 'standard' && upNextBooks.value.length > 0,
-)
-const showCompletedSection = computed(() =>
-  dashboardState.value.kind !== 'completedOnly' && completedPreview.value.length > 0,
-)
+const completedPreview = computed(() =>
+  progressStore.completedBooks.slice(0, 2),
+);
+const completedOverflow = computed(() =>
+  Math.max(0, progressStore.completedBooks.length - 2),
+);
+const pendingSync = computed(() => progressStore.pendingSync);
+const showReadingSupportSections = computed(
+  () =>
+    dashboardState.value.kind === "standard" ||
+    dashboardState.value.kind === "oneInProgress",
+);
+const showInProgressSection = computed(
+  () => showReadingSupportSections.value && inProgressUpNext.value.length > 0,
+);
+const showUpNextSection = computed(
+  () =>
+    dashboardState.value.kind === "standard" && upNextBooks.value.length > 0,
+);
+const showCompletedSection = computed(
+  () =>
+    dashboardState.value.kind !== "completedOnly" &&
+    completedPreview.value.length > 0,
+);
 
 const saveProgress = async () => {
   if (!currentBook.value) return;
-  const page = Math.max(0, Math.min(pageInput.value ?? 0, currentBook.value.totalPages));
+  const page = Math.max(
+    0,
+    Math.min(pageInput.value ?? 0, currentBook.value.totalPages),
+  );
   saving.value = true;
   saveError.value = null;
   justSaved.value = false;
@@ -195,7 +218,9 @@ const saveProgress = async () => {
     const prevPct = progressStore.progressForBook(heroId)?.percentage ?? 0;
     await progressStore.updateProgress(heroId, page);
     justSaved.value = true;
-    setTimeout(() => { justSaved.value = false; }, 2000);
+    setTimeout(() => {
+      justSaved.value = false;
+    }, 2000);
     const newPct =
       currentBook.value.totalPages > 0
         ? (page / currentBook.value.totalPages) * 100
@@ -211,7 +236,10 @@ const saveProgress = async () => {
 const handleSessionConflict = (startedAt: Date) => {
   if (!activeBookId.value) return;
   const bookId = activeBookId.value;
-  const timeStr = startedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const timeStr = startedAt.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   confirm.require({
     message: `You have an unfinished session started at ${timeStr}. Start a new one?`,
     header: "Replace session?",
@@ -235,106 +263,141 @@ const handleSessionConflict = (startedAt: Date) => {
     <h1 class="dashboard__heading">Your Reading</h1>
 
     <Transition name="dashboard-switch" mode="out-in" appear>
-    <!-- Loading -->
-    <template v-if="loading" key="loading">
-      <div class="dashboard__skeleton glass-surface">
-        <Skeleton height="160px" border-radius="12px" />
-        <Skeleton height="1.25rem" width="55%" style="margin-top: 1rem" />
-        <Skeleton height="0.875rem" width="35%" style="margin-top: 0.5rem" />
-      </div>
-    </template>
+      <!-- Loading -->
+      <template v-if="loading" key="loading">
+        <div class="dashboard__skeleton glass-surface">
+          <Skeleton height="160px" border-radius="12px" />
+          <Skeleton height="1.25rem" width="55%" style="margin-top: 1rem" />
+          <Skeleton height="0.875rem" width="35%" style="margin-top: 0.5rem" />
+        </div>
+      </template>
 
-    <!-- No books -->
-    <DashboardEmptyState
-      v-else-if="dashboardState.kind === 'empty'"
-      key="empty"
-      variant="empty"
-      @add-book="router.push('/books/add')"
-    />
+      <!-- No books -->
+      <DashboardEmptyState
+        v-else-if="dashboardState.kind === 'empty'"
+        key="empty"
+        variant="empty"
+        @add-book="router.push('/books/add')"
+      />
 
-    <DashboardEmptyState
-      v-else-if="dashboardState.kind === 'oneQueued'"
-      key="one-queued"
-      variant="queued"
-      :book="dashboardState.singleQueuedBook"
-      @add-book="router.push('/books/add')"
-      @start-book="(id) => router.push({ name: 'book-detail', params: { id } })"
-    />
+      <DashboardEmptyState
+        v-else-if="dashboardState.kind === 'oneQueued'"
+        key="one-queued"
+        variant="queued"
+        :book="dashboardState.singleQueuedBook"
+        @add-book="router.push('/books/add')"
+        @start-book="
+          (id) => router.push({ name: 'book-detail', params: { id } })
+        "
+      />
 
-    <CompletedOnlyState
-      v-else-if="dashboardState.kind === 'completedOnly'"
-      key="completed-only"
-      :books="dashboardState.recentCompletedBooks"
-      :count="dashboardState.completedBookCount"
-      @add-book="router.push('/books/add')"
-      @view-book="(id) => router.push({ name: 'book-detail', params: { id } })"
-      @view-library="router.push('/library')"
-    />
+      <CompletedOnlyState
+        v-else-if="dashboardState.kind === 'completedOnly'"
+        key="completed-only"
+        :books="dashboardState.recentCompletedBooks"
+        :count="dashboardState.completedBookCount"
+        @add-book="router.push('/books/add')"
+        @view-book="
+          (id) => router.push({ name: 'book-detail', params: { id } })
+        "
+        @view-library="router.push('/library')"
+      />
 
-    <TransitionGroup
-      v-else
-      key="sections"
-      name="dashboard-section"
-      tag="div"
-      class="dashboard__sections"
-      appear
-    >
-      <div v-if="currentBook" :key="`hero-${currentBook.id}`" class="dashboard__section">
-        <HeroBookCard
-          :book="currentBook"
-          :progress="currentProgress"
-          :saving="saving"
-          :just-saved="justSaved"
-          :save-error="saveError"
-          :page-input="pageInput"
-          :hero-warning="heroWarning"
-          :pending-sync="pendingSync"
-          :recap-triggered="recapTriggered"
-          :recap-locked="recapLocked"
-          :pages-until-unlock="pagesUntilUnlock"
-          :recap-lock-label="recapLockLabel"
-          @update:page-input="(v) => (pageInput = v)"
-          @save="saveProgress"
-          @get-recap="handleGetRecap"
-          @dismiss-recap="handleDismissRecap"
-          @view-book="router.push({ name: 'book-detail', params: { id: currentBook!.id } })"
-          @session-conflict="handleSessionConflict"
-        />
-      </div>
+      <TransitionGroup
+        v-else
+        key="sections"
+        name="dashboard-section"
+        tag="div"
+        class="dashboard__sections"
+        appear
+      >
+        <div
+          v-if="currentBook"
+          :key="`hero-${currentBook.id}`"
+          class="dashboard__section"
+        >
+          <HeroBookCard
+            :book="currentBook"
+            :progress="currentProgress"
+            :saving="saving"
+            :just-saved="justSaved"
+            :save-error="saveError"
+            :page-input="pageInput"
+            :hero-warning="heroWarning"
+            :pending-sync="pendingSync"
+            :recap-triggered="recapTriggered"
+            :recap-locked="recapLocked"
+            :pages-until-unlock="pagesUntilUnlock"
+            :recap-lock-label="recapLockLabel"
+            @update:page-input="(v) => (pageInput = v)"
+            @save="saveProgress"
+            @get-recap="handleGetRecap"
+            @dismiss-recap="handleDismissRecap"
+            @view-book="
+              router.push({
+                name: 'book-detail',
+                params: { id: currentBook!.id },
+              })
+            "
+            @session-conflict="handleSessionConflict"
+          />
+        </div>
 
-      <div v-if="showReadingSupportSections" key="word-of-day" class="dashboard__section">
-        <WordOfTheDay />
-      </div>
+        <div
+          v-if="showReadingSupportSections"
+          key="word-of-day"
+          class="dashboard__section"
+        >
+          <WordOfTheDay />
+        </div>
 
-      <div v-if="showReadingSupportSections" key="last-session" class="dashboard__section">
-        <LastSessionCard />
-      </div>
+        <div
+          v-if="showReadingSupportSections"
+          key="last-session"
+          class="dashboard__section"
+        >
+          <LastSessionCard />
+        </div>
 
-      <div v-if="showInProgressSection" key="in-progress" class="dashboard__section">
-        <InProgressSection
-          :books="inProgressUpNext"
-          @select="setActive"
-          @view-book="(id) => router.push({ name: 'book-detail', params: { id } })"
-        />
-      </div>
+        <div
+          v-if="showInProgressSection"
+          key="in-progress"
+          class="dashboard__section"
+        >
+          <InProgressSection
+            :books="inProgressUpNext"
+            @select="setActive"
+            @view-book="
+              (id) => router.push({ name: 'book-detail', params: { id } })
+            "
+          />
+        </div>
 
-      <div v-if="showUpNextSection" key="up-next" class="dashboard__section">
-        <UpNextSection
-          :books="upNextBooks"
-          @update:books="(newOrder) => upNextStore.saveOrder(newOrder.map((b) => b.id))"
-          @select="setActive"
-        />
-      </div>
+        <div v-if="showUpNextSection" key="up-next" class="dashboard__section">
+          <UpNextSection
+            :books="upNextBooks"
+            @update:books="
+              (newOrder) => upNextStore.saveOrder(newOrder.map((b) => b.id))
+            "
+            @select="setActive"
+          />
+        </div>
 
-      <div v-if="showCompletedSection" key="completed" class="dashboard__section">
-        <CompletedSection
-          :books="completedPreview"
-          :overflow="completedOverflow"
-          @view-book="(id) => router.push({ name: 'book-detail', params: { id } })"
-          @view-library="router.push('/library')"
-        />
-      </div>
-    </TransitionGroup>
+        <div
+          v-if="showCompletedSection"
+          key="completed"
+          class="dashboard__section"
+        >
+          <CompletedSection
+            :books="completedPreview"
+            :overflow="completedOverflow"
+            @view-book="
+              (id) => router.push({ name: 'book-detail', params: { id } })
+            "
+            @view-library="router.push('/library')"
+          />
+        </div>
+      </TransitionGroup>
     </Transition>
   </div>
 </template>
@@ -370,6 +433,9 @@ const handleSessionConflict = (startedAt: Date) => {
 .dashboard__section {
   min-width: 0;
   will-change: transform, opacity;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
 .dashboard-switch-enter-active,

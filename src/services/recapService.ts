@@ -20,6 +20,15 @@ export interface RecapRequest {
   captures?: Array<{ page: number; text: string }>
 }
 
+export interface RecapImageRequest {
+  recapId: string
+  title: string
+  author: string | null
+  genre: string | null
+  memoryJogger: string
+  fromPage?: number
+  currentPage?: number
+}
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-recap`
 
@@ -114,6 +123,38 @@ export async function streamRecap(
     conceptWatchlist: concept_watchlist,
     thematicBridge: thematic_bridge,
     aborted: false,
+  }
+}
+
+export const requestRecapImage = async (request: RecapImageRequest): Promise<void> => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) throw new Error('Not authenticated')
+
+  const response = await fetch(EDGE_FUNCTION_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      mode: 'recap_image',
+      recapId: request.recapId,
+      title: request.title,
+      author: request.author,
+      genre: request.genre,
+      memoryJogger: request.memoryJogger,
+      fromPage: request.fromPage,
+      currentPage: request.currentPage,
+    }),
+  })
+
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`
+    try {
+      const err = await response.json()
+      message = err.error ?? message
+    } catch { /* ignore parse errors */ }
+    throw new Error(message)
   }
 }
 
