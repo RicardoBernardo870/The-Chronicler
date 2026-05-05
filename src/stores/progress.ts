@@ -16,6 +16,7 @@ import {
   registerRevalidator,
   cacheKeys,
 } from '@/composables/useCache'
+import { invalidateRetentionSummary } from '@/composables/useRetentionSummary'
 
 const TTL = 30_000 // 30 s — progress is more volatile than books
 
@@ -69,7 +70,11 @@ export const useProgressStore = defineStore('progress', () => {
   }
 
   const drainQueue = async (): Promise<void> => {
-    await flushQueue(syncToSupabase)
+    const authStore = useAuthStore()
+    const flushedCount = await flushQueue(syncToSupabase)
+    if (authStore.user && flushedCount > 0) {
+      invalidateRetentionSummary(authStore.user.id)
+    }
     pendingSync.value = false
   }
 
@@ -342,6 +347,7 @@ export const useProgressStore = defineStore('progress', () => {
         // Invalidate RPC aggregate caches so they revalidate on next access (017)
         invalidate(cacheKeys.lastSession(authStore.user.id))
         invalidate(cacheKeys.readingStats(authStore.user.id))
+        invalidateRetentionSummary(authStore.user.id)
 
         // T012 (013): insert progress_history with session_start_at
         const now = new Date().toISOString()

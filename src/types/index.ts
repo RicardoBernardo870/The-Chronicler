@@ -200,6 +200,28 @@ export interface LibraryBreakdown {
   avgCompletionPct: number
 }
 
+export type RetentionNudgeCode =
+  | 'signed_out'
+  | 'start_week'
+  | 'keep_going'
+  | 'almost_there'
+  | 'goal_met'
+  | 'comeback'
+
+/** Returned by get_retention_summary RPC. */
+export interface RetentionSummary {
+  weekStart: string | null
+  weekEnd: string | null
+  timezone: string
+  sessionsThisWeek: number
+  weeklyGoal: number
+  goalProgressPct: number
+  activeDaysThisWeek: number
+  lastSessionAt: string | null
+  daysSinceLastSession: number | null
+  nudgeCode: RetentionNudgeCode
+}
+
 export interface ReadingProgressRow {
   id: string
   book_id: string

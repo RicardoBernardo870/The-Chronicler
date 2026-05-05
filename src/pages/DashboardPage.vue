@@ -18,6 +18,7 @@ import InProgressSection from "@/components/dashboard/InProgressSection.vue";
 import UpNextSection from "@/components/dashboard/UpNextSection.vue";
 import CompletedSection from "@/components/dashboard/CompletedSection.vue";
 import LastSessionCard from "@/components/dashboard/LastSessionCard.vue";
+import ReadingPulseCard from "@/components/dashboard/ReadingPulseCard.vue";
 import WordOfTheDay from "@/components/dashboard/WordOfTheDay.vue";
 import Skeleton from "primevue/skeleton";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState.vue";
@@ -255,6 +256,14 @@ const handleSessionConflict = (startedAt: Date) => {
     },
   });
 };
+
+const handleReadingPulseContinue = () => {
+  if (!currentBook.value) return;
+  router.push({
+    name: "book-detail",
+    params: { id: currentBook.value.id },
+  });
+};
 </script>
 
 <template>
@@ -341,6 +350,14 @@ const handleSessionConflict = (startedAt: Date) => {
             "
             @session-conflict="handleSessionConflict"
           />
+        </div>
+
+        <div
+          v-if="showReadingSupportSections && currentBook"
+          key="reading-pulse"
+          class="dashboard__section"
+        >
+          <ReadingPulseCard @continue-reading="handleReadingPulseContinue" />
         </div>
 
         <div

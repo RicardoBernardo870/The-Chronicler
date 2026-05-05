@@ -223,5 +223,6 @@ describe('cacheKeys', () => {
     expect(cacheKeys.recaps('abc', 'b2')).toBe('recaps:abc:b2')
     expect(cacheKeys.bookPassport('abc', 'b3')).toBe('bookPassport:abc:b3')
     expect(cacheKeys.upNext('abc')).toBe('upNext:abc')
+    expect(cacheKeys.retentionSummary('abc')).toBe('retentionSummary:abc')
   })
 })

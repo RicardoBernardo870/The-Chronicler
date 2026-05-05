@@ -75,16 +75,19 @@ export function useOfflineSync() {
    */
   async function flushQueue(
     syncFn: (bookId: string, currentPage: number) => Promise<void>,
-  ): Promise<void> {
+  ): Promise<number> {
     const pending = await getAll()
+    let flushed = 0
     for (const mutation of pending) {
       try {
         await syncFn(mutation.payload.bookId, mutation.payload.currentPage)
         await dequeue(mutation.id!)
+        flushed++
       } catch {
         // Leave in queue; Background Sync will retry
       }
     }
+    return flushed
   }
 
   /** Register a Background Sync tag so the service worker can flush on reconnect */
