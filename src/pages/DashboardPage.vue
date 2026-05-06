@@ -12,6 +12,7 @@ import { useDashboardOnboardingState } from "@/composables/useDashboardOnboardin
 import { useLoreCardsStore } from "@/stores/loreCards";
 import { useRecapsStore } from "@/stores/recaps";
 import { useRecapLock } from "@/composables/useRecapLock";
+import { useAnkiSessionStore } from "@/stores/ankiSession";
 
 import HeroBookCard from "@/components/dashboard/HeroBookCard.vue";
 import InProgressSection from "@/components/dashboard/InProgressSection.vue";
@@ -32,6 +33,7 @@ const upNextStore = useUpNextStore();
 const lexiconStore = useLexiconStore();
 const authStore = useAuthStore();
 const loreStore = useLoreCardsStore();
+const ankiSessionStore = useAnkiSessionStore();
 const recapsStore = useRecapsStore();
 const confirm = useConfirm();
 
@@ -142,7 +144,10 @@ onMounted(async () => {
       upNextStore.fetchOrder(),
     ]);
     await lexiconStore.fetchEntriesForAllBooks();
-    if (authStore.user) lexiconStore.resolveWordOfTheDay(authStore.user.id);
+    if (authStore.user) {
+      lexiconStore.resolveWordOfTheDay(authStore.user.id)
+      ankiSessionStore.fetchSession(authStore.user.id).catch(() => {})
+    }
     loreStore.fetchLoreForAllBooks().catch(() => {});
     initializeIfNeeded();
     const id = activeBookId.value;

@@ -53,6 +53,11 @@ const router = createRouter({
           name: "profile",
           component: () => import("@/pages/ProfilePage.vue"),
         },
+        {
+          path: "anki-review",
+          name: "anki-review",
+          component: () => import("@/pages/AnkiReviewPage.vue"),
+        },
       ],
     },
     {
