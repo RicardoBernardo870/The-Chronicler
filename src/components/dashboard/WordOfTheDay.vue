@@ -4,12 +4,22 @@ import { useRouter } from 'vue-router'
 import { useLexiconStore } from '@/stores/lexicon'
 import { useBooksStore } from '@/stores/books'
 import { useAuthStore } from '@/stores/auth'
+import { useAnkiSessionStore } from '@/stores/ankiSession'
 import { diffInDays, formatShortDate } from '@/utils/date'
 
 const router = useRouter()
 const lexiconStore = useLexiconStore()
 const booksStore = useBooksStore()
 const authStore = useAuthStore()
+const ankiSessionStore = useAnkiSessionStore()
+
+const today = new Date().toISOString().slice(0, 10)
+
+const showAnkiPrompt = computed(() => {
+  if (!ankiSessionStore.isDueForReview) return false
+  const due = lexiconStore.allEntries.filter(e => e.nextReviewAt <= today)
+  return due.length >= 5
+})
 
 const entry = computed(() => lexiconStore.wordOfTheDay)
 const isPreview = computed(() => lexiconStore.isWordOfTheDayPreview)
@@ -54,9 +64,33 @@ onMounted(() => {
 
 <template>
   <Transition name="wotd__switch" mode="out-in" appear>
+  <!-- Anki review due — replaces WotD entirely -->
+  <article
+    v-if="showAnkiPrompt"
+    key="anki"
+    class="wotd wotd--review glass-surface"
+    role="button"
+    tabindex="0"
+    @click="router.push({ name: 'anki-review' })"
+    @keydown.enter="router.push({ name: 'anki-review' })"
+  >
+    <div class="wotd__header">
+      <span class="wotd__label"><i class="pi pi-clone" /> Vocabulary Review</span>
+    </div>
+    <div class="wotd__done-body">
+      <div class="wotd__review-icon">
+        <i class="pi pi-play" />
+      </div>
+      <div>
+        <p class="wotd__done-title">Ready for review</p>
+        <p class="wotd__done-hint">Tap to start your flashcard session.</p>
+      </div>
+    </div>
+  </article>
+
   <!-- All caught up — no words due today -->
   <article
-    v-if="entry && isPreview"
+    v-else-if="entry && isPreview"
     key="done"
     class="wotd wotd--done glass-surface"
     role="button"
@@ -159,6 +193,27 @@ onMounted(() => {
   gap: 0.35rem;
   flex: 1;
 }
+
+/* ── Anki review due state ───────────────────────────────────────── */
+
+.wotd--review {
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.wotd__review-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--p-indigo-300);
+}
+
+.wotd__review-icon .pi { font-size: 0.9rem; }
 
 /* ── All caught up state ─────────────────────────────────────────── */
 
