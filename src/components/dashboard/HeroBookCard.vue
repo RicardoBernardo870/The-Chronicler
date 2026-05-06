@@ -37,6 +37,7 @@ const emit = defineEmits<{
   dismissRecap: [];
   viewBook: [];
   sessionConflict: [startedAt: Date];
+  cancelSession: [];
 }>();
 
 const loreStore = useLoreCardsStore();
@@ -162,6 +163,7 @@ onMounted(() => fetchLastSession());
         :book-id="book.id"
         :icon-only="true"
         @conflict-warning="(startedAt) => emit('sessionConflict', startedAt)"
+        @cancel-session="emit('cancelSession')"
       />
     </div>
 

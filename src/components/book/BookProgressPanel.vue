@@ -23,6 +23,7 @@ const emit = defineEmits<{
   'update:currentPageInput': [value: number]
   save: []
   sessionConflict: [startedAt: Date]
+  cancelSession: []
   viewJourney: []
   openAddWord: []
   viewLexicon: []
@@ -60,6 +61,7 @@ const emit = defineEmits<{
         :book-id="book.id"
         :icon-only="true"
         @conflict-warning="(startedAt) => emit('sessionConflict', startedAt)"
+        @cancel-session="emit('cancelSession')"
       />
     </div>
 

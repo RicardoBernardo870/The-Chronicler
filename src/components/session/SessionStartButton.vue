@@ -10,6 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   conflictWarning: [startedAt: Date]
+  cancelSession: []
 }>()
 
 const { state, startSession } = useReadingSession(props.bookId)
@@ -28,9 +29,8 @@ const elapsedLabel = computed(() => {
 const handleClick = async () => {
   error.value = null
 
-  // If a session is already active, emit conflict so the parent can confirm
   if (state.value.isActive && state.value.startedAt) {
-    emit('conflictWarning', state.value.startedAt)
+    emit('cancelSession')
     return
   }
 
@@ -54,7 +54,7 @@ const handleClick = async () => {
       <Button
         v-if="state.isActive"
         icon="pi pi-clock"
-        :aria-label="`Session active — ${elapsedLabel} elapsed. Tap to replace.`"
+        :aria-label="`Session active — ${elapsedLabel} elapsed. Tap to cancel.`"
         class="session-start-btn__icon-btn session-start-btn__icon-btn--active"
         @click="handleClick"
       />
@@ -76,7 +76,7 @@ const handleClick = async () => {
       <button
         v-if="state.isActive"
         class="session-start-btn__timer"
-        :aria-label="`Reading session active — ${elapsedLabel} elapsed. Tap to replace session.`"
+        :aria-label="`Reading session active — ${elapsedLabel} elapsed. Tap to cancel session.`"
         @click="handleClick"
       >
         <i class="pi pi-clock session-start-btn__clock-icon" />
