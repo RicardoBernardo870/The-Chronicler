@@ -15,18 +15,18 @@ const cardRef = ref<HTMLElement | null>(null)
 const isFlipped = ref(false)
 const exiting = ref<'known' | 'unknown' | null>(null)
 
-const { distanceX, isSwiping } = useSwipe(cardRef, {
+const { lengthX, isSwiping } = useSwipe(cardRef, {
   threshold: 60,
   onSwipeEnd(_, direction) {
     if (!isFlipped.value) return
-    if (direction === 'left' && Math.abs(distanceX.value) > 80) triggerExit('unknown')
-    else if (direction === 'right' && Math.abs(distanceX.value) > 80) triggerExit('known')
+    if (direction === 'left' && Math.abs(lengthX.value) > 80) triggerExit('unknown')
+    else if (direction === 'right' && Math.abs(lengthX.value) > 80) triggerExit('known')
   },
 })
 
 const dragStyle = computed(() => {
   if (!isSwiping.value || exiting.value) return {}
-  const x = -distanceX.value
+  const x = -lengthX.value
   return {
     transform: `translateX(${x}px) rotate(${x * 0.04}deg)`,
     transition: 'none',
@@ -43,7 +43,10 @@ const cardStyle = computed(() => ({ ...dragStyle.value, ...exitStyle.value }))
 
 const triggerExit = (result: 'known' | 'unknown') => {
   exiting.value = result
-  setTimeout(() => emit(result), 230)
+  setTimeout(() => {
+    if (result === 'known') emit('known')
+    else emit('unknown')
+  }, 230)
 }
 
 const flipCard = () => {

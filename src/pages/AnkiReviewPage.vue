@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLexiconStore } from '@/stores/lexicon'
-import { useAnkiSessionStore } from '@/stores/ankiSession'
 import { useAuthStore } from '@/stores/auth'
 import { useBooksStore } from '@/stores/books'
 import { useAnkiSession } from '@/composables/useAnkiSession'
@@ -11,7 +10,6 @@ import Button from 'primevue/button'
 
 const router = useRouter()
 const lexiconStore = useLexiconStore()
-const ankiSessionStore = useAnkiSessionStore()
 const authStore = useAuthStore()
 const booksStore = useBooksStore()
 
