@@ -588,11 +588,9 @@ onMounted(() => fetchLastSession());
   border-color: var(--p-primary-hover-color) !important;
 }
 
-.hero-card__session-action :deep(.session-start-btn__timer) {
+.hero-card__session-action :deep(.session-start-btn__stop) {
   width: 100%;
-  justify-content: center;
-  padding: 0.75rem 1.25rem;
-  border-radius: var(--p-border-radius-lg, 12px);
+  border-radius: var(--p-border-radius-lg, 12px) !important;
 }
 
 .hero-card__recap-btn {

@@ -72,15 +72,18 @@ const handleClick = async () => {
 
     <!-- ── Full variant (standalone placement) ── -->
     <template v-else>
-      <!-- Active state: timer pill -->
+      <!-- Active state: stop session button -->
       <button
         v-if="state.isActive"
-        class="session-start-btn__timer"
-        :aria-label="`Reading session active — ${elapsedLabel} elapsed. Tap to cancel session.`"
+        class="session-start-btn__stop"
+        aria-label="Session active — save your page to finish, or tap to cancel."
         @click="handleClick"
       >
-        <i class="pi pi-clock session-start-btn__clock-icon" />
-        <span class="session-start-btn__elapsed">⏱ {{ elapsedLabel }}</span>
+        <i class="pi pi-stop-circle session-start-btn__stop-icon" />
+        <span class="session-start-btn__stop-text">
+          <span class="session-start-btn__stop-label">Stop Session</span>
+          <span class="session-start-btn__stop-hint">Save page to finish</span>
+        </span>
       </button>
 
       <!-- Idle state -->
@@ -138,32 +141,48 @@ const handleClick = async () => {
   font-size: 0.8rem;
 }
 
-.session-start-btn__timer {
-  display: inline-flex;
+.session-start-btn__stop {
+  width: 100%;
+  display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.65rem;
-  border-radius: 999px;
-  border: 1px solid rgba(99, 102, 241, 0.45);
-  background: rgba(99, 102, 241, 0.12);
-  color: var(--p-indigo-300);
-  font-size: 0.82rem;
-  font-weight: 600;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.65rem 1rem;
+  border-radius: var(--p-border-radius-lg, 12px);
+  border: none;
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--p-red-400);
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: background 0.18s ease;
 }
 
-.session-start-btn__timer:hover {
-  opacity: 0.8;
+.session-start-btn__stop:hover {
+  background: rgba(239, 68, 68, 0.22);
 }
 
-.session-start-btn__clock-icon {
-  font-size: 0.75rem;
-  opacity: 0.75;
+.session-start-btn__stop-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
 }
 
-.session-start-btn__elapsed {
-  letter-spacing: 0.02em;
+.session-start-btn__stop-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+
+.session-start-btn__stop-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.session-start-btn__stop-hint {
+  font-size: 0.65rem;
+  font-weight: 400;
+  opacity: 0.6;
+  line-height: 1;
 }
 
 /* ── Error ── */
