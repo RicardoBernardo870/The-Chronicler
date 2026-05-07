@@ -8,6 +8,7 @@ import { useBookPassportStore } from "@/stores/bookPassport";
 import { useLexiconStore } from "@/stores/lexicon";
 import { useLoreCardsStore } from "@/stores/loreCards";
 import { useRecapLock } from "@/composables/useRecapLock";
+import { useCapturesStore } from "@/stores/captures";
 import BookDetailHeader from "@/components/book/BookDetailHeader.vue";
 import BookProgressPanel from "@/components/book/BookProgressPanel.vue";
 import RecapStream from "@/components/recap/RecapStream.vue";
@@ -18,13 +19,13 @@ import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 import Button from "primevue/button";
 import Skeleton from "primevue/skeleton";
 import { useConfirm } from "primevue/useconfirm";
-import ConfirmDialog from "primevue/confirmdialog";
 
 const route = useRoute();
 const router = useRouter();
 const booksStore = useBooksStore();
 const progressStore = useProgressStore();
 const recapsStore = useRecapsStore();
+const capturesStore = useCapturesStore();
 const passportStore = useBookPassportStore();
 const lexiconStore = useLexiconStore();
 const loreStore = useLoreCardsStore();
@@ -62,16 +63,16 @@ const handleCaptureComplete = () => {
   progressStore.consumeSessionEnded();
 };
 
-const handleSessionConflict = (startedAt: Date) => {
-  const timeStr = startedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const handleCancelSession = () => {
   confirm.require({
-    message: `You have an unfinished session started at ${timeStr}. Start a new one?`,
-    header: "Replace session?",
+    message: "Cancel this session? No progress will be saved.",
+    header: "Cancel session?",
     icon: "pi pi-exclamation-triangle",
-    acceptLabel: "Start new session",
-    rejectLabel: "Cancel",
+    acceptLabel: "Cancel session",
+    rejectLabel: "Keep session",
+    acceptClass: "p-button-danger",
     accept: async () => {
-      try { await progressStore.startSession(bookId.value) } catch { /* surfaced by SessionStartButton */ }
+      try { await progressStore.clearSession(bookId.value) } catch { /* silent */ }
     },
   });
 };
@@ -107,6 +108,25 @@ const { recapLocked, pagesUntilUnlock, recapLockLabel } = useRecapLock(bookId);
 const saveProgress = async () => {
   if (!book.value) return;
   const page = Math.max(0, Math.min(currentPageInput.value ?? 0, book.value.totalPages));
+  const currentStoredPage = progress.value?.currentPage ?? 0;
+  const sessionActive = Boolean(progress.value?.sessionStartAt);
+
+  if (sessionActive && page === currentStoredPage) {
+    confirm.require({
+      message: "You need to update your page count to save a session.",
+      header: "No pages read",
+      icon: "pi pi-info-circle",
+      acceptLabel: "Update pages",
+      rejectLabel: "Cancel session",
+      rejectClass: "p-button-danger",
+      accept: () => { /* dismiss — user will update page input */ },
+      reject: async () => {
+        try { await progressStore.clearSession(bookId.value) } catch { /* silent */ }
+      },
+    });
+    return;
+  }
+
   progressLoading.value = true;
   progressError.value = null;
   try {
@@ -116,14 +136,37 @@ const saveProgress = async () => {
   } finally { progressLoading.value = false; }
 };
 
-const getRecap = async () => { recapTriggered.value = true; recapsStore.resetStatus(); await recapsStore.generateRecap(bookId.value); };
-const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
+const doGenerateRecap = async () => {
+  recapTriggered.value = true;
+  recapsStore.resetStatus();
+  await recapsStore.generateRecap(bookId.value);
+};
+
+const getRecap = async () => {
+  const fromPage = recapsStore.recapHistoryForBook(bookId.value)?.[0]?.pageSnapshot ?? 0;
+  const currentPage = progress.value?.currentPage ?? 0;
+  await capturesStore.fetchCapturesForBook(bookId.value).catch(() => {});
+  const inRange = capturesStore.capturesInRange(bookId.value, fromPage, currentPage);
+
+  if (inRange.length === 0) {
+    confirm.require({
+      message: "Without scanned pages, this recap is generated from your book's metadata and may be less accurate or contain spoilers. Continue?",
+      header: "Inferred recap",
+      icon: "pi pi-exclamation-triangle",
+      acceptLabel: "Generate anyway",
+      rejectLabel: "Cancel",
+      accept: () => { doGenerateRecap(); },
+    });
+    return;
+  }
+  await doGenerateRecap();
+};
+
+const retryRecap = () => { recapsStore.resetStatus(); doGenerateRecap(); };
 </script>
 
 <template>
   <div class="book-detail">
-    <ConfirmDialog />
-
     <div v-if="!book && !booksStore.loading" class="book-detail__not-found glass-surface">
       <i class="pi pi-exclamation-circle" style="font-size: 3rem; opacity: 0.4" />
       <p>Book not found.</p>
@@ -147,7 +190,7 @@ const retryRecap = () => { recapsStore.resetStatus(); getRecap(); };
         :pages-until-unlock="pagesUntilUnlock"
         @update:current-page-input="(v) => (currentPageInput = v)"
         @save="saveProgress"
-        @session-conflict="handleSessionConflict"
+        @cancel-session="handleCancelSession"
         @view-journey="router.push({ name: 'book-passport', params: { id: bookId } })"
         @open-add-word="addWordVisible = true"
         @view-lexicon="router.push({ name: 'lexicon', query: { bookId } })"

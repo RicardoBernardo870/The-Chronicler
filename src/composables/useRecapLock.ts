@@ -4,7 +4,7 @@ import { useRecapsStore } from '@/stores/recaps'
 import { useBooksStore } from '@/stores/books'
 
 const RECAP_PAGE_THRESHOLD_PERCENT = 5
-const RECAP_COOLDOWN_HOURS = 12
+const RECAP_COOLDOWN_HOURS = 6
 const RECAP_IDLE_UNLOCK_HOURS = 72
 
 /**

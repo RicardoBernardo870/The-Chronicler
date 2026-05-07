@@ -13,6 +13,7 @@ import { useLoreCardsStore } from "@/stores/loreCards";
 import { useRecapsStore } from "@/stores/recaps";
 import { useRecapLock } from "@/composables/useRecapLock";
 import { useAnkiSessionStore } from "@/stores/ankiSession";
+import { useCapturesStore } from "@/stores/captures";
 
 import HeroBookCard from "@/components/dashboard/HeroBookCard.vue";
 import InProgressSection from "@/components/dashboard/InProgressSection.vue";
@@ -24,7 +25,6 @@ import Skeleton from "primevue/skeleton";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState.vue";
 import CompletedOnlyState from "@/components/dashboard/CompletedOnlyState.vue";
 import { useConfirm } from "primevue/useconfirm";
-import ConfirmDialog from "primevue/confirmdialog";
 
 const router = useRouter();
 const booksStore = useBooksStore();
@@ -35,6 +35,7 @@ const authStore = useAuthStore();
 const loreStore = useLoreCardsStore();
 const ankiSessionStore = useAnkiSessionStore();
 const recapsStore = useRecapsStore();
+const capturesStore = useCapturesStore();
 const confirm = useConfirm();
 
 // ── Active hero book ─────────────────────────────────────────────
@@ -68,13 +69,35 @@ const { recapLocked, pagesUntilUnlock, recapLockLabel } = useRecapLock(
   computed(() => activeBookId.value ?? ""),
 );
 
-const handleGetRecap = async () => {
+const doGenerateRecap = async () => {
   if (!currentBook.value) return;
   const abort = new AbortController();
   recapAbortController.value = abort;
   recapTriggered.value = true;
   recapsStore.resetStatus();
   await recapsStore.generateRecap(currentBook.value.id, abort.signal);
+};
+
+const handleGetRecap = async () => {
+  if (!currentBook.value) return;
+  const bookId = currentBook.value.id;
+  const fromPage = recapsStore.recapHistoryForBook(bookId)?.[0]?.pageSnapshot ?? 0;
+  const currentPage = currentProgress.value?.currentPage ?? 0;
+  await capturesStore.fetchCapturesForBook(bookId).catch(() => {});
+  const inRange = capturesStore.capturesInRange(bookId, fromPage, currentPage);
+
+  if (inRange.length === 0) {
+    confirm.require({
+      message: "Without scanned pages, this recap is generated from your book's metadata and may be less accurate or contain spoilers. Continue?",
+      header: "Inferred recap",
+      icon: "pi pi-exclamation-triangle",
+      acceptLabel: "Generate anyway",
+      rejectLabel: "Cancel",
+      accept: () => { doGenerateRecap(); },
+    });
+    return;
+  }
+  await doGenerateRecap();
 };
 
 const handleDismissRecap = () => {
@@ -211,15 +234,34 @@ const showCompletedSection = computed(
 
 const saveProgress = async () => {
   if (!currentBook.value) return;
+  const heroId = currentBook.value.id;
   const page = Math.max(
     0,
     Math.min(pageInput.value ?? 0, currentBook.value.totalPages),
   );
+  const currentStoredPage = progressStore.progressForBook(heroId)?.currentPage ?? 0;
+  const sessionActive = Boolean(progressStore.progressForBook(heroId)?.sessionStartAt);
+
+  if (sessionActive && page === currentStoredPage) {
+    confirm.require({
+      message: "You need to update your page count to save a session.",
+      header: "No pages read",
+      icon: "pi pi-info-circle",
+      acceptLabel: "Update pages",
+      rejectLabel: "Cancel session",
+      rejectClass: "p-button-danger",
+      accept: () => { /* dismiss — user will update page input */ },
+      reject: async () => {
+        try { await progressStore.clearSession(heroId) } catch { /* silent */ }
+      },
+    });
+    return;
+  }
+
   saving.value = true;
   saveError.value = null;
   justSaved.value = false;
   try {
-    const heroId = currentBook.value.id;
     const prevPct = progressStore.progressForBook(heroId)?.percentage ?? 0;
     await progressStore.updateProgress(heroId, page);
     justSaved.value = true;
@@ -238,25 +280,18 @@ const saveProgress = async () => {
   }
 };
 
-const handleSessionConflict = (startedAt: Date) => {
+const handleCancelSession = () => {
   if (!activeBookId.value) return;
   const bookId = activeBookId.value;
-  const timeStr = startedAt.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
   confirm.require({
-    message: `You have an unfinished session started at ${timeStr}. Start a new one?`,
-    header: "Replace session?",
+    message: "Cancel this session? No progress will be saved.",
+    header: "Cancel session?",
     icon: "pi pi-exclamation-triangle",
-    acceptLabel: "Start new session",
-    rejectLabel: "Cancel",
+    acceptLabel: "Cancel session",
+    rejectLabel: "Keep session",
+    acceptClass: "p-button-danger",
     accept: async () => {
-      try {
-        await progressStore.startSession(bookId);
-      } catch {
-        // error surfaced by SessionStartButton internally
-      }
+      try { await progressStore.clearSession(bookId) } catch { /* silent */ }
     },
   });
 };
@@ -264,7 +299,6 @@ const handleSessionConflict = (startedAt: Date) => {
 
 <template>
   <div class="dashboard">
-    <ConfirmDialog />
     <h1 class="dashboard__heading">Your Reading</h1>
 
     <Transition name="dashboard-switch" mode="out-in" appear>
@@ -344,7 +378,7 @@ const handleSessionConflict = (startedAt: Date) => {
                 params: { id: currentBook!.id },
               })
             "
-            @session-conflict="handleSessionConflict"
+            @cancel-session="handleCancelSession"
           />
         </div>
 

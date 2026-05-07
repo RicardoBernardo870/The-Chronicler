@@ -1,7 +1,7 @@
 <template>
   <LoadingSpinner v-if="initializing" full-page label="Loading..." />
   <RouterView v-else />
-  <ConfirmDialog />
+  <ConfirmDialog :style="{ width: '90%' }" />
   <Toast position="bottom-center" :pt="{ root: { style: 'margin-bottom: var(--app-nav-bottom-clearance, 4rem); width: 280px' } }" />
   <LoreGenerationBanner />
 </template>
