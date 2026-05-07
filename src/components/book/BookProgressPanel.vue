@@ -50,10 +50,12 @@ const emit = defineEmits<{
         :step="1"
         fluid
         @update:model-value="(v) => emit('update:currentPageInput', v ?? 0)"
+        @input="(e: any) => emit('update:currentPageInput', e.value ?? 0)"
       />
       <Button
         icon="pi pi-check"
         :loading="progressLoading"
+        :disabled="currentPageInput === (progress?.currentPage ?? 0)"
         aria-label="Save progress"
         @click="emit('save')"
       />

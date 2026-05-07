@@ -151,10 +151,12 @@ onMounted(() => fetchLastSession());
         fluid
         class="hero-card__page-input"
         @update:model-value="(v) => emit('update:pageInput', v ?? 0)"
+        @input="(e: any) => emit('update:pageInput', e.value ?? 0)"
       />
       <Button
         :icon="justSaved ? 'pi pi-check' : 'pi pi-check'"
         :loading="saving"
+        :disabled="pageInput === (progress?.currentPage ?? 0)"
         :severity="justSaved ? 'success' : 'primary'"
         :aria-label="justSaved ? 'Saved!' : 'Save progress'"
         @click="emit('save')"
