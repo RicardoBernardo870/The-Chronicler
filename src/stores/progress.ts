@@ -23,7 +23,7 @@ const TTL = 30_000 // 30 s — progress is more volatile than books
 export interface SessionEndedEvent {
   bookId: string
   historyRowId: string
-  sessionStartAt: string
+  sessionStartAt: string | null
 }
 
 export const useProgressStore = defineStore('progress', () => {
@@ -363,16 +363,14 @@ export const useProgressStore = defineStore('progress', () => {
           // History insert failure is non-critical — don't block the save
         }
 
-        // T012/T013 (013): if a session was active, clear it and emit sessionEnded
+        // T012/T013 (013): if a session was active, clear it
         if (capturedSessionStartAt) {
-          // Clear session_start_at on reading_progress (fire-and-forget — server already confirmed save above)
           supabase
             .from('reading_progress')
             .update({ session_start_at: null })
             .match({ book_id: bookId, user_id: authStore.user.id })
             .then(() => {})
 
-          // Update local Pinia state to reflect cleared session
           if (progress.value[bookId]) {
             progress.value[bookId] = { ...progress.value[bookId], sessionStartAt: null }
             booksStore.applyProgressSnapshot(bookId, {
@@ -384,18 +382,15 @@ export const useProgressStore = defineStore('progress', () => {
             })
           }
           invalidate(cacheKeys.library(authStore.user.id))
-
-          // 019 — A new progress_history row with session_start_at just landed,
-          // so any cached reading-velocity result is now stale.
           invalidate(cacheKeys.velocity(authStore.user.id))
+        }
 
-          // Emit sessionEnded event so SessionNoteField can appear
-          if (historyRowId) {
-            lastSessionEnded.value = {
-              bookId,
-              historyRowId,
-              sessionStartAt: capturedSessionStartAt,
-            }
+        // Emit capture prompt for any save that produced a history row
+        if (historyRowId) {
+          lastSessionEnded.value = {
+            bookId,
+            historyRowId,
+            sessionStartAt: capturedSessionStartAt,
           }
         }
 
