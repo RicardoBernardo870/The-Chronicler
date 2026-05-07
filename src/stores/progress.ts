@@ -35,6 +35,10 @@ export const useProgressStore = defineStore('progress', () => {
   // Components watch this ref; a new value means a new session just ended.
   const lastSessionEnded = ref<SessionEndedEvent | null>(null)
 
+  // Keyed by bookId — client-side timestamp of the last real page save
+  // (progress_history insert). Used by useRecapLock cooldown anchor.
+  const lastPageSavedAt = ref<Record<string, string>>({})
+
   const { enqueue, flushQueue, registerBackgroundSync } = useOfflineSync()
 
   // ── Supabase sync helper ───────────────────────────────────────────────────
@@ -358,7 +362,10 @@ export const useProgressStore = defineStore('progress', () => {
             })
             .select('id')
             .single()
-          if (!histError && histData) historyRowId = (histData as { id: string }).id
+          if (!histError && histData) {
+            historyRowId = (histData as { id: string }).id
+            lastPageSavedAt.value[bookId] = now
+          }
         } catch {
           // History insert failure is non-critical — don't block the save
         }
@@ -483,6 +490,7 @@ export const useProgressStore = defineStore('progress', () => {
     progress,
     pendingSync,
     lastSessionEnded,
+    lastPageSavedAt,
     inProgressBooks,
     completedBooks,
     fetchProgress,

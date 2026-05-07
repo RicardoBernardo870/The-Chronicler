@@ -23,8 +23,12 @@ export const useRecapLock = (bookId: Ref<string> | string) => {
   const progress = computed(() => progressStore.progressForBook(id.value))
   const book     = computed(() => booksStore.bookById(id.value))
 
+  const latestRecap = computed(
+    () => recapsStore.latestRecapForBook(id.value),
+  )
+
   const lastRecapPct = computed(
-    () => recapsStore.latestRecapForBook(id.value)?.progressSnapshot ?? 0,
+    () => latestRecap.value?.progressSnapshot ?? 0,
   )
 
   const unlockPage = computed(() => {
@@ -37,6 +41,7 @@ export const useRecapLock = (bookId: Ref<string> | string) => {
     () => (progress.value?.currentPage ?? 0) < unlockPage.value,
   )
 
+  // Hours since last progress update (used for idle-unlock and daysSinceLastSession)
   const hoursSinceLastSession = computed(() => {
     const updatedAt = progress.value?.updatedAt
     if (!updatedAt) return 0
@@ -44,6 +49,30 @@ export const useRecapLock = (bookId: Ref<string> | string) => {
   })
 
   const daysSinceLastSession = computed(() => hoursSinceLastSession.value / 24)
+
+  // ── Option B cooldown anchor ──────────────────────────────────────────────
+  // Cooldown is based on max(lastRecap.createdAt, lastPageSave) — the most
+  // recent meaningful event. This prevents:
+  //  - Recap spam (just got a recap → 6h wait)
+  //  - Instant recap after reading (just saved pages → 6h wait)
+  // While ignoring noise (store hydration, session start/stop, etc.)
+
+  const hoursSinceLastRecap = computed(() => {
+    const createdAt = latestRecap.value?.createdAt
+    if (!createdAt) return Infinity
+    return (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60)
+  })
+
+  const hoursSinceLastPageSave = computed(() => {
+    const savedAt = progressStore.lastPageSavedAt[id.value]
+    if (!savedAt) return Infinity
+    return (Date.now() - new Date(savedAt).getTime()) / (1000 * 60 * 60)
+  })
+
+  /** Hours since the most recent meaningful event (recap or page save). */
+  const hoursSinceMeaningfulEvent = computed(() =>
+    Math.min(hoursSinceLastRecap.value, hoursSinceLastPageSave.value),
+  )
 
   const recapUnlockedByIdleTime = computed(
     () => hoursSinceLastSession.value >= RECAP_IDLE_UNLOCK_HOURS,
@@ -53,7 +82,7 @@ export const useRecapLock = (bookId: Ref<string> | string) => {
     () =>
       !recapLockedByPages.value &&
       !recapUnlockedByIdleTime.value &&
-      hoursSinceLastSession.value < RECAP_COOLDOWN_HOURS,
+      hoursSinceMeaningfulEvent.value < RECAP_COOLDOWN_HOURS,
   )
 
   const recapLocked = computed(
@@ -67,7 +96,7 @@ export const useRecapLock = (bookId: Ref<string> | string) => {
   )
 
   const hoursUntilUnlock = computed(() =>
-    Math.max(0, Math.ceil(RECAP_COOLDOWN_HOURS - hoursSinceLastSession.value)),
+    Math.max(0, Math.ceil(RECAP_COOLDOWN_HOURS - hoursSinceMeaningfulEvent.value)),
   )
 
   const recapLockLabel = computed(() => {
