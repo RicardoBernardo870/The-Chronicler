@@ -9,7 +9,7 @@ import Skeleton from 'primevue/skeleton'
 const props = defineProps<{ bookId?: string }>()
 
 const loreStore = useLoreCardsStore()
-const expandedId = ref<string | null>(null)
+const expandedIds = ref<Set<string>>(new Set())
 const loading = ref(true)
 let requestId = 0
 
@@ -18,7 +18,7 @@ watch(
   async (bookId) => {
     const currentRequest = ++requestId
     loading.value = true
-    expandedId.value = null
+    expandedIds.value = new Set()
     try {
       if (bookId) {
         await loreStore.fetchLoreForBook(bookId)
@@ -44,7 +44,10 @@ const cards = computed<LoreCard[]>(() => {
 })
 
 const toggleExpand = (id: string) => {
-  expandedId.value = expandedId.value === id ? null : id
+  const next = new Set(expandedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedIds.value = next
 }
 
 const typeColour = (type: LoreCard['type']): string => {
@@ -91,18 +94,20 @@ const excerpt = (text: string): string =>
           <span :class="['lore-list__badge', typeColour(card.type)]">{{ card.type }}</span>
           <span class="lore-list__milestone">Unlocked at {{ card.unlockedAtMilestone }}%</span>
         </div>
-        <i :class="['pi', expandedId === card.id ? 'pi-chevron-up' : 'pi-chevron-down', 'lore-list__chevron']" />
+        <i :class="['pi', expandedIds.has(card.id) ? 'pi-chevron-up' : 'pi-chevron-down', 'lore-list__chevron']" />
       </div>
 
       <h3 class="lore-list__item-title">{{ card.title }}</h3>
 
-      <p v-if="expandedId !== card.id" class="lore-list__excerpt">
-        {{ excerpt(card.content) }}
-      </p>
+      <Transition name="collapse">
+        <p v-if="!expandedIds.has(card.id)" class="lore-list__excerpt">
+          {{ excerpt(card.content) }}
+        </p>
+      </Transition>
 
       <!-- Expanded detail (inline, no modal) -->
       <Transition name="expand">
-        <LoreCardDetail v-if="expandedId === card.id" :card="card" />
+        <LoreCardDetail v-if="expandedIds.has(card.id)" :card="card" />
       </Transition>
     </div>
   </div>
@@ -198,13 +203,64 @@ const excerpt = (text: string): string =>
   line-height: 1.5;
 }
 
-/* Inline expand transition */
-.expand-enter-active,
-.expand-leave-active {
-  transition: opacity 0.2s ease;
+/* Inline expand transition — content fades then container collapses */
+.expand-enter-active {
+  transition: max-height 0.3s ease, opacity 0.2s ease 0.1s;
+  overflow: hidden;
 }
-.expand-enter-from,
-.expand-leave-to {
+.expand-leave-active {
+  transition: opacity 0.15s ease, max-height 0.25s ease 0.15s;
+  overflow: hidden;
+}
+.expand-enter-from {
+  max-height: 0;
   opacity: 0;
+}
+.expand-enter-to {
+  max-height: 600px;
+  opacity: 1;
+}
+.expand-leave-from {
+  max-height: 600px;
+  opacity: 1;
+}
+.expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+/* Collapsed excerpt — fade + height */
+.collapse-enter-active {
+  transition: max-height 0.25s ease, opacity 0.2s ease 0.1s;
+  overflow: hidden;
+}
+.collapse-leave-active {
+  transition: opacity 0.15s ease, max-height 0.2s ease 0.15s;
+  overflow: hidden;
+}
+.collapse-enter-from {
+  max-height: 0;
+  opacity: 0;
+}
+.collapse-enter-to {
+  max-height: 100px;
+  opacity: 1;
+}
+.collapse-leave-from {
+  max-height: 100px;
+  opacity: 1;
+}
+.collapse-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expand-enter-active,
+  .expand-leave-active,
+  .collapse-enter-active,
+  .collapse-leave-active {
+    transition: none;
+  }
 }
 </style>

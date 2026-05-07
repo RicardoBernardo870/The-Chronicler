@@ -129,9 +129,11 @@ const onCardClick = (): void => {
       <h3 class="lore-card__title">{{ currentCard.title }}</h3>
 
       <!-- Excerpt when collapsed -->
-      <p v-if="!isExpanded" class="lore-card__excerpt">
-        {{ excerpt(currentCard.content) }}
-      </p>
+      <Transition name="collapse">
+        <p v-if="!isExpanded" class="lore-card__excerpt">
+          {{ excerpt(currentCard.content) }}
+        </p>
+      </Transition>
 
       <!-- Expanded detail — same component used by LoreCardList -->
       <Transition name="expand">
@@ -285,14 +287,65 @@ const onCardClick = (): void => {
   line-height: 1.5;
 }
 
-/* Expand/collapse transition */
-.expand-enter-active,
-.expand-leave-active {
-  transition: opacity 0.2s ease;
+/* Expand/collapse transition — content fades then container collapses */
+.expand-enter-active {
+  transition: max-height 0.3s ease, opacity 0.2s ease 0.1s;
+  overflow: hidden;
 }
-.expand-enter-from,
-.expand-leave-to {
+.expand-leave-active {
+  transition: opacity 0.15s ease, max-height 0.25s ease 0.15s;
+  overflow: hidden;
+}
+.expand-enter-from {
+  max-height: 0;
   opacity: 0;
+}
+.expand-enter-to {
+  max-height: 600px;
+  opacity: 1;
+}
+.expand-leave-from {
+  max-height: 600px;
+  opacity: 1;
+}
+.expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+/* Collapsed excerpt — fade + height */
+.collapse-enter-active {
+  transition: max-height 0.25s ease, opacity 0.2s ease 0.1s;
+  overflow: hidden;
+}
+.collapse-leave-active {
+  transition: opacity 0.15s ease, max-height 0.2s ease 0.15s;
+  overflow: hidden;
+}
+.collapse-enter-from {
+  max-height: 0;
+  opacity: 0;
+}
+.collapse-enter-to {
+  max-height: 100px;
+  opacity: 1;
+}
+.collapse-leave-from {
+  max-height: 100px;
+  opacity: 1;
+}
+.collapse-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expand-enter-active,
+  .expand-leave-active,
+  .collapse-enter-active,
+  .collapse-leave-active {
+    transition: none;
+  }
 }
 
 /* ── Non-collapsible compact card (unchanged behaviour) ─────────────── */
