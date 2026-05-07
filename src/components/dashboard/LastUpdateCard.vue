@@ -3,7 +3,7 @@ import { computed } from "vue";
 import type { LastSession } from "@/composables/useLastSession";
 import { useBooksStore } from "@/stores/books";
 import { formatRelativeToNow as formatRelative } from "@/utils/date";
-import { Divider, Image } from "primevue";
+import { Image } from "primevue";
 
 const props = defineProps<{
   session: LastSession;

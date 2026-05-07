@@ -102,12 +102,12 @@ export const useRecapLock = (bookId: Ref<string> | string) => {
   const recapLockLabel = computed(() => {
     if (recapLockedByPages.value) {
       const pages = pagesUntilUnlock.value
-      return `Read ${pages} more ${pages === 1 ? 'page' : 'pages'}`
+      return `${pages} more ${pages === 1 ? 'page' : 'pages'}`
     }
 
     if (recapLockedByCooldown.value) {
       const hours = hoursUntilUnlock.value
-      return `Available in ${hours} ${hours === 1 ? 'hour' : 'hours'}`
+      return `Recap in ${hours} ${hours === 1 ? 'hour' : 'hours'}`
     }
 
     return ''

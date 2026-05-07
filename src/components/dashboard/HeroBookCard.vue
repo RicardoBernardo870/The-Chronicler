@@ -12,6 +12,7 @@ import Chip from "primevue/chip";
 import Tag from "primevue/tag";
 import ProgressBar from "primevue/progressbar";
 import InputNumber from "primevue/inputnumber";
+import InputGroup from "primevue/inputgroup";
 import { coverFallback } from "@/utils/coverFallback";
 import { Message } from "primevue";
 
@@ -120,7 +121,16 @@ onMounted(() => fetchLastSession());
 
       <div class="hero-card__meta">
         <Chip v-if="book.genre" :label="book.genre" class="hero-card__genre" />
-        <h2 class="hero-card__title">{{ book.title }}</h2>
+        <div class="hero-card__title-row">
+          <h2 class="hero-card__title">{{ book.title }}</h2>
+          <Button
+            class="hero-card__chevron"
+            aria-label="View book details"
+            @click="emit('viewBook')"
+          >
+            <i class="pi pi-chevron-right" />
+        </Button>
+        </div>
         <p class="hero-card__author">{{ book.author }}</p>
 
         <div class="hero-card__progress-row">
@@ -140,33 +150,32 @@ onMounted(() => fetchLastSession());
       </div>
     </div>
 
-    <div class="hero-card__update">
-      <InputNumber
-        :model-value="pageInput"
-        :min="0"
-        :max="book.totalPages"
-        placeholder="Update page"
-        show-buttons
-        :step="1"
-        fluid
-        class="hero-card__page-input"
-        @update:model-value="(v) => emit('update:pageInput', v ?? 0)"
-        @input="(e: any) => emit('update:pageInput', e.value ?? 0)"
-      />
-      <Button
-        :icon="justSaved ? 'pi pi-check' : 'pi pi-check'"
-        :loading="saving"
-        :disabled="pageInput === (progress?.currentPage ?? 0)"
-        :severity="justSaved ? 'success' : 'primary'"
-        :aria-label="justSaved ? 'Saved!' : 'Save progress'"
-        @click="emit('save')"
-      />
-      <SessionStartButton
-        :book-id="book.id"
-        :icon-only="true"
-        @conflict-warning="(startedAt) => emit('sessionConflict', startedAt)"
-        @cancel-session="emit('cancelSession')"
-      />
+    <div class="hero-card__update-section">
+      <span class="hero-card__update-label">CURRENT PAGE</span>
+      <div class="hero-card__update-row">
+        <InputGroup class="hero-card__page-group">
+          <InputNumber
+            :model-value="pageInput"
+            :min="0"
+            :max="book.totalPages"
+            placeholder="Page"
+            show-buttons
+            :step="1"
+            class="hero-card__page-input"
+            @update:model-value="(v) => emit('update:pageInput', v ?? 0)"
+            @input="(e: any) => emit('update:pageInput', e.value ?? 0)"
+          />
+        </InputGroup>
+        <Button
+          :label="justSaved ? 'Saved!' : 'Save'"
+          :icon="justSaved ? 'pi pi-check' : 'pi pi-check'"
+          :loading="saving"
+          :disabled="pageInput === (progress?.currentPage ?? 0)"
+          class="hero-card__save-btn"
+          :class="{ 'hero-card__save-btn--saved': justSaved }"
+          @click="emit('save')"
+        />
+      </div>
     </div>
 
     <Transition name="hero-card__fade">
@@ -195,26 +204,27 @@ onMounted(() => fetchLastSession());
     </Transition>
 
     <div class="hero-card__actions">
+      <div class="hero-card__session-action">
+        <SessionStartButton
+          :book-id="book.id"
+          :icon-only="false"
+          @conflict-warning="(startedAt) => emit('sessionConflict', startedAt)"
+          @cancel-session="emit('cancelSession')"
+        />
+      </div>
       <Button
         v-if="!recapTriggered && recapLocked"
         :label="recapLockLabel || `Read ${pagesUntilUnlock} more pages`"
         disabled
-        class="hero-card__action-btn hero-card__action-btn--locked"
+        class="hero-card__recap-btn hero-card__recap-btn--locked"
       />
       <Button
         v-else
         :label="recapTriggered ? 'Recap open' : 'Get Recap'"
         icon="pi pi-sparkles"
-        class="hero-card__action-btn"
+        class="hero-card__recap-btn"
         :disabled="recapTriggered"
         @click="emit('getRecap')"
-      />
-      <Button
-        label="View Book"
-        icon="pi pi-book"
-        class="glass-surface hero-card__action-btn"
-        outlined
-        @click="emit('viewBook')"
       />
     </div>
 
@@ -358,6 +368,14 @@ onMounted(() => fetchLastSession());
   margin-bottom: 0.2rem;
 }
 
+.hero-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  justify-content: space-between;
+}
+
 .hero-card__title {
   margin: 0;
   font-size: 1.15rem;
@@ -366,6 +384,28 @@ onMounted(() => fetchLastSession());
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.hero-card__chevron {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.4;
+  padding: 0.15rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.15s;
+}
+
+.hero-card__chevron:hover {
+  opacity: 0.85;
+}
+
+.hero-card__chevron .pi {
+  font-size: 0.75rem;
 }
 
 .hero-card__author {
@@ -382,6 +422,7 @@ onMounted(() => fetchLastSession());
 
 .hero-card__progress-bar {
   flex: 1;
+  height: 5px;
 }
 
 .hero-card__pct {
@@ -398,14 +439,87 @@ onMounted(() => fetchLastSession());
   opacity: 0.7;
 }
 
-.hero-card__update {
+.hero-card__update-section {
   display: flex;
-  gap: 0.75rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.hero-card__update-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.5;
+}
+
+.hero-card__update-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.hero-card__page-group {
+  flex: 1;
+  border-radius: var(--p-border-radius-lg, 12px);
+  overflow: hidden;
+}
+
+/* InputGroup border unification */
+.hero-card__page-group :deep(.p-inputgroup-addon) {
+  background: var(--p-surface-100, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--p-surface-border, var(--p-surface-300));
+  color: var(--p-primary-color);
+  padding: 0 0.75rem;
 }
 
 .hero-card__page-input {
   flex: 1;
+}
+
+/* InputNumber inner input styling */
+.hero-card__page-input :deep(.p-inputnumber-input) {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-color: var(--p-surface-border, var(--p-surface-300));
+}
+
+.hero-card__page-input :deep(.p-inputnumber-input:focus) {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--p-primary-color) 15%, transparent);
+}
+
+/* Stepper buttons subtle styling */
+.hero-card__page-input :deep(.p-inputnumber-button) {
+  background: var(--p-surface-100, rgba(255, 255, 255, 0.04));
+  border-color: var(--p-surface-border, var(--p-surface-300));
+  color: var(--p-text-muted-color);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.hero-card__page-input :deep(.p-inputnumber-button:hover) {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--p-primary-color);
+}
+
+.hero-card__save-btn {
+  white-space: nowrap;
+  font-size: 0.82rem;
+  border-radius: var(--p-border-radius-lg, 12px) !important;
+  border: none !important;
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: var(--p-indigo-400) !important;
+  transition: background 0.18s ease !important;
+}
+
+.hero-card__save-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.24) !important;
+  color: var(--p-indigo-300) !important;
+}
+
+.hero-card__save-btn--saved {
+  background: color-mix(in srgb, var(--p-green-500, #22c55e) 14%, transparent) !important;
+  color: color-mix(in srgb, var(--p-green-500, #22c55e) 80%, white) !important;
 }
 
 .hero-card__error {
@@ -444,18 +558,65 @@ onMounted(() => fetchLastSession());
 .hero-card__actions {
   display: flex;
   gap: 0.75rem;
-  flex-wrap: wrap;
+  align-items: stretch;
 }
 
-.hero-card__action-btn {
+.hero-card__session-action {
+  flex: 2;
+  display: flex;
+  min-width: 0;
+}
+
+/* Override SessionStartButton inner CTA to be filled, rounded, and stretch */
+.hero-card__session-action :deep(.session-start-btn) {
+  width: 100%;
+}
+
+.hero-card__session-action :deep(.session-start-btn__cta) {
+  width: 100%;
+  background: var(--p-primary-color) !important;
+  color: var(--p-primary-contrast-color) !important;
+  border-color: var(--p-primary-color) !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  padding: 0.75rem 1.25rem !important;
+  border-radius: var(--p-border-radius-lg, 12px) !important;
+}
+
+.hero-card__session-action :deep(.session-start-btn__cta:hover) {
+  background: var(--p-primary-hover-color) !important;
+  border-color: var(--p-primary-hover-color) !important;
+}
+
+.hero-card__session-action :deep(.session-start-btn__timer) {
+  width: 100%;
+  justify-content: center;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--p-border-radius-lg, 12px);
+}
+
+.hero-card__recap-btn {
   flex: 1;
-  min-width: 120px;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.75rem 1rem !important;
+  border-radius: var(--p-border-radius-lg, 12px) !important;
+  border: none !important;
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: var(--p-indigo-400) !important;
+  transition: background 0.18s ease !important;
 }
 
-.hero-card__action-btn--locked {
-  opacity: 0.55;
+.hero-card__recap-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.24) !important;
+  color: var(--p-indigo-300) !important;
+}
+
+.hero-card__recap-btn--locked {
+  opacity: 0.5;
   cursor: not-allowed !important;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }
 
 .hero-card__sep {
