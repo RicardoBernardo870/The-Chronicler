@@ -5,11 +5,11 @@ import { useLoreCardsStore } from '@/stores/loreCards'
 import LoreCardDetail from '@/components/lore/LoreCardDetail.vue'
 import { sortDescByDate } from '@/utils/date'
 import Skeleton from 'primevue/skeleton'
+import Panel from 'primevue/panel'
 
 const props = defineProps<{ bookId?: string }>()
 
 const loreStore = useLoreCardsStore()
-const expandedId = ref<string | null>(null)
 const loading = ref(true)
 let requestId = 0
 
@@ -18,7 +18,6 @@ watch(
   async (bookId) => {
     const currentRequest = ++requestId
     loading.value = true
-    expandedId.value = null
     try {
       if (bookId) {
         await loreStore.fetchLoreForBook(bookId)
@@ -43,9 +42,9 @@ const cards = computed<LoreCard[]>(() => {
   return sortDescByDate(raw, 'createdAt')
 })
 
-const toggleExpand = (id: string) => {
-  expandedId.value = expandedId.value === id ? null : id
-}
+const collapsedState = ref<Record<string, boolean>>({})
+const isCollapsed = (id: string) => collapsedState.value[id] ?? true
+const toggleCard = (id: string) => { collapsedState.value[id] = !isCollapsed(id) }
 
 const typeColour = (type: LoreCard['type']): string => {
   switch (type) {
@@ -57,9 +56,6 @@ const typeColour = (type: LoreCard['type']): string => {
     default:           return ''
   }
 }
-
-const excerpt = (text: string): string =>
-  text.length > 120 ? text.slice(0, 120).trimEnd() + '…' : text
 </script>
 
 <template>
@@ -79,32 +75,26 @@ const excerpt = (text: string): string =>
 
   <!-- Card list -->
   <div v-else class="lore-list">
-    <div
+    <Panel
       v-for="card in cards"
       :key="card.id"
-      class="lore-list__item glass-surface"
-      @click="toggleExpand(card.id)"
+      toggleable
+      :collapsed="isCollapsed(card.id)"
+      class="lore-list__panel"
+      @update:collapsed="(v: boolean) => collapsedState[card.id] = v"
     >
-      <!-- Collapsed header (always visible) -->
-      <div class="lore-list__item-header">
-        <div class="lore-list__item-meta">
-          <span :class="['lore-list__badge', typeColour(card.type)]">{{ card.type }}</span>
-          <span class="lore-list__milestone">Unlocked at {{ card.unlockedAtMilestone }}%</span>
+      <template #header>
+        <div class="lore-list__panel-header" @click="toggleCard(card.id)">
+          <div class="lore-list__item-meta">
+            <span :class="['lore-list__badge', typeColour(card.type)]">{{ card.type }}</span>
+            <span class="lore-list__milestone">Unlocked at {{ card.unlockedAtMilestone }}%</span>
+          </div>
+          <h3 class="lore-list__item-title">{{ card.title }}</h3>
         </div>
-        <i :class="['pi', expandedId === card.id ? 'pi-chevron-up' : 'pi-chevron-down', 'lore-list__chevron']" />
-      </div>
+      </template>
 
-      <h3 class="lore-list__item-title">{{ card.title }}</h3>
-
-      <p v-if="expandedId !== card.id" class="lore-list__excerpt">
-        {{ excerpt(card.content) }}
-      </p>
-
-      <!-- Expanded detail (inline, no modal) -->
-      <Transition name="expand">
-        <LoreCardDetail v-if="expandedId === card.id" :card="card" />
-      </Transition>
-    </div>
+      <LoreCardDetail :card="card" />
+    </Panel>
   </div>
 </template>
 
@@ -131,24 +121,49 @@ const excerpt = (text: string): string =>
   gap: 0.875rem;
 }
 
-.lore-list__item {
-  border-radius: 14px;
-  padding: 1rem 1.1rem;
+/* ── Panel overrides to match glass-surface style ── */
+.lore-list__panel {
+  border-radius: 14px !important;
+  border: 1px solid rgba(167, 139, 250, 0.2) !important;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(167, 139, 250, 0.08)) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html[data-p-theme='light'] .lore-list__panel {
+  border-color: rgba(99, 102, 241, 0.18) !important;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(167, 139, 250, 0.06)) !important;
+  color: rgba(0, 0, 0, 0.85) !important;
+}
+
+:deep(.p-panel-header) {
+  background: transparent !important;
+  border: none !important;
+  padding: 1rem 1.1rem !important;
   cursor: pointer;
+}
+
+:deep(.p-panel-content) {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 1.1rem 1rem !important;
+}
+
+:deep(.p-panel-toggle-icon) {
+  color: rgba(255, 255, 255, 0.6) !important;
+  font-size: 0.75rem;
+}
+
+html[data-p-theme='light'] :deep(.p-panel-toggle-icon) {
+  color: rgba(0, 0, 0, 0.45) !important;
+}
+
+.lore-list__panel-header {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  transition: opacity 0.15s;
-}
-
-.lore-list__item:hover {
-  opacity: 0.88;
-}
-
-.lore-list__item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
 }
 
 .lore-list__item-meta {
@@ -178,12 +193,6 @@ const excerpt = (text: string): string =>
   font-weight: 500;
 }
 
-.lore-list__chevron {
-  font-size: 0.75rem;
-  opacity: 0.45;
-  flex-shrink: 0;
-}
-
 .lore-list__item-title {
   margin: 0;
   font-size: 0.95rem;
@@ -191,20 +200,10 @@ const excerpt = (text: string): string =>
   letter-spacing: -0.01em;
 }
 
-.lore-list__excerpt {
-  margin: 0;
-  font-size: 0.85rem;
-  opacity: 0.65;
-  line-height: 1.5;
-}
-
-/* Inline expand transition */
-.expand-enter-active,
-.expand-leave-active {
-  transition: opacity 0.2s ease;
-}
-.expand-enter-from,
-.expand-leave-to {
-  opacity: 0;
+@media (prefers-reduced-motion: reduce) {
+  :deep(.p-collapsible-enter-active),
+  :deep(.p-collapsible-leave-active) {
+    transition: none !important;
+  }
 }
 </style>
