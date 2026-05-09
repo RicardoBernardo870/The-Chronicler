@@ -584,7 +584,6 @@ onMounted(() => fetchLastSession());
   font-weight: 800 !important;
   padding: 0.75rem 1.25rem !important;
   border-radius: var(--p-border-radius-lg, 12px) !important;
-  box-shadow: 0 10px 22px color-mix(in srgb, var(--p-primary-color) 28%, transparent) !important;
 }
 
 .hero-card__session-action :deep(.session-start-btn__stop) {
