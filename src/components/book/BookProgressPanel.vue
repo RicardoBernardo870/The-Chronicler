@@ -243,6 +243,11 @@ const emit = defineEmits<{
   font-size: 0.8rem;
 }
 
+[data-p-theme='light'] .progress-panel__save-btn:not(:disabled),
+[data-p-theme='light'] .progress-panel__recap-btn:not(:disabled) {
+  color: var(--p-primary-700, #4338ca) !important;
+}
+
 .progress-panel__passport-btn {
   align-self: center;
   background: linear-gradient(135deg, #34d399, #a78bfa) !important;

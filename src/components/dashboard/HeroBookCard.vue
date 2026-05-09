@@ -616,6 +616,11 @@ onMounted(() => fetchLastSession());
   font-size: 0.8rem;
 }
 
+[data-p-theme='light'] .hero-card__save-btn:not(:disabled),
+[data-p-theme='light'] .hero-card__recap-btn:not(:disabled) {
+  color: var(--p-primary-700, #4338ca) !important;
+}
+
 .hero-card__sep {
   border: none;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
