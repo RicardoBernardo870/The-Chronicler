@@ -57,6 +57,7 @@ const emit = defineEmits<{
         :loading="progressLoading"
         :disabled="currentPageInput === (progress?.currentPage ?? 0)"
         aria-label="Save progress"
+        class="progress-panel__save-btn"
         @click="emit('save')"
       />
       <SessionStartButton
@@ -135,6 +136,11 @@ const emit = defineEmits<{
 }
 
 .progress-panel__page-input { flex: 1; }
+
+.progress-panel__save-btn {
+  background: rgba(99, 102, 241, 0.18) !important;
+  color: var(--p-indigo-300) !important;
+}
 
 .progress-panel__error {
   margin: 0;
