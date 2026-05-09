@@ -197,10 +197,13 @@ const emit = defineEmits<{
 
 .progress-panel__session-action :deep(.session-start-btn) {
   width: 100%;
+  height: 100%;
+  align-items: stretch;
 }
 
 .progress-panel__session-action :deep(.session-start-btn__cta) {
   width: 100%;
+  height: 100%;
   background: var(--p-primary-color) !important;
   color: #fff !important;
   border-color: var(--p-primary-color) !important;
@@ -208,11 +211,11 @@ const emit = defineEmits<{
   font-weight: 800 !important;
   padding: 0.75rem 1.25rem !important;
   border-radius: var(--p-border-radius-lg, 12px) !important;
-  box-shadow: 0 10px 22px color-mix(in srgb, var(--p-primary-color) 28%, transparent) !important;
 }
 
 .progress-panel__session-action :deep(.session-start-btn__stop) {
   width: 100%;
+  height: 100%;
   border-radius: var(--p-border-radius-lg, 12px) !important;
 }
 
@@ -238,6 +241,11 @@ const emit = defineEmits<{
   opacity: 0.5;
   cursor: not-allowed !important;
   font-size: 0.8rem;
+}
+
+[data-p-theme='light'] .progress-panel__save-btn:not(:disabled),
+[data-p-theme='light'] .progress-panel__recap-btn:not(:disabled) {
+  color: var(--p-primary-700, #4338ca) !important;
 }
 
 .progress-panel__passport-btn {
