@@ -52,13 +52,13 @@ onBeforeUnmount(() => {
           aria-label="Capture a photo of the last page you read"
           @click="emit('snap')"
         />
-        <button
+        <Button
           type="button"
           class="capture-camera__cancel"
           @click="emit('cancel')"
         >
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   </Teleport>
@@ -98,6 +98,7 @@ onBeforeUnmount(() => {
 .capture-camera__snap {
   width: 100%;
   min-height: 3rem;
+  color: #fff;
 }
 
 .capture-camera__cancel {
