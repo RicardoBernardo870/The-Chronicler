@@ -80,7 +80,11 @@ export const useCapture = () => {
 
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
         audio: false,
       })
       videoEl = target
@@ -128,7 +132,7 @@ export const useCapture = () => {
     }
     ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height)
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
     previewImage.value = { dataUrl, mimeType: 'image/jpeg' }
     const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '')
 
