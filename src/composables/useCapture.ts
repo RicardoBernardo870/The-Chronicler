@@ -82,8 +82,8 @@ export const useCapture = () => {
       stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          width: { ideal: 99999 },
+          height: { ideal: 99999 },
         },
         audio: false,
       })
