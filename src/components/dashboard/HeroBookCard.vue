@@ -570,10 +570,13 @@ onMounted(() => fetchLastSession());
 /* Override SessionStartButton inner CTA to be filled, rounded, and stretch */
 .hero-card__session-action :deep(.session-start-btn) {
   width: 100%;
+  height: 100%;
+  align-items: stretch;
 }
 
 .hero-card__session-action :deep(.session-start-btn__cta) {
   width: 100%;
+  height: 100%;
   background: var(--p-primary-color) !important;
   color: #fff !important;
   border-color: var(--p-primary-color) !important;
@@ -586,6 +589,7 @@ onMounted(() => fetchLastSession());
 
 .hero-card__session-action :deep(.session-start-btn__stop) {
   width: 100%;
+  height: 100%;
   border-radius: var(--p-border-radius-lg, 12px) !important;
 }
 

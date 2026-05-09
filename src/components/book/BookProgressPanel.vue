@@ -197,10 +197,13 @@ const emit = defineEmits<{
 
 .progress-panel__session-action :deep(.session-start-btn) {
   width: 100%;
+  height: 100%;
+  align-items: stretch;
 }
 
 .progress-panel__session-action :deep(.session-start-btn__cta) {
   width: 100%;
+  height: 100%;
   background: var(--p-primary-color) !important;
   color: #fff !important;
   border-color: var(--p-primary-color) !important;
@@ -213,6 +216,7 @@ const emit = defineEmits<{
 
 .progress-panel__session-action :deep(.session-start-btn__stop) {
   width: 100%;
+  height: 100%;
   border-radius: var(--p-border-radius-lg, 12px) !important;
 }
 
