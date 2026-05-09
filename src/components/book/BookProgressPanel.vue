@@ -17,11 +17,14 @@ const props = defineProps<{
   lexiconCount: number
   recapLocked: boolean
   pagesUntilUnlock: number
+  recapTriggered: boolean
+  recapLockLabel: string
 }>()
 
 const emit = defineEmits<{
   'update:currentPageInput': [value: number]
   save: []
+  getRecap: []
   sessionConflict: [startedAt: Date]
   cancelSession: []
   viewJourney: []
@@ -53,17 +56,13 @@ const emit = defineEmits<{
         @input="(e: any) => emit('update:currentPageInput', e.value ?? 0)"
       />
       <Button
+        label="Save"
         icon="pi pi-check"
         :loading="progressLoading"
         :disabled="currentPageInput === (progress?.currentPage ?? 0)"
         aria-label="Save progress"
+        class="progress-panel__save-btn"
         @click="emit('save')"
-      />
-      <SessionStartButton
-        :book-id="book.id"
-        :icon-only="true"
-        @conflict-warning="(startedAt) => emit('sessionConflict', startedAt)"
-        @cancel-session="emit('cancelSession')"
       />
     </div>
 
@@ -74,6 +73,31 @@ const emit = defineEmits<{
     <p class="progress-panel__hint">
       Page {{ progress?.currentPage ?? 0 }} of {{ book.totalPages }}
     </p>
+
+    <div class="progress-panel__actions">
+      <div class="progress-panel__session-action">
+        <SessionStartButton
+          :book-id="book.id"
+          :icon-only="false"
+          @conflict-warning="(startedAt) => emit('sessionConflict', startedAt)"
+          @cancel-session="emit('cancelSession')"
+        />
+      </div>
+      <Button
+        v-if="!recapTriggered && recapLocked"
+        :label="recapLockLabel || `Read ${pagesUntilUnlock} more pages`"
+        disabled
+        class="progress-panel__recap-btn progress-panel__recap-btn--locked"
+      />
+      <Button
+        v-else
+        :label="recapTriggered ? 'Recap open' : 'Get Recap'"
+        icon="pi pi-sparkles"
+        class="progress-panel__recap-btn"
+        :disabled="recapTriggered"
+        @click="emit('getRecap')"
+      />
+    </div>
 
     <div class="progress-panel__vocab-row">
       <div class="progress-panel__vocab-actions">
@@ -136,6 +160,21 @@ const emit = defineEmits<{
 
 .progress-panel__page-input { flex: 1; }
 
+.progress-panel__save-btn {
+  white-space: nowrap;
+  font-size: 0.82rem;
+  border-radius: var(--p-border-radius-lg, 12px) !important;
+  border: none !important;
+  background: rgba(99, 102, 241, 0.18) !important;
+  color: var(--p-indigo-300) !important;
+  transition: background 0.18s ease !important;
+}
+
+.progress-panel__save-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.24) !important;
+  color: var(--p-indigo-300) !important;
+}
+
 .progress-panel__error {
   margin: 0;
   font-size: 0.85rem;
@@ -143,6 +182,63 @@ const emit = defineEmits<{
 }
 
 .progress-panel__hint { margin: 0; font-size: 0.8rem; opacity: 0.55; }
+
+.progress-panel__actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.progress-panel__session-action {
+  flex: 2;
+  display: flex;
+  min-width: 0;
+}
+
+.progress-panel__session-action :deep(.session-start-btn) {
+  width: 100%;
+}
+
+.progress-panel__session-action :deep(.session-start-btn__cta) {
+  width: 100%;
+  background: var(--p-primary-color) !important;
+  color: #fff !important;
+  border-color: var(--p-primary-color) !important;
+  font-size: 0.9rem !important;
+  font-weight: 800 !important;
+  padding: 0.75rem 1.25rem !important;
+  border-radius: var(--p-border-radius-lg, 12px) !important;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--p-primary-color) 28%, transparent) !important;
+}
+
+.progress-panel__session-action :deep(.session-start-btn__stop) {
+  width: 100%;
+  border-radius: var(--p-border-radius-lg, 12px) !important;
+}
+
+.progress-panel__recap-btn {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.75rem 1rem !important;
+  border-radius: var(--p-border-radius-lg, 12px) !important;
+  border: none !important;
+  background: rgba(99, 102, 241, 0.18) !important;
+  color: var(--p-indigo-300) !important;
+  transition: background 0.18s ease !important;
+}
+
+.progress-panel__recap-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.24) !important;
+  color: var(--p-indigo-300) !important;
+}
+
+.progress-panel__recap-btn--locked {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+  font-size: 0.8rem;
+}
 
 .progress-panel__passport-btn {
   align-self: center;

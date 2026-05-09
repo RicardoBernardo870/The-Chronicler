@@ -188,8 +188,11 @@ const retryRecap = () => { recapsStore.resetStatus(); doGenerateRecap(); };
         :lexicon-count="lexiconCount"
         :recap-locked="recapLocked"
         :pages-until-unlock="pagesUntilUnlock"
+        :recap-triggered="recapTriggered"
+        :recap-lock-label="recapLockLabel"
         @update:current-page-input="(v) => (currentPageInput = v)"
         @save="saveProgress"
+        @get-recap="getRecap"
         @cancel-session="handleCancelSession"
         @view-journey="router.push({ name: 'book-passport', params: { id: bookId } })"
         @open-add-word="addWordVisible = true"
@@ -215,18 +218,6 @@ const retryRecap = () => { recapsStore.resetStatus(); doGenerateRecap(); };
       <section v-if="!isComplete" class="book-detail__recap glass-surface">
         <div class="book-detail__recap-header">
           <h2 class="book-detail__section-title">AI Recap</h2>
-          <Button
-            v-if="!isGenerating && recapLocked"
-            :label="recapLockLabel"
-            disabled
-            class="book-detail__recap-locked"
-          />
-          <Button
-            v-else-if="!isGenerating"
-            :label="recapTriggered ? 'New Recap' : 'Get Recap'"
-            icon="pi pi-sparkles"
-            @click="getRecap"
-          />
         </div>
         <p v-if="!recapTriggered && !isGenerating" class="book-detail__recap-hint">
           Get a spoiler-free summary of your progress so far.
@@ -294,6 +285,10 @@ const retryRecap = () => { recapsStore.resetStatus(); doGenerateRecap(); };
 .book-detail__recap-header { display: flex; justify-content: space-between; align-items: center; }
 .book-detail__section-title { margin: 0; font-size: 1rem; font-weight: 600; }
 .book-detail__recap-hint { margin: 0; font-size: 0.85rem; opacity: 0.6; }
+.book-detail__recap-btn {
+  background: rgba(99, 102, 241, 0.18) !important;
+  color: var(--p-indigo-300) !important;
+}
 .book-detail__recap-locked { opacity: 0.55; cursor: not-allowed !important; font-size: 0.82rem; }
 .book-detail__history-link { display: flex; justify-content: flex-end; }
 .book-detail__skeleton { border-radius: var(--p-border-radius-xl, 16px); padding: 1.5rem; }

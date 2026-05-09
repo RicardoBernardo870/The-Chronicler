@@ -507,8 +507,8 @@ onMounted(() => fetchLastSession());
   font-size: 0.82rem;
   border-radius: var(--p-border-radius-lg, 12px) !important;
   border: none !important;
-  background: rgba(99, 102, 241, 0.15) !important;
-  color: var(--p-indigo-400) !important;
+  background: rgba(99, 102, 241, 0.18) !important;
+  color: var(--p-indigo-300) !important;
   transition: background 0.18s ease !important;
 }
 
@@ -575,17 +575,13 @@ onMounted(() => fetchLastSession());
 .hero-card__session-action :deep(.session-start-btn__cta) {
   width: 100%;
   background: var(--p-primary-color) !important;
-  color: var(--p-primary-contrast-color) !important;
+  color: #fff !important;
   border-color: var(--p-primary-color) !important;
   font-size: 0.9rem !important;
-  font-weight: 600 !important;
+  font-weight: 800 !important;
   padding: 0.75rem 1.25rem !important;
   border-radius: var(--p-border-radius-lg, 12px) !important;
-}
-
-.hero-card__session-action :deep(.session-start-btn__cta:hover) {
-  background: var(--p-primary-hover-color) !important;
-  border-color: var(--p-primary-hover-color) !important;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--p-primary-color) 28%, transparent) !important;
 }
 
 .hero-card__session-action :deep(.session-start-btn__stop) {
@@ -601,8 +597,8 @@ onMounted(() => fetchLastSession());
   padding: 0.75rem 1rem !important;
   border-radius: var(--p-border-radius-lg, 12px) !important;
   border: none !important;
-  background: rgba(99, 102, 241, 0.15) !important;
-  color: var(--p-indigo-400) !important;
+  background: rgba(99, 102, 241, 0.18) !important;
+  color: var(--p-indigo-300) !important;
   transition: background 0.18s ease !important;
 }
 

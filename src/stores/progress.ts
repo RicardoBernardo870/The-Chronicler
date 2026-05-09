@@ -317,6 +317,12 @@ export const useProgressStore = defineStore('progress', () => {
     const snapshot = progress.value[bookId]
     const libraryEntrySnapshot = booksStore.libraryEntries.find(entry => entry.id === bookId)
     const optimisticUpdatedAt = new Date().toISOString()
+    const previousLastPageSavedAt = lastPageSavedAt.value[bookId]
+
+    // Start recap cooldown before the optimistic page update reaches the UI.
+    // This avoids a one-frame flicker from "pages left" to "Get Recap" before
+    // the confirmed progress save records the cooldown anchor.
+    lastPageSavedAt.value[bookId] = optimisticUpdatedAt
 
     // Optimistic update — reflects in UI before network round-trip
     progress.value[bookId] = {
@@ -420,6 +426,11 @@ export const useProgressStore = defineStore('progress', () => {
         }
       } catch (e) {
         // Rollback optimistic update on server error
+        if (previousLastPageSavedAt) {
+          lastPageSavedAt.value[bookId] = previousLastPageSavedAt
+        } else {
+          delete lastPageSavedAt.value[bookId]
+        }
         if (snapshot !== undefined) {
           progress.value[bookId] = snapshot
           booksStore.applyProgressSnapshot(bookId, {
