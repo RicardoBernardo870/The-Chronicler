@@ -1,4 +1,4 @@
-import { ref, onBeforeUnmount } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { supabase } from '@/services/supabase'
 
 /**
@@ -6,9 +6,9 @@ import { supabase } from '@/services/supabase'
  *
  * Encapsulates the lifecycle of a single-shot page capture:
  *   1. Acquire MediaStream (rear camera if available).
- *   2. User snaps → frame is drawn to a hidden canvas, exported as base64 JPEG.
+ *   2. User snaps; frame is drawn to a hidden canvas, exported as base64 JPEG.
  *   3. Image is POSTed to the ocr-page edge function.
- *   4. State transitions to 'verify' with the OCR result.
+ *   4. State transitions to 'verify' with the OCR result and ephemeral preview.
  *
  * The image bytes never leave the browser except for the single edge-function
  * call. The MediaStream is always released on cancel/unmount.
@@ -28,19 +28,26 @@ export interface OcrResult {
   wordCount: number
 }
 
+export interface CapturePreviewImage {
+  dataUrl: string
+  mimeType: 'image/jpeg'
+}
+
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ocr-page`
 
 export const useCapture = () => {
   const state = ref<CaptureState>('idle')
   const ocrResult = ref<OcrResult | null>(null)
+  const previewImage = ref<CapturePreviewImage | null>(null)
   const errorMessage = ref<string | null>(null)
 
   let stream: MediaStream | null = null
   let videoEl: HTMLVideoElement | null = null
+  let snapInFlight = false
 
   const releaseStream = (): void => {
     if (stream) {
-      stream.getTracks().forEach((t) => t.stop())
+      stream.getTracks().forEach((track) => track.stop())
       stream = null
     }
     if (videoEl) {
@@ -49,12 +56,18 @@ export const useCapture = () => {
     }
   }
 
+  const clearCaptureResult = (): void => {
+    ocrResult.value = null
+    previewImage.value = null
+    errorMessage.value = null
+  }
+
   /**
    * Acquire camera and bind to the supplied <video> element. Caller owns the
    * element and must keep it mounted while in 'camera' state.
    */
   const startCamera = async (target: HTMLVideoElement): Promise<void> => {
-    errorMessage.value = null
+    clearCaptureResult()
     if (!navigator.onLine) {
       state.value = 'offline'
       return
@@ -90,16 +103,18 @@ export const useCapture = () => {
    * Releases the camera stream regardless of OCR outcome.
    */
   const snap = async (): Promise<void> => {
-    if (!videoEl || !stream) return
+    if (snapInFlight || !videoEl || !stream) return
     if (!navigator.onLine) {
       state.value = 'offline'
+      clearCaptureResult()
       releaseStream()
       return
     }
 
+    snapInFlight = true
     state.value = 'ocr-running'
+    clearCaptureResult()
 
-    // Draw current frame to canvas
     const canvas = document.createElement('canvas')
     canvas.width = videoEl.videoWidth || 1280
     canvas.height = videoEl.videoHeight || 960
@@ -108,18 +123,17 @@ export const useCapture = () => {
       state.value = 'error'
       errorMessage.value = 'Could not capture frame'
       releaseStream()
+      snapInFlight = false
       return
     }
     ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height)
 
-    // Export base64 JPEG (quality 0.85). Strip data: prefix.
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+    previewImage.value = { dataUrl, mimeType: 'image/jpeg' }
     const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '')
 
-    // Release camera as soon as we have the still — no need to keep streaming
     releaseStream()
 
-    // Call edge function
     try {
       const {
         data: { session },
@@ -152,28 +166,33 @@ export const useCapture = () => {
     } catch (err) {
       state.value = 'error'
       errorMessage.value = (err as Error).message ?? 'OCR failed'
+      previewImage.value = null
+    } finally {
+      snapInFlight = false
     }
   }
 
   const retake = (): void => {
-    ocrResult.value = null
-    errorMessage.value = null
-    state.value = 'idle'
+    releaseStream()
+    clearCaptureResult()
+    state.value = 'camera'
   }
 
   const cancel = (): void => {
     releaseStream()
-    ocrResult.value = null
-    errorMessage.value = null
+    clearCaptureResult()
     state.value = 'idle'
   }
 
-  // Defensive cleanup — if the caller forgets, we still release the camera.
-  onBeforeUnmount(() => releaseStream())
+  onBeforeUnmount(() => {
+    releaseStream()
+    previewImage.value = null
+  })
 
   return {
     state,
     ocrResult,
+    previewImage,
     errorMessage,
     startCamera,
     snap,

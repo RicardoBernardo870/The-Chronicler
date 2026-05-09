@@ -9,12 +9,12 @@ import { useToast } from "primevue/usetoast";
 // "Add note instead" fallback re-uses the existing component
 import SessionNoteField from "@/components/session/SessionNoteField.vue";
 
-// Capture views are heavy (camera + textarea + Message) — load lazily
+// Capture views are heavy (camera + textarea + Message); load lazily
 const CaptureCameraView = defineAsyncComponent(
   () => import("@/components/capture/CaptureCameraView.vue"),
 );
-const CaptureVerifyView = defineAsyncComponent(
-  () => import("@/components/capture/CaptureVerifyView.vue"),
+const CaptureReviewViewport = defineAsyncComponent(
+  () => import("@/components/capture/CaptureReviewViewport.vue"),
 );
 
 const props = defineProps<{
@@ -33,8 +33,16 @@ const progressStore = useProgressStore();
 const capturesStore = useCapturesStore();
 const toast = useToast();
 
-const { state, ocrResult, errorMessage, startCamera, snap, retake, cancel } =
-  useCapture();
+const {
+  state,
+  ocrResult,
+  previewImage,
+  errorMessage,
+  startCamera,
+  snap,
+  retake,
+  cancel,
+} = useCapture();
 
 // 'note' = user chose "Add note instead"; rendered SessionNoteField fallback
 const mode = ref<"capture" | "note">("capture");
@@ -44,7 +52,7 @@ const currentPage = computed(
 );
 
 const handleStartCapture = (): void => {
-  // CaptureCameraView mounts and calls startCamera via prop — flip state so view appears
+  // CaptureCameraView mounts and calls startCamera via prop; flip state so view appears
   state.value = "camera";
 };
 
@@ -80,6 +88,10 @@ const handleSave = async (text: string): Promise<void> => {
       life: 4000,
     });
   }
+};
+
+const handleCancelRetake = (): void => {
+  retake();
 };
 
 const handleAddNoteInstead = (): void => {
@@ -150,18 +162,35 @@ const handleSkip = (): void => {
 
     <!-- State: OCR running -->
     <div v-else-if="state === 'ocr-running'" class="session-capture__loading">
-      <i class="pi pi-spin pi-spinner" /> Reading the page…
+      <i class="pi pi-spin pi-spinner" /> Reading the page...
     </div>
 
-    <!-- State: verify the OCR text -->
-    <CaptureVerifyView
-      v-else-if="state === 'verify' && ocrResult"
+    <!-- State: review captured image + OCR text -->
+    <CaptureReviewViewport
+      v-else-if="state === 'verify' && ocrResult && previewImage"
+      :image-src="previewImage.dataUrl"
       :initial-text="ocrResult.text"
       :confidence="ocrResult.confidence"
-      @save="handleSave"
-      @retake="retake"
-      @cancel="handleSkip"
+      @confirm="handleSave"
+      @cancel-retake="handleCancelRetake"
     />
+
+    <div v-else-if="state === 'verify'" class="session-capture__panel">
+      <p class="session-capture__panel-text">
+        We could not prepare the capture preview. Try taking the photo again.
+      </p>
+      <div class="session-capture__actions">
+        <Button
+          label="Try again"
+          icon="pi pi-refresh"
+          outlined
+          @click="retake"
+        />
+        <button type="button" class="session-capture__link" @click="handleSkip">
+          Skip
+        </button>
+      </div>
+    </div>
 
     <!-- State: camera permission denied -->
     <div v-else-if="state === 'denied'" class="session-capture__panel">
@@ -185,7 +214,7 @@ const handleSkip = (): void => {
     <!-- State: offline -->
     <div v-else-if="state === 'offline'" class="session-capture__panel">
       <p class="session-capture__panel-text">
-        You're offline — capture needs internet to extract text. Try again
+        You're offline; capture needs internet to extract text. Try again
         later, or leave a note for now.
       </p>
       <div class="session-capture__actions">
