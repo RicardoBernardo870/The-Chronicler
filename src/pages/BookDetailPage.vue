@@ -188,8 +188,11 @@ const retryRecap = () => { recapsStore.resetStatus(); doGenerateRecap(); };
         :lexicon-count="lexiconCount"
         :recap-locked="recapLocked"
         :pages-until-unlock="pagesUntilUnlock"
+        :recap-triggered="recapTriggered"
+        :recap-lock-label="recapLockLabel"
         @update:current-page-input="(v) => (currentPageInput = v)"
         @save="saveProgress"
+        @get-recap="getRecap"
         @cancel-session="handleCancelSession"
         @view-journey="router.push({ name: 'book-passport', params: { id: bookId } })"
         @open-add-word="addWordVisible = true"
@@ -215,19 +218,6 @@ const retryRecap = () => { recapsStore.resetStatus(); doGenerateRecap(); };
       <section v-if="!isComplete" class="book-detail__recap glass-surface">
         <div class="book-detail__recap-header">
           <h2 class="book-detail__section-title">AI Recap</h2>
-          <Button
-            v-if="!isGenerating && recapLocked"
-            :label="recapLockLabel"
-            disabled
-            class="book-detail__recap-locked"
-          />
-          <Button
-            v-else-if="!isGenerating"
-            :label="recapTriggered ? 'New Recap' : 'Get Recap'"
-            icon="pi pi-sparkles"
-            class="book-detail__recap-btn"
-            @click="getRecap"
-          />
         </div>
         <p v-if="!recapTriggered && !isGenerating" class="book-detail__recap-hint">
           Get a spoiler-free summary of your progress so far.
