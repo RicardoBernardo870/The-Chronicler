@@ -38,6 +38,8 @@ export const useProgressStore = defineStore('progress', () => {
   // Keyed by bookId — client-side timestamp of the last real page save
   // (progress_history insert). Used by useRecapLock cooldown anchor.
   const lastPageSavedAt = ref<Record<string, string>>({})
+  const lastPageSavedAtLoaded = ref<Record<string, boolean>>({})
+  const lastPageSavedAtLoading = ref<Record<string, boolean>>({})
 
   const { enqueue, flushQueue, registerBackgroundSync } = useOfflineSync()
 
@@ -167,6 +169,37 @@ export const useProgressStore = defineStore('progress', () => {
   // Writes session_start_at = NOW() to reading_progress on the server, then
   // updates local Pinia state. Throws on failure so the composable can surface
   // an error and roll back any optimistic state.
+
+  const fetchLastPageSavedAt = async (bookId: string): Promise<void> => {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+    if (
+      lastPageSavedAt.value[bookId] ||
+      lastPageSavedAtLoaded.value[bookId] ||
+      lastPageSavedAtLoading.value[bookId]
+    ) {
+      return
+    }
+
+    lastPageSavedAtLoading.value[bookId] = true
+    try {
+      const { data, error } = await supabase
+        .from('progress_history')
+        .select('recorded_at')
+        .eq('book_id', bookId)
+        .eq('user_id', authStore.user.id)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (error) throw error
+      const recordedAt = (data as { recorded_at?: string } | null)?.recorded_at
+      if (recordedAt) lastPageSavedAt.value[bookId] = recordedAt
+      lastPageSavedAtLoaded.value[bookId] = true
+    } finally {
+      lastPageSavedAtLoading.value[bookId] = false
+    }
+  }
 
   const startSession = async (bookId: string): Promise<void> => {
     const authStore = useAuthStore()
@@ -505,6 +538,7 @@ export const useProgressStore = defineStore('progress', () => {
     inProgressBooks,
     completedBooks,
     fetchProgress,
+    fetchLastPageSavedAt,
     updateProgress,
     setInitialProgress,
     startSession,

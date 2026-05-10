@@ -1,4 +1,4 @@
-import { computed, toValue, type Ref } from 'vue'
+import { computed, toValue, watch, type Ref } from 'vue'
 import { useProgressStore } from '@/stores/progress'
 import { useRecapsStore } from '@/stores/recaps'
 import { useBooksStore } from '@/stores/books'
@@ -19,6 +19,17 @@ export const useRecapLock = (bookId: Ref<string> | string) => {
   const booksStore   = useBooksStore()
 
   const id = computed(() => toValue(bookId))
+
+  watch(
+    id,
+    (bookId) => {
+      if (!bookId) return
+      progressStore.fetchLastPageSavedAt(bookId).catch(() => {
+        /* Lock can still fall back to recap/page rules if history hydration fails. */
+      })
+    },
+    { immediate: true },
+  )
 
   const progress = computed(() => progressStore.progressForBook(id.value))
   const book     = computed(() => booksStore.bookById(id.value))
