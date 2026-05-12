@@ -1,5 +1,4 @@
 // deno-lint-ignore-file no-explicit-any
-import { DEFAULT_THINKING_CONFIG } from "../aiClient.ts"
 
 export interface ImagePromptInput {
   bookTitle: string
@@ -76,7 +75,6 @@ export const refineImagePrompt = async (ai: any, input: ImagePromptInput): Promi
       config: {
         temperature: 0.35,
         maxOutputTokens: 1200,
-        thinkingConfig: DEFAULT_THINKING_CONFIG,
       },
     })
 

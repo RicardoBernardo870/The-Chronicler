@@ -11,8 +11,9 @@ import { useCapturesStore } from '@/stores/captures'  // 015-corpus-recaps
 // generateRecap and all streaming code are EXCLUDED from cache (FR-009).
 import { swrStatus, swrRun, invalidate, registerRevalidator, cacheKeys } from '@/composables/useCache'
 
-// 015-corpus-recaps: any capture in the delta range triggers corpus mode.
-// One real page of text is a better anchor than pure inference.
+// 015-corpus-recaps: cap inline corpus payloads so a long reading gap does not
+// flood the edge function with months of captured text.
+const MAX_RECAP_CAPTURES = 3
 
 const TTL = 60_000 // 60 s
 
@@ -83,7 +84,11 @@ export const useRecapsStore = defineStore('recaps', () => {
       const capturesStore = useCapturesStore()
       await capturesStore.fetchCapturesForBook(bookId).catch(() => {})
       const inRange = capturesStore.capturesInRange(bookId, capturesFromPage, currentPage)
-      const useCorpus = inRange.length >= 1 && currentPage > fromPage
+      const latestCaptures = [...inRange]
+        .sort((a, b) => b.page - a.page)
+        .slice(0, MAX_RECAP_CAPTURES)
+        .sort((a, b) => a.page - b.page)
+      const useCorpus = latestCaptures.length >= 1 && currentPage > fromPage
       const selectedMode: RecapMode = useCorpus ? 'corpus' : 'inferred'
 
       const result: StreamRecapResult = await streamRecap(
@@ -96,7 +101,7 @@ export const useRecapsStore = defineStore('recaps', () => {
           totalPages: book.totalPages,
           from_page: fromPage > 0 ? fromPage : undefined,
           captures: useCorpus
-            ? inRange.map((c) => ({ page: c.page, text: c.text }))
+            ? latestCaptures.map((c) => ({ page: c.page, text: c.text }))
             : undefined,
         },
         (token) => { streamingText.value += token },
