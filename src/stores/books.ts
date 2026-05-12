@@ -185,6 +185,7 @@ export const useBooksStore = defineStore('books', () => {
     swrTouch(cacheKeys.books(uid))
     invalidate(cacheKeys.library(uid))
     invalidate(cacheKeys.libraryBreakdown(uid))
+    invalidate(cacheKeys.readingForecast(uid))
     return book
   }
 
@@ -215,6 +216,7 @@ export const useBooksStore = defineStore('books', () => {
     invalidate(cacheKeys.library(uid))
     invalidate(cacheKeys.readingStats(uid))
     invalidate(cacheKeys.libraryBreakdown(uid))
+    invalidate(cacheKeys.readingForecast(uid))
     invalidate(cacheKeys.velocity(uid))
 
     return book
@@ -249,6 +251,7 @@ export const useBooksStore = defineStore('books', () => {
     swrTouch(cacheKeys.books(uid))
     invalidate(cacheKeys.library(uid))
     invalidate(cacheKeys.libraryBreakdown(uid))
+    invalidate(cacheKeys.readingForecast(uid))
   }
 
   const removeBook = async (id: string) => {
@@ -269,6 +272,7 @@ export const useBooksStore = defineStore('books', () => {
     invalidate(cacheKeys.progress(uid))
     invalidate(cacheKeys.library(uid))
     invalidate(cacheKeys.libraryBreakdown(uid))
+    invalidate(cacheKeys.readingForecast(uid))
     invalidate(`lexicon:${uid}`, { prefix: true })
     invalidate(cacheKeys.recaps(uid, id))
     invalidate(cacheKeys.bookPassport(uid, id))

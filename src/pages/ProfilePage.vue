@@ -9,9 +9,11 @@ import { useProgressStore } from "@/stores/progress";
 import { useReadingDnaStore } from "@/stores/readingDna";
 import { useReadingProfile } from "@/composables/useReadingProfile";
 import { useLibraryBreakdown } from "@/composables/useLibraryBreakdown";
+import { useReadingForecast } from "@/composables/useReadingForecast";
 
 import ReadingDnaCard from "@/components/profile/ReadingDnaCard.vue";
 import LifetimeStatsGrid from "@/components/profile/LifetimeStatsGrid.vue";
+import ReadingForecastCard from "@/components/profile/ReadingForecastCard.vue";
 import LibraryBreakdownCard from "@/components/profile/LibraryBreakdownCard.vue";
 
 const booksStore = useBooksStore();
@@ -19,6 +21,7 @@ const progressStore = useProgressStore();
 const dnaStore = useReadingDnaStore();
 const { booksFinished, fetchStats } = useReadingProfile();
 const { fetchBreakdown } = useLibraryBreakdown();
+const { fetchForecast } = useReadingForecast();
 const profileReady = ref(false);
 
 onMounted(async () => {
@@ -31,6 +34,7 @@ onMounted(async () => {
       progressStore.fetchProgress(),
       dnaStore.fetchDna(),
       fetchStats(),
+      fetchForecast(),
       fetchBreakdown(),
     ]);
     // Keep the first profile paint stable: if DNA generation is needed, finish it
@@ -85,6 +89,9 @@ onMounted(async () => {
         </div>
         <div key="stats" class="profile-page__section">
           <LifetimeStatsGrid />
+        </div>
+        <div key="forecast" class="profile-page__section">
+          <ReadingForecastCard />
         </div>
         <div key="breakdown" class="profile-page__section">
           <LibraryBreakdownCard />
