@@ -104,7 +104,7 @@
 
 ## Phase 6: User Story 4 - Preserve Existing Profile Experience (Priority: P3)
 
-**Goal**: New gamified elements fit into Profile without breaking Reading DNA, Lifetime Stats, Reading Forecast, or Library Breakdown.
+**Goal**: New gamified elements fit into Profile without breaking Reading DNA, Lifetime Stats, or Library Breakdown.
 
 **Independent Test**: Load Profile with no goal, active goal, achieved goal, and representative XP activity; all existing cards remain visible and readable.
 

@@ -185,7 +185,6 @@ export const useBooksStore = defineStore('books', () => {
     swrTouch(cacheKeys.books(uid))
     invalidate(cacheKeys.library(uid))
     invalidate(cacheKeys.libraryBreakdown(uid))
-    invalidate(cacheKeys.readingForecast(uid))
     invalidate(cacheKeys.readingQuest(uid), { prefix: true })
     return book
   }
@@ -217,7 +216,6 @@ export const useBooksStore = defineStore('books', () => {
     invalidate(cacheKeys.library(uid))
     invalidate(cacheKeys.readingStats(uid))
     invalidate(cacheKeys.libraryBreakdown(uid))
-    invalidate(cacheKeys.readingForecast(uid))
     invalidate(cacheKeys.readingQuest(uid), { prefix: true })
     invalidate(cacheKeys.velocity(uid))
 
@@ -253,7 +251,6 @@ export const useBooksStore = defineStore('books', () => {
     swrTouch(cacheKeys.books(uid))
     invalidate(cacheKeys.library(uid))
     invalidate(cacheKeys.libraryBreakdown(uid))
-    invalidate(cacheKeys.readingForecast(uid))
     invalidate(cacheKeys.readingQuest(uid), { prefix: true })
   }
 
@@ -275,7 +272,6 @@ export const useBooksStore = defineStore('books', () => {
     invalidate(cacheKeys.progress(uid))
     invalidate(cacheKeys.library(uid))
     invalidate(cacheKeys.libraryBreakdown(uid))
-    invalidate(cacheKeys.readingForecast(uid))
     invalidate(cacheKeys.readingQuest(uid), { prefix: true })
     invalidate(`lexicon:${uid}`, { prefix: true })
     invalidate(cacheKeys.recaps(uid, id))

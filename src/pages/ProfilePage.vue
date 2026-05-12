@@ -10,12 +10,10 @@ import { useReadingDnaStore } from "@/stores/readingDna";
 import { useReadingQuestStore } from "@/stores/readingQuest";
 import { useReadingProfile } from "@/composables/useReadingProfile";
 import { useLibraryBreakdown } from "@/composables/useLibraryBreakdown";
-import { useReadingForecast } from "@/composables/useReadingForecast";
 
 import ReadingDnaCard from "@/components/profile/ReadingDnaCard.vue";
 import ReadingQuestCard from "@/components/profile/ReadingQuestCard.vue";
 import LifetimeStatsGrid from "@/components/profile/LifetimeStatsGrid.vue";
-import ReadingForecastCard from "@/components/profile/ReadingForecastCard.vue";
 import LibraryBreakdownCard from "@/components/profile/LibraryBreakdownCard.vue";
 
 const booksStore = useBooksStore();
@@ -24,7 +22,6 @@ const dnaStore = useReadingDnaStore();
 const readingQuestStore = useReadingQuestStore();
 const { booksFinished, fetchStats } = useReadingProfile();
 const { fetchBreakdown } = useLibraryBreakdown();
-const { fetchForecast } = useReadingForecast();
 const profileReady = ref(false);
 
 onMounted(async () => {
@@ -37,7 +34,6 @@ onMounted(async () => {
       progressStore.fetchProgress(),
       dnaStore.fetchDna(),
       fetchStats(),
-      fetchForecast(),
       readingQuestStore.fetchQuestSummary().catch(() => {}),
       fetchBreakdown(),
     ]);
@@ -96,9 +92,6 @@ onMounted(async () => {
         </div>
         <div key="stats" class="profile-page__section">
           <LifetimeStatsGrid />
-        </div>
-        <div key="forecast" class="profile-page__section">
-          <ReadingForecastCard />
         </div>
         <div key="breakdown" class="profile-page__section">
           <LibraryBreakdownCard />

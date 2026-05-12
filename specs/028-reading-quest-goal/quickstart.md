@@ -62,7 +62,7 @@
 ## Scenario 8 - Existing Profile cards remain intact
 
 1. Open Profile after enabling the feature.
-2. Expected: Reading DNA, Lifetime Stats, Reading Forecast, and Library Breakdown still render.
+2. Expected: Reading DNA, Lifetime Stats, and Library Breakdown still render.
 3. Navigate away and back.
 4. Expected: Reading Quest and existing cards reload without layout breakage.
 

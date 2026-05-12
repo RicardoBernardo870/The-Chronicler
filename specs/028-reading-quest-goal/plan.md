@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add a gamified Profile experience with a current-year book goal, a Reading Quest progress card, and a derived reader level system. The technical approach is to persist one goal row per user/year, compute quest progress and XP through Supabase RPC aggregation to avoid client-side N+1 reads, and render compact Profile components that preserve the existing Reading DNA, Lifetime Stats, Reading Forecast, and Library Breakdown cards.
+Add a gamified Profile experience with a current-year book goal, a Reading Quest progress card, and a derived reader level system. The technical approach is to persist one goal row per user/year, compute quest progress and XP through Supabase RPC aggregation to avoid client-side N+1 reads, and render compact Profile components that preserve the existing Reading DNA, Lifetime Stats, and Library Breakdown cards.
 
 ## Technical Context
 
