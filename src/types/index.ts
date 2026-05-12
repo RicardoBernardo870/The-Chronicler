@@ -200,6 +200,63 @@ export interface LibraryBreakdown {
   avgCompletionPct: number
 }
 
+export type ReadingQuestStatus =
+  | 'no_goal'
+  | 'no_projection'
+  | 'ahead'
+  | 'on_track'
+  | 'behind'
+  | 'comeback'
+  | 'complete'
+
+export interface ReadingGoal {
+  id: string
+  userId: string
+  year: number
+  targetBooks: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ReadingQuestSummary {
+  year: number
+  targetBooks: number | null
+  completedBooks: number
+  progressPercent: number
+  requiredBooksPerMonth: number | null
+  currentBooksPerMonth: number | null
+  projectedBooks: number | null
+  hasProjection: boolean
+  status: ReadingQuestStatus
+  statusLabel: string
+}
+
+export interface ReaderXpSources {
+  pagesRead: number
+  completedBooks: number
+  readingSessions: number
+  pageCaptures: number
+  recapsGenerated: number
+  loreCardsUnlocked: number
+}
+
+export interface ReaderXpSummary {
+  level: number
+  title: string
+  totalXp: number
+  currentLevelXp: number
+  nextLevelXp: number
+  xpToNextLevel: number
+  progressPercent: number
+}
+
+export interface ReadingQuestResponse {
+  goal: ReadingGoal | null
+  quest: ReadingQuestSummary
+  level: ReaderXpSummary
+  sources: ReaderXpSources
+}
+
 export interface ReadingProgressRow {
   id: string
   book_id: string

@@ -11,6 +11,7 @@ import {
   swrStatus,
   swrRun,
   swrTouch,
+  invalidate,
   registerRevalidator,
   cacheKeys,
 } from '@/composables/useCache'
@@ -173,6 +174,7 @@ export const useLoreCardsStore = defineStore('loreCards', () => {
 
       swrTouch(cacheKeys.lore(authStore.user.id, bookId))
       swrTouch(cacheKeys.loreAll(authStore.user.id))
+      invalidate(cacheKeys.readingQuest(authStore.user.id), { prefix: true })
 
       // FR-010 (010-dashboard-ux-sync): success toast removed.
       // The dashboard inline lore card handles arrival display.

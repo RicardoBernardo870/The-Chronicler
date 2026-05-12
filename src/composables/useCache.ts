@@ -198,6 +198,7 @@ export const cacheKeys = {
   lastSession:     (uid: string)                  => `lastSession:${uid}`,
   libraryBreakdown:(uid: string)                  => `libraryBreakdown:${uid}`,
   readingForecast: (uid: string)                  => `readingForecast:${uid}`,
+  readingQuest:    (uid: string)                  => `readingQuest:${uid}`,
   // 019 — reading-velocity RPC: cached until a session ends or the page reloads
   velocity:        (uid: string)                  => `velocity:${uid}`,
 } as const
