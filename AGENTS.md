@@ -1,6 +1,6 @@
 ﻿# BookHero Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-05-09
+Auto-generated from all feature plans. Last updated: 2026-05-12
 
 ## Active Technologies
 - TypeScript 6 + Vue 3.5+ + PrimeVue 4 (Accordion component), Pinia 3, Supabase JS v2, Vue Router 4 (master)
@@ -35,6 +35,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-09
 - Existing Supabase PostgreSQL tables (`books`, `reading_progress`, `progress_history`, `up_next_order`) plus existing in-memory Pinia/SWR cache; no new storage layer planned (021-first-run-onboarding)
 - TypeScript 6.x with Vue 3.5 Composition API and `<script setup>` + PrimeVue 4, Pinia 3, Supabase JS v2, Vue Router 4, VueUse, native `navigator.mediaDevices.getUserMedia()` (027-capture-review-viewport)
 - Existing Supabase `page_captures` write path via `useCapturesStore`; no schema changes and no image persistence (027-capture-review-viewport)
+- TypeScript 6 strict; Vue 3.5 Composition API with `<script setup>`; SQL migrations for Supabase PostgreSQL + Vue 3.5, Pinia 3, Vue Router 4, Supabase JS v2, PrimeVue 4, existing SWR cache primitive (028-reading-quest-goal)
+- Supabase PostgreSQL; new `reading_goals` table; existing `books`, `reading_progress`, `progress_history`, `recaps`, `page_captures`, `lore_cards` (028-reading-quest-goal)
 
 - TypeScript 5.x + Vue 3.5+ + PrimeVue 4.x, Pinia 2.x, Vue Router 4.x, Supabase JS v2, (001-the-chronicler)
 
@@ -55,9 +57,9 @@ npm test; npm run lint
 TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 ## Recent Changes
+- 028-reading-quest-goal: Added TypeScript 6 strict; Vue 3.5 Composition API with `<script setup>`; SQL migrations for Supabase PostgreSQL + Vue 3.5, Pinia 3, Vue Router 4, Supabase JS v2, PrimeVue 4, existing SWR cache primitive
 - 027-capture-review-viewport: Added TypeScript 6.x with Vue 3.5 Composition API and `<script setup>` + PrimeVue 4, Pinia 3, Supabase JS v2, Vue Router 4, VueUse, native `navigator.mediaDevices.getUserMedia()`
 - 021-first-run-onboarding: Implemented first-run Dashboard and add-book onboarding refinements: automatic one-active-book hero focus, compact no-book/queued/completed-only states, initial add-book status choices, non-session progress writes for completed/currently-reading imports, completed-import safeguards against session/capture/recap/lore/passport prompts, and no new storage layer.
-- 018-great-library: `GreatLibraryPage.vue` Lexicon tab refactored from in-memory `lexiconStore.allEntries` to server-side paginated query; new `useGreatLibrarySearch` composable (module-level singleton refs, PAGE_SIZE=20, offset pagination, server-side `.or()` search with 300ms debounce via VueUse `watchDebounced`, type + book filter, `useIntersectionObserver` infinite scroll); `LexiconCard.vue` extended with optional `bookTitle` prop (shown on front face below term); new `LexiconSearchResult` + `BookFilterOption` types + `mapSearchResult` mapper in `src/types/index.ts`; no schema changes, no new npm packages.
 
 
 <!-- MANUAL ADDITIONS START -->
@@ -65,5 +67,5 @@ TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan: specs/027-capture-review-viewport/plan.md
+shell commands, and other important information, read the current plan: specs/028-reading-quest-goal/plan.md
 <!-- SPECKIT END -->

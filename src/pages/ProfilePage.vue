@@ -7,16 +7,19 @@ import { Skeleton } from "primevue";
 import { useBooksStore } from "@/stores/books";
 import { useProgressStore } from "@/stores/progress";
 import { useReadingDnaStore } from "@/stores/readingDna";
+import { useReadingQuestStore } from "@/stores/readingQuest";
 import { useReadingProfile } from "@/composables/useReadingProfile";
 import { useLibraryBreakdown } from "@/composables/useLibraryBreakdown";
 
 import ReadingDnaCard from "@/components/profile/ReadingDnaCard.vue";
+import ReadingQuestCard from "@/components/profile/ReadingQuestCard.vue";
 import LifetimeStatsGrid from "@/components/profile/LifetimeStatsGrid.vue";
 import LibraryBreakdownCard from "@/components/profile/LibraryBreakdownCard.vue";
 
 const booksStore = useBooksStore();
 const progressStore = useProgressStore();
 const dnaStore = useReadingDnaStore();
+const readingQuestStore = useReadingQuestStore();
 const { booksFinished, fetchStats } = useReadingProfile();
 const { fetchBreakdown } = useLibraryBreakdown();
 const profileReady = ref(false);
@@ -31,6 +34,7 @@ onMounted(async () => {
       progressStore.fetchProgress(),
       dnaStore.fetchDna(),
       fetchStats(),
+      readingQuestStore.fetchQuestSummary().catch(() => {}),
       fetchBreakdown(),
     ]);
     // Keep the first profile paint stable: if DNA generation is needed, finish it
@@ -82,6 +86,9 @@ onMounted(async () => {
       >
         <div key="dna" class="profile-page__section">
           <ReadingDnaCard />
+        </div>
+        <div key="quest" class="profile-page__section">
+          <ReadingQuestCard />
         </div>
         <div key="stats" class="profile-page__section">
           <LifetimeStatsGrid />

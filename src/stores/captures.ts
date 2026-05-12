@@ -3,6 +3,7 @@ import { ref, reactive, computed } from 'vue'
 import { supabase } from '@/services/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { mapPageCapture, type PageCapture, type PageCaptureRow } from '@/types'
+import { cacheKeys, invalidate } from '@/composables/useCache'
 
 /**
  * Page Captures store (015-corpus-recaps).
@@ -109,6 +110,7 @@ export const useCapturesStore = defineStore('captures', () => {
       list.sort((a, b) => a.page - b.page)
       capturesByBook[input.bookId] = list
       loadedBookIds.value.add(input.bookId)
+      invalidate(cacheKeys.readingQuest(authStore.user.id), { prefix: true })
 
       // 016 — fire-and-forget auto-vocabulary extraction. Non-blocking,
       // silent on failure (FR-020 / SC-004). Capture itself is already saved

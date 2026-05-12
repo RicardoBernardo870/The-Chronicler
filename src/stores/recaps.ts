@@ -152,7 +152,10 @@ export const useRecapsStore = defineStore('recaps', () => {
 
       // T015: invalidate the history cache so the Recap History page refetches
       // on next visit. Only the history list key — streaming paths untouched.
-      if (authStore.user) invalidate(cacheKeys.recaps(authStore.user.id, bookId))
+      if (authStore.user) {
+        invalidate(cacheKeys.recaps(authStore.user.id, bookId))
+        invalidate(cacheKeys.readingQuest(authStore.user.id), { prefix: true })
+      }
 
       generationStatus.value = 'complete'
     } catch (e: unknown) {

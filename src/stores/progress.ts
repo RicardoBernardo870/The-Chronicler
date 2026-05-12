@@ -299,6 +299,7 @@ export const useProgressStore = defineStore('progress', () => {
     invalidate(cacheKeys.library(authStore.user.id))
     invalidate(cacheKeys.readingStats(authStore.user.id))
     invalidate(cacheKeys.libraryBreakdown(authStore.user.id))
+    invalidate(cacheKeys.readingQuest(authStore.user.id), { prefix: true })
     invalidate(cacheKeys.velocity(authStore.user.id))
 
     return confirmedProgress
@@ -385,6 +386,7 @@ export const useProgressStore = defineStore('progress', () => {
         // Invalidate RPC aggregate caches so they revalidate on next access (017)
         invalidate(cacheKeys.lastSession(authStore.user.id))
         invalidate(cacheKeys.readingStats(authStore.user.id))
+        invalidate(cacheKeys.readingQuest(authStore.user.id), { prefix: true })
 
         // T012 (013): insert progress_history with session_start_at
         const now = new Date().toISOString()
