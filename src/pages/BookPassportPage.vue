@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useBooksStore } from '@/stores/books'
 import { useBookPassportStore } from '@/stores/bookPassport'
@@ -17,10 +17,19 @@ const book = computed(() => booksStore.bookById(bookId.value))
 const passport = computed(() => passportStore.passportFor(bookId.value))
 const isGenerating = computed(() => passportStore.isGenerating(bookId.value))
 const streamText = computed(() => passportStore.streamFor(bookId.value))
+const loading = ref(true)
+const loadError = ref<string | null>(null)
 
 onMounted(async () => {
-  if (!book.value) await booksStore.fetchLibrary()
-  await passportStore.fetchPassport(bookId.value)
+  try {
+    if (!book.value) await booksStore.fetchLibrary()
+    await passportStore.fetchPassport(bookId.value)
+  } catch (error) {
+    console.error('Failed to load book passport:', error)
+    loadError.value = 'Could not load your reading journey.'
+  } finally {
+    loading.value = false
+  }
 })
 
 const formatDate = (dateStr: string | null): string => {
@@ -55,8 +64,19 @@ const aiSummary = computed(() => passport.value?.aiSummary || streamText.value)
       <p class="passport__author">by {{ book?.author }}</p>
     </header>
 
+    <div v-if="loading" class="passport__generating glass-surface">
+      <i class="pi pi-spin pi-spinner" style="font-size: 1.5rem; opacity: 0.5" />
+      <p>Loading your reading journey...</p>
+    </div>
+
+    <div v-else-if="loadError" class="passport__empty glass-surface">
+      <i class="pi pi-exclamation-triangle" style="font-size: 2.5rem; opacity: 0.25" />
+      <p>{{ loadError }}</p>
+      <p style="font-size: 0.85rem; opacity: 0.55">Please try again in a moment.</p>
+    </div>
+
     <!-- Loading state: generating -->
-    <div v-if="isGenerating && !passport" class="passport__generating glass-surface">
+    <div v-else-if="isGenerating && !passport" class="passport__generating glass-surface">
       <i class="pi pi-spin pi-spinner" style="font-size: 1.5rem; opacity: 0.5" />
       <p>Crafting your reading journey…</p>
       <div v-if="streamText" class="passport__stream-preview">{{ streamText }}</div>
@@ -69,7 +89,7 @@ const aiSummary = computed(() => passport.value?.aiSummary || streamText.value)
       <p style="font-size: 0.85rem; opacity: 0.55">Check back in a moment.</p>
     </div>
 
-    <template v-else-if="passport">
+    <div v-else-if="passport" class="passport__content">
       <!-- Stats -->
       <section class="passport__stats">
         <div class="passport__stat glass-surface">
@@ -120,7 +140,7 @@ const aiSummary = computed(() => passport.value?.aiSummary || streamText.value)
         outlined
         @click="shareJourney"
       />
-    </template>
+    </div>
   </div>
 </template>
 
@@ -277,6 +297,10 @@ const aiSummary = computed(() => passport.value?.aiSummary || streamText.value)
 
 .passport__share {
   align-self: center;
+}
+
+.passport__content {
+  display: contents;
 }
 
 @media (max-width: 400px) {

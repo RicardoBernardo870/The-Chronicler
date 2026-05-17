@@ -3,17 +3,84 @@ import { ref } from 'vue'
 import { supabase } from '@/services/supabase'
 import { mapBookPassport, type BookPassport, type BookPassportRow } from '@/types'
 import { useAuthStore } from '@/stores/auth'
-import { useLexiconStore } from '@/stores/lexicon'
 import { swrStatus, swrRun, swrTouch, registerRevalidator, cacheKeys } from '@/composables/useCache'
 
 const TTL = 60_000 // 60 s
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-recap`
 
+type BookPassportStats = {
+  totalDays: number | null
+  peakDay: string | null
+  peakDayPages: number | null
+  vocabularyCount: number
+}
+
+const browserTimeZone = (): string => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  } catch {
+    return 'UTC'
+  }
+}
+
+const fetchPassportStats = async (bookId: string): Promise<BookPassportStats> => {
+  const authStore = useAuthStore()
+  if (!authStore.user) {
+    return { totalDays: null, peakDay: null, peakDayPages: null, vocabularyCount: 0 }
+  }
+
+  const { data, error } = await supabase.rpc('get_book_passport_stats', {
+    p_book_id: bookId,
+    p_time_zone: browserTimeZone(),
+    p_user_id: authStore.user.id,
+  })
+
+  if (error) throw error
+
+  const stats = data as Partial<BookPassportStats> | null
+  return {
+    totalDays: stats?.totalDays ?? null,
+    peakDay: stats?.peakDay ?? null,
+    peakDayPages: stats?.peakDayPages ?? null,
+    vocabularyCount: stats?.vocabularyCount ?? 0,
+  }
+}
+
 export const useBookPassportStore = defineStore('bookPassport', () => {
   const passportByBook = ref<Record<string, BookPassport>>({})
   const generating = ref<Record<string, boolean>>({})
   const streamingText = ref<Record<string, string>>({})
+
+  const refreshPassportStats = async (bookId: string, passport: BookPassport) => {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+
+    const stats = await fetchPassportStats(bookId)
+    if (
+      stats.totalDays === passport.totalDays &&
+      stats.peakDay === passport.peakDay &&
+      stats.peakDayPages === passport.peakDayPages &&
+      stats.vocabularyCount === passport.vocabularyCount
+    ) return
+
+    const { data, error } = await supabase
+      .from('book_passports')
+      .update({
+        total_days: stats.totalDays,
+        peak_day: stats.peakDay,
+        peak_day_pages: stats.peakDayPages,
+        vocabulary_count: stats.vocabularyCount,
+      })
+      .eq('id', passport.id)
+      .eq('user_id', authStore.user.id)
+      .select()
+      .single()
+
+    if (error) throw error
+    passportByBook.value[bookId] = mapBookPassport(data as BookPassportRow)
+    swrTouch(cacheKeys.bookPassport(authStore.user.id, bookId))
+  }
 
   const fetchPassport = async (bookId: string) => {
     const authStore = useAuthStore()
@@ -27,7 +94,13 @@ export const useBookPassportStore = defineStore('bookPassport', () => {
         .eq('book_id', bookId)
         .maybeSingle()
       if (error) throw error
-      if (data) passportByBook.value[bookId] = mapBookPassport(data as BookPassportRow)
+      if (data) {
+        const passport = mapBookPassport(data as BookPassportRow)
+        passportByBook.value[bookId] = passport
+        refreshPassportStats(bookId, passport).catch((error) => {
+          console.warn('Book passport stat refresh failed:', error)
+        })
+      }
     }
     registerRevalidator(key, () => swrRun(key, fetcher).catch(() => {}))
 
@@ -42,57 +115,18 @@ export const useBookPassportStore = defineStore('bookPassport', () => {
     bookTitle: string,
     bookAuthor: string,
     totalPages: number,
-    isbn?: string | null
+    isbn?: string | null,
   ) => {
     const authStore = useAuthStore()
-    const lexiconStore = useLexiconStore()
     if (!authStore.user) return
-    if (generating.value[bookId]) return // already in progress
+    if (generating.value[bookId]) return
 
     generating.value[bookId] = true
     streamingText.value[bookId] = ''
 
     try {
-      // ── Compute stats from progress_history ──────────────────────
-      const { data: histRows } = await supabase
-        .from('progress_history')
-        .select('page, recorded_at')
-        .eq('book_id', bookId)
-        .order('recorded_at', { ascending: true })
+      const stats = await fetchPassportStats(bookId)
 
-      let totalDays: number | null = null
-      let peakDay: string | null = null
-      let peakDayPages: number | null = null
-
-      // >= 1 so single-session readers get totalDays = 1 (Decision 6)
-      if (histRows && histRows.length >= 1) {
-        const first = new Date(histRows[0].recorded_at)
-        const last = new Date(histRows[histRows.length - 1].recorded_at)
-        totalDays = Math.max(1, Math.ceil((last.getTime() - first.getTime()) / (1000 * 60 * 60 * 24)))
-
-        // Pages per calendar day
-        const byDay: Record<string, number[]> = {}
-        for (const row of histRows) {
-          const day = new Date(row.recorded_at).toISOString().split('T')[0]
-          if (!byDay[day]) byDay[day] = []
-          byDay[day].push(row.page)
-        }
-        let maxPages = 0
-        for (const [day, pages] of Object.entries(byDay)) {
-          const dayPages = Math.max(...pages) - Math.min(...pages)
-          if (dayPages > maxPages) {
-            maxPages = dayPages
-            peakDay = day
-            peakDayPages = dayPages
-          }
-        }
-      }
-
-      // ── Vocab count from lexicon ──────────────────────────────────
-      await lexiconStore.fetchEntriesForBook(bookId)
-      const vocabularyCount = lexiconStore.entriesByBook[bookId]?.length ?? 0
-
-      // ── Stream AI summary (passport_summary mode — narrative prose, not JSON) ─
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) throw new Error('Not authenticated')
 
@@ -129,16 +163,15 @@ export const useBookPassportStore = defineStore('bookPassport', () => {
         }
       }
 
-      // ── Persist passport ─────────────────────────────────────────
       const { data, error } = await supabase
         .from('book_passports')
         .upsert({
           book_id: bookId,
           user_id: authStore.user.id,
-          total_days: totalDays,
-          peak_day: peakDay,
-          peak_day_pages: peakDayPages,
-          vocabulary_count: vocabularyCount,
+          total_days: stats.totalDays,
+          peak_day: stats.peakDay,
+          peak_day_pages: stats.peakDayPages,
+          vocabulary_count: stats.vocabularyCount,
           ai_summary: aiSummary,
           generated_at: new Date().toISOString(),
         }, { onConflict: 'book_id' })
