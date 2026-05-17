@@ -74,7 +74,7 @@ const emit = defineEmits<{
       Page {{ progress?.currentPage ?? 0 }} of {{ book.totalPages }}
     </p>
 
-    <div class="progress-panel__actions">
+    <div v-if="!isComplete" class="progress-panel__actions">
       <div class="progress-panel__session-action">
         <SessionStartButton
           :book-id="book.id"
@@ -99,7 +99,7 @@ const emit = defineEmits<{
       />
     </div>
 
-    <div class="progress-panel__vocab-row">
+    <div v-if="!isComplete" class="progress-panel__vocab-row">
       <div class="progress-panel__vocab-actions">
         <Button label="Add Word" icon="pi pi-plus" size="small" outlined @click="emit('openAddWord')" />
         <span
