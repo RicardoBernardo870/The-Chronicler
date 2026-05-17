@@ -42,7 +42,17 @@ export const useActiveBook = () => {
 
   const sortedInProgress = computed(() => {
     const orderedIds = upNextStore.sortedBookIds()
-    return [...progressStore.inProgressBooks].sort((a, b) => {
+    const readableBooks = Object.values(progressStore.progress)
+      .filter(progress =>
+        progress.percentage < 100 &&
+        (progress.percentage > 0 || progress.sessionStartAt !== null),
+      )
+      .map(progress => ({ book: booksStore.bookById(progress.bookId) ?? null, progress }))
+      .filter((item): item is { book: NonNullable<typeof item.book>; progress: typeof item.progress } =>
+        item.book !== null
+      )
+
+    return readableBooks.sort((a, b) => {
       const aOrder = orderedIds.indexOf(a.book.id)
       const bOrder = orderedIds.indexOf(b.book.id)
       const aKnown = aOrder !== -1

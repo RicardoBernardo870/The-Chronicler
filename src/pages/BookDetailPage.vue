@@ -19,6 +19,7 @@ import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 import Button from "primevue/button";
 import Skeleton from "primevue/skeleton";
 import { useConfirm } from "primevue/useconfirm";
+import { createCompletionPromptTarget } from "@/utils/completionPrompt";
 
 const route = useRoute();
 const router = useRouter();
@@ -95,7 +96,7 @@ watch(progress, (p) => {
 
 const percentage = computed(() => progress.value?.percentage ?? 0);
 const isComplete = computed(() => percentage.value >= 100);
-const canViewJourney = computed(() => Boolean(passportStore.passportFor(bookId.value)));
+const canViewJourney = computed(() => isComplete.value);
 const isGenerating = computed(() => recapsStore.generationStatus === "streaming");
 const recapCount = computed(() => recapsStore.recapHistoryForBook(bookId.value).length);
 const completedRecapImages = computed(() =>
@@ -130,7 +131,29 @@ const saveProgress = async () => {
   progressLoading.value = true;
   progressError.value = null;
   try {
+    const prevPct = progress.value?.percentage ?? 0;
     await progressStore.updateProgress(bookId.value, page);
+    const newPct = book.value.totalPages > 0
+      ? (page / book.value.totalPages) * 100
+      : 0;
+    const completionTarget = createCompletionPromptTarget(
+      bookId.value,
+      book.value.title,
+      prevPct,
+      newPct,
+    );
+    if (completionTarget) {
+      confirm.require({
+        header: `Finished: ${completionTarget.bookTitle}`,
+        message: "Your reading journey is ready. Open your Book Passport to see the story so far.",
+        icon: "pi pi-sparkles",
+        acceptLabel: "View Journey",
+        rejectLabel: "Continue",
+        accept: () => {
+          router.push({ name: "book-passport", params: { id: completionTarget.bookId } });
+        },
+      });
+    }
   } catch (e: unknown) {
     progressError.value = e instanceof Error ? e.message : "Failed to save progress";
   } finally { progressLoading.value = false; }

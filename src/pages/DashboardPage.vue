@@ -14,6 +14,7 @@ import { useRecapsStore } from "@/stores/recaps";
 import { useRecapLock } from "@/composables/useRecapLock";
 import { useAnkiSessionStore } from "@/stores/ankiSession";
 import { useCapturesStore } from "@/stores/captures";
+import { createCompletionPromptTarget } from "@/utils/completionPrompt";
 
 import HeroBookCard from "@/components/dashboard/HeroBookCard.vue";
 import InProgressSection from "@/components/dashboard/InProgressSection.vue";
@@ -105,6 +106,19 @@ const handleDismissRecap = () => {
   recapAbortController.value = null;
   recapTriggered.value = false;
   recapsStore.resetStatus();
+};
+
+const showCompletionPassportPrompt = (bookId: string, bookTitle: string) => {
+  confirm.require({
+    header: `Finished: ${bookTitle}`,
+    message: "Your reading journey is ready. Open your Book Passport to see the story so far.",
+    icon: "pi pi-sparkles",
+    acceptLabel: "View Journey",
+    rejectLabel: "Continue",
+    accept: () => {
+      router.push({ name: "book-passport", params: { id: bookId } });
+    },
+  });
 };
 
 onUnmounted(() => {
@@ -272,7 +286,16 @@ const saveProgress = async () => {
       currentBook.value.totalPages > 0
         ? (page / currentBook.value.totalPages) * 100
         : 0;
-    if (newPct >= 100 && prevPct < 100) onBookCompleted(heroId);
+    const completionTarget = createCompletionPromptTarget(
+      heroId,
+      currentBook.value.title,
+      prevPct,
+      newPct,
+    );
+    if (completionTarget) {
+      showCompletionPassportPrompt(completionTarget.bookId, completionTarget.bookTitle);
+      onBookCompleted(heroId);
+    }
   } catch (e: unknown) {
     saveError.value = e instanceof Error ? e.message : "Failed to save";
   } finally {
