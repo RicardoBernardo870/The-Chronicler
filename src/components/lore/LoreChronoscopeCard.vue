@@ -181,7 +181,7 @@ const onCardClick = (): void => {
     </div>
   </template>
 
-  <template v-else />
+  <div v-else class="lore-chronoscope__empty" aria-hidden="true" />
 </template>
 
 <style scoped>
@@ -335,6 +335,10 @@ html[data-p-theme="light"] :deep(.p-panel-toggle-icon) {
 
 .lore-card-compact:hover {
   opacity: 0.88;
+}
+
+.lore-chronoscope__empty {
+  display: none;
 }
 
 .lore-card-compact__header {

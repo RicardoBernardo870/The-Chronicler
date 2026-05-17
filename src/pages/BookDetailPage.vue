@@ -163,6 +163,10 @@ const getRecap = async () => {
 };
 
 const retryRecap = () => { recapsStore.resetStatus(); doGenerateRecap(); };
+
+const viewJourney = async () => {
+  await router.push({ name: "book-passport", params: { id: bookId.value } });
+};
 </script>
 
 <template>
@@ -194,7 +198,7 @@ const retryRecap = () => { recapsStore.resetStatus(); doGenerateRecap(); };
         @save="saveProgress"
         @get-recap="getRecap"
         @cancel-session="handleCancelSession"
-        @view-journey="router.push({ name: 'book-passport', params: { id: bookId } })"
+        @view-journey="viewJourney"
         @open-add-word="addWordVisible = true"
         @view-lexicon="router.push({ name: 'lexicon', query: { bookId } })"
       />

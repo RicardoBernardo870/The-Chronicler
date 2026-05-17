@@ -8,6 +8,8 @@ interface UseRecapImageInput {
   imagePath: MaybeRefOrGetter<string | null>
 }
 
+let nextRecapImageSubscriptionId = 0
+
 export const useRecapImage = (input: UseRecapImageInput) => {
   const currentStatus = ref<RecapImageStatus>(toValue(input.imageStatus))
   const currentPath = ref<string | null>(toValue(input.imagePath))
@@ -74,11 +76,32 @@ export const useRecapImage = (input: UseRecapImageInput) => {
     channel = null
   }
 
+  const subscribeToPendingImage = (recapId: string) => {
+    if (currentStatus.value !== 'pending') return
+
+    nextRecapImageSubscriptionId += 1
+    channel = supabase
+      .channel(`recap-image:${recapId}:${nextRecapImageSubscriptionId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'recaps', filter: `id=eq.${recapId}` },
+        (payload) => {
+          applyRowState(payload.new as { image_status?: RecapImageStatus | null; image_path?: string | null })
+          schedulePendingPoll(recapId)
+        },
+      )
+    channel.subscribe()
+  }
+
   watch(
     () => [toValue(input.imageStatus), toValue(input.imagePath)] as const,
     ([status, path]) => {
       currentStatus.value = status
       currentPath.value = path
+      if (status !== 'pending') {
+        clearPoll()
+        unsubscribe()
+      }
       refreshSignedUrl().catch(() => {
         signedUrl.value = null
       })
@@ -96,20 +119,11 @@ export const useRecapImage = (input: UseRecapImageInput) => {
         return
       }
 
-      channel = supabase
-        .channel(`recap-image:${recapId}`)
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'recaps', filter: `id=eq.${recapId}` },
-          (payload) => {
-            applyRowState(payload.new as { image_status?: RecapImageStatus | null; image_path?: string | null })
-            schedulePendingPoll(recapId)
-          },
-        )
-        .subscribe()
       refreshFromDatabase(recapId).then(() => {
+        subscribeToPendingImage(recapId)
         schedulePendingPoll(recapId)
       }).catch(() => {
+        subscribeToPendingImage(recapId)
         schedulePendingPoll(recapId)
       })
     },
