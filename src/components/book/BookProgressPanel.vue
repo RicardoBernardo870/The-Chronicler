@@ -117,7 +117,7 @@ const emit = defineEmits<{
 
     <Button
       v-if="isComplete && canViewJourney"
-      label="✦ View Reading Journey"
+      label="View Reading Journey"
       icon="pi pi-star"
       class="progress-panel__passport-btn"
       @click="emit('viewJourney')"

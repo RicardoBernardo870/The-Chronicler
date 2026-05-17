@@ -203,28 +203,45 @@ export const useProgressStore = defineStore('progress', () => {
 
   const startSession = async (bookId: string): Promise<void> => {
     const authStore = useAuthStore()
+    const booksStore = useBooksStore()
     if (!authStore.user) throw new Error('Not authenticated')
+    const book = booksStore.bookById(bookId)
+    if (!book) throw new Error('Book not found')
+
+    const existingProgress = progress.value[bookId]
+    if ((existingProgress?.percentage ?? 0) >= 100) {
+      throw new Error('This book is already complete.')
+    }
 
     const now = new Date().toISOString()
+    const currentPage = existingProgress?.currentPage ?? 0
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('reading_progress')
-      .update({ session_start_at: now })
-      .match({ book_id: bookId, user_id: authStore.user.id })
+      .upsert(
+        {
+          book_id: bookId,
+          user_id: authStore.user.id,
+          current_page: currentPage,
+          session_start_at: now,
+        },
+        { onConflict: 'book_id,user_id' },
+      )
+      .select('id, book_id, user_id, current_page, updated_at, session_start_at')
+      .single()
     if (error) throw error
 
-    // Update local Pinia state optimistically after confirmed server write
-    if (progress.value[bookId]) {
-      progress.value[bookId] = { ...progress.value[bookId], sessionStartAt: now }
-      const booksStore = useBooksStore()
-      booksStore.applyProgressSnapshot(bookId, {
-        currentPage: progress.value[bookId].currentPage,
-        percentage: progress.value[bookId].percentage,
-        updatedAt: progress.value[bookId].updatedAt,
-        sessionStartAt: now,
-        progressId: progress.value[bookId].id,
-      })
-    }
+    const confirmedProgress = mapReadingProgress(data as ReadingProgressRow, book.totalPages)
+    progress.value[bookId] = confirmedProgress
+    booksStore.applyProgressSnapshot(bookId, {
+      currentPage: confirmedProgress.currentPage,
+      percentage: confirmedProgress.percentage,
+      updatedAt: confirmedProgress.updatedAt,
+      sessionStartAt: confirmedProgress.sessionStartAt,
+      progressId: confirmedProgress.id,
+    })
+
+    swrTouch(cacheKeys.progress(authStore.user.id))
     invalidate(cacheKeys.library(authStore.user.id))
   }
 
