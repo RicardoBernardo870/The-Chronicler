@@ -5,6 +5,7 @@ import { useBooksStore } from '@/stores/books'
 import { useIsbn } from '@/composables/useIsbn'
 import IsbnScanner from '@/components/books/IsbnScanner.vue'
 import BookForm from '@/components/books/BookForm.vue'
+import BookSearchSection from '@/components/books/BookSearchSection.vue'
 import type { BookMetadata, InitialBookStatus } from '@/types'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
@@ -13,9 +14,12 @@ const router = useRouter()
 const booksStore = useBooksStore()
 const { lookup } = useIsbn()
 
-type Step = 'scan' | 'form'
+type Step = 'home' | 'scan' | 'form'
 
-const step = ref<Step>('scan')
+const step = ref<Step>('home')
+// Which step the manual form should return to on cancel — keeps the Scan flow's
+// "scan → form → back to scan" behavior intact while the home form returns home.
+const formReturnStep = ref<'home' | 'scan'>('home')
 const prefill = ref<Partial<BookMetadata>>({})
 const saving = ref(false)
 const saveError = ref<string | null>(null)
@@ -30,17 +34,20 @@ const onBarcodeDetected = async (isbn: string) => {
   lookupLoading.value = false
   resolvedIsbn.value = isbn
   prefill.value = meta ?? {}
+  formReturnStep.value = 'scan'
   step.value = 'form'
 }
 
-const enterManually = () => {
+const enterManually = (origin: 'home' | 'scan' = 'home') => {
   prefill.value = {}
+  resolvedIsbn.value = null
+  formReturnStep.value = origin
   step.value = 'form'
 }
 
 const lookupManualIsbn = async () => {
   if (!manualIsbn.value.trim()) {
-    enterManually()
+    enterManually('scan')
     return
   }
   lookupLoading.value = true
@@ -48,6 +55,7 @@ const lookupManualIsbn = async () => {
   lookupLoading.value = false
   resolvedIsbn.value = manualIsbn.value.trim()
   prefill.value = meta ?? {}
+  formReturnStep.value = 'scan'
   step.value = 'form'
 }
 
@@ -75,7 +83,9 @@ const onFormSubmit = async (data: Required<Omit<BookMetadata, 'coverUrl'>> & {
 
 const onFormCancel = () => {
   if (step.value === 'form') {
-    step.value = 'scan'
+    step.value = formReturnStep.value
+  } else if (step.value === 'scan') {
+    step.value = 'home'
   } else {
     router.push('/library')
   }
@@ -89,8 +99,29 @@ const onFormCancel = () => {
       <h1 class="add-book__title">Add a Book</h1>
     </header>
 
+    <!-- Step 0: Home — primary actions + search -->
+    <template v-if="step === 'home'">
+      <div class="add-book__primary">
+        <Button
+          label="Scan ISBN"
+          icon="pi pi-camera"
+          class="add-book__primary-btn"
+          @click="step = 'scan'"
+        />
+        <Button
+          label="Add Manually"
+          icon="pi pi-pencil"
+          outlined
+          class="add-book__primary-btn"
+          @click="enterManually('home')"
+        />
+      </div>
+
+      <BookSearchSection />
+    </template>
+
     <!-- Step 1: Scan -->
-    <template v-if="step === 'scan'">
+    <template v-else-if="step === 'scan'">
       <p class="add-book__hint">Scan the barcode on the back of your book.</p>
 
       <IsbnScanner @detected="onBarcodeDetected" />
@@ -111,7 +142,7 @@ const onFormCancel = () => {
           />
           <Button label="Look up" icon="pi pi-search" outlined @click="lookupManualIsbn" />
         </div>
-        <Button label="Skip — enter details manually" link size="small" @click="enterManually" />
+        <Button label="Skip — enter details manually" link size="small" @click="enterManually('scan')" />
       </div>
     </template>
 
@@ -162,6 +193,16 @@ const onFormCancel = () => {
 .add-book__hint {
   margin: 0;
   font-size: 0.875rem;
+}
+
+.add-book__primary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.add-book__primary-btn {
+  min-height: 48px;
 }
 
 .add-book__lookup-loading {

@@ -1,4 +1,4 @@
-﻿# BookHero Development Guidelines
+# BookHero Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-05-12
 
@@ -63,5 +63,6 @@ TypeScript 5.x + Vue 3.5+: Follow standard conventions
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan: specs/028-reading-quest-goal/plan.md
+shell commands, and other important information, read the current plan:
+`specs/030-book-search-add/plan.md`
 <!-- SPECKIT END -->
