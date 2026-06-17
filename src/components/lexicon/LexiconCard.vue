@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted, watch } from "vue";
 import type { LexiconEntry } from "@/types";
-import Button from "primevue/button";
 
 type Props = {
   entry: LexiconEntry
@@ -9,7 +8,6 @@ type Props = {
 }
 
 defineProps<Props>();
-const emit = defineEmits<{ advance: []; reset: [] }>();
 
 const flipped = ref(false);
 const frontRef = ref<HTMLElement | null>(null);
@@ -38,16 +36,21 @@ watch(flipped, measureHeight);
       <!-- Front -->
       <div ref="frontRef" class="lc-face lc-front glass-surface">
         <div class="lc-front__top">
-          <span
-            class="lc-badge"
-            :class="
-              entry.entryType === 'dictionary'
-                ? 'lc-badge--dict'
-                : 'lc-badge--lore'
-            "
-          >
-            {{ entry.entryType === "dictionary" ? "Dictionary" : "Lore" }}
-          </span>
+          <div class="lc-front__badges">
+            <span
+              class="lc-badge"
+              :class="
+                entry.entryType === 'dictionary'
+                  ? 'lc-badge--dict'
+                  : 'lc-badge--lore'
+              "
+            >
+              {{ entry.entryType === "dictionary" ? "Dictionary" : "Lore" }}
+            </span>
+            <span v-if="entry.mastered" class="lc-badge lc-badge--mastered">
+              ✓ Mastered
+            </span>
+          </div>
           <span v-if="entry.pageFound" class="lc-page">
             p.{{ entry.pageFound }}
           </span>
@@ -68,28 +71,6 @@ watch(flipped, measureHeight);
         <p v-if="entry.contextSentence" class="lc-context">
           "{{ entry.contextSentence }}"
         </p>
-        <div class="lc-actions">
-          <Button
-            label="✓ I know this"
-            size="small"
-            severity="success"
-            outlined
-            @click="
-              emit('advance');
-              flipped = false;
-            "
-          />
-          <Button
-            label="✗ Review again"
-            size="small"
-            severity="secondary"
-            outlined
-            @click="
-              emit('reset');
-              flipped = false;
-            "
-          />
-        </div>
       </div>
     </div>
   </div>
@@ -139,6 +120,14 @@ watch(flipped, measureHeight);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.lc-front__badges {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
 }
 
 .lc-badge {
@@ -158,6 +147,11 @@ watch(flipped, measureHeight);
 .lc-badge--lore {
   background: rgba(245, 158, 11, 0.15);
   color: #fbbf24;
+}
+
+.lc-badge--mastered {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--p-indigo-300);
 }
 
 .lc-page {
@@ -203,12 +197,5 @@ watch(flipped, measureHeight);
   line-height: 1.45;
   border-left: 2px solid rgba(99, 102, 241, 0.4);
   padding-left: 0.6rem;
-}
-
-.lc-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-top: 0.25rem;
 }
 </style>

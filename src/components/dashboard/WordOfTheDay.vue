@@ -13,12 +13,10 @@ const booksStore = useBooksStore()
 const authStore = useAuthStore()
 const ankiSessionStore = useAnkiSessionStore()
 
-const today = new Date().toISOString().slice(0, 10)
-
 const showAnkiPrompt = computed(() => {
   if (!ankiSessionStore.isDueForReview) return false
-  const due = lexiconStore.allEntries.filter(e => e.nextReviewAt <= today)
-  return due.length >= 5
+  // 032 — gate on today's capped set, not the raw backlog.
+  return lexiconStore.activeReviewWords.length >= 5
 })
 
 const entry = computed(() => lexiconStore.wordOfTheDay)
@@ -55,6 +53,12 @@ const markReviewed = async () => {
   }
 }
 
+// 032 — lift the daily cap for the rest of the day and resume reviewing.
+const onReviewMore = () => {
+  lexiconStore.enableReviewMore()
+  if (authStore.user) lexiconStore.resolveWordOfTheDay(authStore.user.id)
+}
+
 onMounted(() => {
   if (authStore.user) {
     lexiconStore.resolveWordOfTheDay(authStore.user.id)
@@ -88,7 +92,30 @@ onMounted(() => {
     </div>
   </article>
 
-  <!-- All caught up — no words due today -->
+  <!-- Caught up for today — daily limit reached, but more words remain (032) -->
+  <article
+    v-else-if="isPreview && lexiconStore.extraAvailable"
+    key="today-done"
+    class="wotd wotd--done glass-surface"
+  >
+    <div class="wotd__header">
+      <span class="wotd__label"><i class="pi pi-book" /> Word of the Day</span>
+    </div>
+    <div class="wotd__done-body">
+      <div class="wotd__done-icon">
+        <i class="pi pi-check" />
+      </div>
+      <div>
+        <p class="wotd__done-title">Daily review done!</p>
+        <p class="wotd__done-hint">You've cleared today's words. More are waiting.</p>
+      </div>
+    </div>
+    <button class="wotd__review-more" @click="onReviewMore">
+      <i class="pi pi-bolt" /> Review more
+    </button>
+  </article>
+
+  <!-- All caught up — nothing left to review at all -->
   <article
     v-else-if="entry && isPreview"
     key="done"
@@ -124,6 +151,9 @@ onMounted(() => {
   >
     <div class="wotd__header">
       <span class="wotd__label"><i class="pi pi-book" /> Word of the Day</span>
+      <span v-if="lexiconStore.activeReviewWords.length > 0" class="wotd__count">
+        {{ lexiconStore.activeReviewWords.length }} left
+      </span>
     </div>
 
     <div class="wotd__body">
@@ -194,6 +224,17 @@ onMounted(() => {
   flex: 1;
 }
 
+.wotd__count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--p-indigo-300);
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 /* ── Anki review due state ───────────────────────────────────────── */
 
 .wotd--review {
@@ -241,6 +282,24 @@ onMounted(() => {
 }
 
 .wotd__done-icon .pi { font-size: 0.9rem; }
+
+.wotd__review-more {
+  margin-top: 0.25rem;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--p-indigo-300);
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+
+.wotd__review-more:hover { background: rgba(99, 102, 241, 0.28); }
 
 .wotd__done-title {
   margin: 0;

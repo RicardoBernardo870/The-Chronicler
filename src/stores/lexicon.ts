@@ -4,6 +4,7 @@ import { supabase } from '@/services/supabase'
 import { mapLexiconEntry, type LexiconEntry, type LexiconEntryRow, type LexiconEntryType } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useLeitner } from '@/composables/useLeitner'
+import { formatISODate } from '@/utils/date'
 import {
   swrStatus,
   swrRun,
@@ -13,6 +14,9 @@ import {
 } from '@/composables/useCache'
 
 const TTL = 60_000 // 60 s
+
+// 032 — daily review limit: at most this many words are surfaced for review per day.
+export const DAILY_REVIEW_LIMIT = 20
 
 // localStorage key for daily Word of the Day cache
 const wotdCacheKey = (userId: string) => `bookhero_wotd_${userId}`
@@ -150,12 +154,16 @@ export const useLexiconStore = defineStore('lexicon', () => {
       return
     }
 
-    const { getDueWord } = useLeitner()
-    let pick = getDueWord(all)
+    // 032 — pick from today's capped set; when it's empty, preview the soonest
+    // upcoming non-mastered word ("caught up" — today or entirely).
+    let pick: LexiconEntry | null = activeReviewWords.value[0] ?? null
     let isPreview = false
 
     if (!pick) {
-      pick = all.slice().sort((a, b) => a.nextReviewAt.localeCompare(b.nextReviewAt))[0]
+      pick = all
+        .filter(e => !e.mastered)
+        .slice()
+        .sort((a, b) => a.nextReviewAt.localeCompare(b.nextReviewAt))[0] ?? null
       isPreview = true
     }
 
@@ -187,19 +195,20 @@ export const useLexiconStore = defineStore('lexicon', () => {
     if (!entry || !bookId) return
 
     const update = action === 'advance' ? advanceBox(entry) : resetBox(entry)
+    const nowIso = new Date().toISOString() // 032 — stamp the review time for the daily tally
 
     // T020: snapshot for rollback
     const snapshotEntry = { ...entry }
     const snapshotIdx = entriesByBook.value[bookId].findIndex(e => e.id === entryId)
 
     // Optimistic: apply update immediately
-    const optimistic = { ...entry, leitnerBox: update.leitnerBox, nextReviewAt: update.nextReviewAt }
+    const optimistic = { ...entry, leitnerBox: update.leitnerBox, nextReviewAt: update.nextReviewAt, lastReviewedAt: nowIso }
     if (snapshotIdx !== -1) entriesByBook.value[bookId][snapshotIdx] = optimistic
 
     try {
       const { error } = await supabase
         .from('lexicon_entries')
-        .update({ leitner_box: update.leitnerBox, next_review_at: update.nextReviewAt })
+        .update({ leitner_box: update.leitnerBox, next_review_at: update.nextReviewAt, last_reviewed_at: nowIso })
         .eq('id', entryId)
       if (error) throw error
 
@@ -223,6 +232,56 @@ export const useLexiconStore = defineStore('lexicon', () => {
     }
   }
 
+  // ── Master a word (031) — terminal state; removes it from all review queues ──
+  // Mirrors updateLeitner's optimistic-apply → UPDATE → cache-touch → rollback.
+
+  const masterWord = async (entryId: string) => {
+    const authStore = useAuthStore()
+
+    // Locate entry across all books
+    let entry: LexiconEntry | undefined
+    let bookId: string | undefined
+    for (const [bId, bEntries] of Object.entries(entriesByBook.value)) {
+      entry = bEntries.find(e => e.id === entryId)
+      if (entry) { bookId = bId; break }
+    }
+    if (!entry || !bookId) return
+
+    const nowIso = new Date().toISOString() // 032 — mastering also counts toward today's tally
+    const snapshotEntry = { ...entry }
+    const snapshotIdx = entriesByBook.value[bookId].findIndex(e => e.id === entryId)
+
+    // Optimistic: mark mastered immediately
+    if (snapshotIdx !== -1) {
+      entriesByBook.value[bookId][snapshotIdx] = { ...entry, mastered: true, lastReviewedAt: nowIso }
+    }
+
+    try {
+      const { error } = await supabase
+        .from('lexicon_entries')
+        .update({ mastered: true, last_reviewed_at: nowIso })
+        .eq('id', entryId)
+      if (error) throw error
+
+      if (authStore.user) {
+        swrTouch(cacheKeys.lexicon(authStore.user.id, bookId))
+        swrTouch(cacheKeys.lexiconAll(authStore.user.id))
+      }
+    } catch (e) {
+      // Rollback on server error
+      if (snapshotIdx !== -1) entriesByBook.value[bookId][snapshotIdx] = snapshotEntry
+      throw e
+    }
+
+    // If the mastered word was the current WotD, clear today's cache and re-pick
+    if (_wotdEntryId.value === entryId) {
+      if (authStore.user) {
+        try { localStorage.removeItem(wotdCacheKey(authStore.user.id)) } catch { /* non-fatal */ }
+        resolveWordOfTheDay(authStore.user.id)
+      }
+    }
+  }
+
   // ── Computed ───────────────────────────────────────────────────────────────
 
   const wordOfTheDay = computed(() => {
@@ -233,6 +292,52 @@ export const useLexiconStore = defineStore('lexicon', () => {
   const isWordOfTheDayPreview = computed(() => _wotdIsPreview.value)
 
   const allEntries = computed(() => Object.values(entriesByBook.value).flat())
+
+  // 031 — count of non-mastered words due today (drives the Word of the Day
+  // remaining-count; recomputes as words are advanced/mastered out of "due").
+  const dueTodayCount = computed(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    return allEntries.value.filter(e => !e.mastered && e.nextReviewAt <= today).length
+  })
+
+  // ── Daily review limit & today's set (032) ─────────────────────────────────
+  // Soft, non-destructive cap: surface at most (limit − reviewed today) words.
+  const reviewMore = ref(false)
+  const enableReviewMore = () => { reviewMore.value = true }
+
+  const _startOfTodayLocal = () => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+
+  const _reviewedToday = (e: LexiconEntry, startOfToday: Date) =>
+    Boolean(e.lastReviewedAt) && new Date(e.lastReviewedAt as string) >= startOfToday
+
+  // Words reviewed today (across the WotD card and the Anki session) — the tally.
+  const reviewedTodayCount = computed(() => {
+    const startOfToday = _startOfTodayLocal()
+    return allEntries.value.filter(e => _reviewedToday(e, startOfToday)).length
+  })
+
+  const dailyRemaining = computed(() => Math.max(0, DAILY_REVIEW_LIMIT - reviewedTodayCount.value))
+
+  // Due, non-mastered, not-yet-reviewed-today words, most fragile first
+  // (lowest Leitner box, ties broken by most overdue).
+  const eligibleReviewWords = computed(() => {
+    const today = formatISODate(new Date())
+    const startOfToday = _startOfTodayLocal()
+    return allEntries.value
+      .filter(e => !e.mastered && e.nextReviewAt <= today && !_reviewedToday(e, startOfToday))
+      .sort((a, b) => a.leitnerBox - b.leitnerBox || a.nextReviewAt.localeCompare(b.nextReviewAt))
+  })
+
+  // The capped daily set, and the set actually surfaced (cap lifted by "review more").
+  const todaysReviewSet = computed(() => eligibleReviewWords.value.slice(0, dailyRemaining.value))
+  const activeReviewWords = computed(() =>
+    reviewMore.value ? eligibleReviewWords.value : todaysReviewSet.value,
+  )
+  const extraAvailable = computed(() => eligibleReviewWords.value.length > todaysReviewSet.value.length)
 
   // 016 — invalidate the SWR cache so the next read re-fetches. Used by the
   // auto-vocabulary path after the edge function inserts new entries server-side.
@@ -245,6 +350,15 @@ export const useLexiconStore = defineStore('lexicon', () => {
   return {
     entriesByBook,
     allEntries,
+    dueTodayCount,
+    reviewedTodayCount,
+    dailyRemaining,
+    eligibleReviewWords,
+    todaysReviewSet,
+    activeReviewWords,
+    extraAvailable,
+    reviewMore,
+    enableReviewMore,
     wordOfTheDay,
     isWordOfTheDayPreview,
     fetchEntriesForBook,
@@ -252,6 +366,7 @@ export const useLexiconStore = defineStore('lexicon', () => {
     invalidateAll,
     addEntry,
     updateLeitner,
+    masterWord,
     resolveWordOfTheDay,
   }
 })

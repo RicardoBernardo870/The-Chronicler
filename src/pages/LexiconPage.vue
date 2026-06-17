@@ -40,9 +40,6 @@ const filteredEntries = computed(() =>
     ? (lexiconStore.entriesByBook[selectedBookId.value] ?? [])
     : lexiconStore.allEntries
 )
-
-const onAdvance = (entryId: string) => lexiconStore.updateLeitner(entryId, 'advance')
-const onReset = (entryId: string) => lexiconStore.updateLeitner(entryId, 'reset')
 </script>
 
 <template>
@@ -81,8 +78,6 @@ const onReset = (entryId: string) => lexiconStore.updateLeitner(entryId, 'reset'
         v-for="entry in filteredEntries"
         :key="entry.id"
         :entry="entry"
-        @advance="onAdvance(entry.id)"
-        @reset="onReset(entry.id)"
       />
     </div>
 

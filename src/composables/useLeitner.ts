@@ -25,7 +25,7 @@ export const useLeitner = () => {
 
   const getDueWord = (entries: LexiconEntry[]): LexiconEntry | null => {
     const today = todayStr()
-    const due = entries.filter(e => e.nextReviewAt <= today)
+    const due = entries.filter(e => e.nextReviewAt <= today && !e.mastered)
     if (!due.length) return null
     return due.sort((a, b) =>
       a.leitnerBox - b.leitnerBox || a.nextReviewAt.localeCompare(b.nextReviewAt)
