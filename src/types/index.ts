@@ -11,6 +11,7 @@ export interface Book {
   coverUrl: string | null
   totalPages: number
   genre: string | null
+  description: string | null
   createdAt: string
 }
 
@@ -55,6 +56,7 @@ export interface BookMetadata {
   coverUrl: string | null
   totalPages: number | null
   genre: string | null
+  description: string | null
 }
 
 export type InitialBookStatus = 'queued' | 'currentlyReading' | 'completed'
@@ -130,6 +132,7 @@ export interface BookRow {
   cover_url: string | null
   total_pages: number
   genre: string | null
+  description: string | null
   created_at: string
 }
 
@@ -154,6 +157,7 @@ export interface LibraryBookEntry {
   progressId: string | null      // reading_progress.id; null if no progress row
   genre: string | null           // 019 — pulled from books.genre via RPC
   isbn: string | null            // 019 — pulled from books.isbn via RPC (needed for edit pre-fill)
+  description: string | null     // 030 — pulled from books.description via RPC
 }
 
 /** Returned by get_reading_stats RPC. All numeric fields default to 0. */
@@ -295,8 +299,93 @@ export const mapBook = (row: BookRow): Book => ({
   coverUrl: row.cover_url,
   totalPages: row.total_pages,
   genre: row.genre,
+  description: row.description ?? null,
   createdAt: row.created_at,
 })
+
+// ─────────────────────────────────────────────────────────────
+// Book Search & Add (030) — transient types (never persisted)
+// ─────────────────────────────────────────────────────────────
+
+// Google Books is the primary search/detail source for this flow; Open Library
+// fills any gaps. (`openlibrary` is retained for forward-compat on route params.)
+export type BookSearchSource = 'googlebooks' | 'openlibrary'
+
+export interface BookSearchResult {
+  source: BookSearchSource
+  key: string            // Google Books volume id — details route :key
+  title: string
+  author: string | null
+  coverUrl: string | null
+  firstPublishYear: number | null
+  isbn: string | null
+}
+
+/** Aggregated, editable pre-fill for BookForm (Google Books primary ⊕ Open Library gap-fill). */
+export interface BookDetailDraft {
+  title: string
+  author: string
+  coverUrl: string | null
+  totalPages: number | null
+  genre: string | null
+  description: string | null
+  isbn: string | null
+  // Transient, recommendation-only: specific→general subjects (e.g. "Space Opera",
+  // "Science Fiction") gathered from Google Books categories + Open Library subjects.
+  // Not persisted on the saved book.
+  subjects?: string[]
+}
+
+export type Recommendation = BookSearchResult
+
+/** Raw Google Books volume (subset of fields we use). */
+export interface GoogleVolume {
+  id: string
+  volumeInfo?: {
+    title?: string
+    authors?: string[]
+    publishedDate?: string
+    pageCount?: number
+    categories?: string[]
+    description?: string
+    imageLinks?: { thumbnail?: string; smallThumbnail?: string }
+    industryIdentifiers?: { type: string; identifier: string }[]
+  }
+}
+
+type GoogleVolumeInfo = NonNullable<GoogleVolume['volumeInfo']>
+
+export const googleVolumeCover = (info: GoogleVolumeInfo): string | null => {
+  const raw = info.imageLinks?.thumbnail ?? info.imageLinks?.smallThumbnail
+  return raw ? raw.replace('http:', 'https:') : null
+}
+
+export const googleVolumeIsbn = (info: GoogleVolumeInfo): string | null => {
+  const ids = info.industryIdentifiers ?? []
+  return (
+    ids.find((i) => i.type === 'ISBN_13')?.identifier ??
+    ids.find((i) => i.type === 'ISBN_10')?.identifier ??
+    null
+  )
+}
+
+export const googleVolumeYear = (info: GoogleVolumeInfo): number | null => {
+  const year = Number(info.publishedDate?.slice(0, 4))
+  return Number.isFinite(year) && year > 0 ? year : null
+}
+
+export const mapGoogleVolume = (volume: GoogleVolume): BookSearchResult => {
+  const info = volume.volumeInfo ?? {}
+  return {
+    source: 'googlebooks',
+    key: volume.id,
+    title: info.title ?? 'Untitled',
+    author: info.authors?.[0] ?? null,
+    coverUrl: googleVolumeCover(info),
+    firstPublishYear: googleVolumeYear(info),
+    isbn: googleVolumeIsbn(info),
+  }
+}
 
 export const mapReadingProgress = (row: ReadingProgressRow, totalPages: number): ReadingProgress => ({
   id: row.id,

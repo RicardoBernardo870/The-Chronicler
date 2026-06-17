@@ -5,10 +5,18 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import RadioButton from 'primevue/radiobutton'
+import Textarea from 'primevue/textarea'
 
 const props = defineProps<{
   initial?: Partial<BookMetadata> & { isbn?: string | null }
   loading?: boolean
+  // Opt-in description field — shown only by the search-and-add details page so
+  // the existing manual/scan/edit dialogs remain visually unchanged.
+  showDescription?: boolean
+  // Metadata-only mode: hide the library status + current-page controls and act
+  // as an "edit details" panel (the host owns status/save). Submit label becomes
+  // "Done" and currentPage validation is skipped.
+  metadataOnly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -25,6 +33,7 @@ const title = ref(props.initial?.title ?? '')
 const author = ref(props.initial?.author ?? '')
 const totalPages = ref<number | null>(props.initial?.totalPages ?? null)
 const genre = ref<string | null>(props.initial?.genre ?? '')
+const description = ref<string | null>(props.initial?.description ?? null)
 const coverUrl = ref<string | null>(props.initial?.coverUrl ?? null)
 const isbn = ref<string | null>(props.initial?.isbn ?? null)
 const initialStatus = ref<InitialBookStatus>('queued')
@@ -44,6 +53,7 @@ watch(() => props.initial, (val) => {
   author.value = val.author ?? author.value
   totalPages.value = val.totalPages ?? totalPages.value
   genre.value = val.genre ?? genre.value
+  description.value = val.description ?? description.value
   coverUrl.value = val.coverUrl ?? coverUrl.value
   isbn.value = val.isbn ?? isbn.value
 })
@@ -53,7 +63,7 @@ const validate = () => {
   if (!title.value.trim()) e.title = 'Title is required'
   if (!author.value.trim()) e.author = 'Author is required'
   if (!totalPages.value || totalPages.value < 1) e.totalPages = 'Enter a valid page count'
-  if (initialStatus.value === 'currentlyReading') {
+  if (!props.metadataOnly && initialStatus.value === 'currentlyReading') {
     const maxPage = Math.max(0, (totalPages.value ?? 0) - 1)
     if (!currentPage.value || currentPage.value < 1 || currentPage.value > maxPage) {
       e.currentPage = maxPage > 0
@@ -72,6 +82,7 @@ const onSubmit = () => {
     author: author.value.trim(),
     totalPages: totalPages.value!,
     genre: genre.value,
+    description: description.value,
     coverUrl: coverUrl.value,
     isbn: isbn.value?.trim().toUpperCase() || null,
     initialStatus: initialStatus.value,
@@ -125,7 +136,7 @@ const onSubmit = () => {
       <small v-if="errors.totalPages" class="book-form__error">{{ errors.totalPages }}</small>
     </div>
 
-    <div class="book-form__field">
+    <div v-if="!metadataOnly" class="book-form__field">
       <fieldset class="book-form__status-fieldset">
         <legend class="book-form__label">Library status</legend>
         <div class="book-form__status-options">
@@ -147,7 +158,7 @@ const onSubmit = () => {
       </fieldset>
     </div>
 
-    <div v-if="initialStatus === 'currentlyReading'" class="book-form__field">
+    <div v-if="!metadataOnly && initialStatus === 'currentlyReading'" class="book-form__field">
       <label class="book-form__label" for="bf-current-page">Current Page *</label>
       <InputNumber
         id="bf-current-page"
@@ -167,6 +178,18 @@ const onSubmit = () => {
         id="bf-genre"
         v-model="genre"
         placeholder="e.g. Fantasy"
+        fluid
+      />
+    </div>
+
+    <div v-if="showDescription" class="book-form__field">
+      <label class="book-form__label" for="bf-description">Description <span class="book-form__optional">(optional)</span></label>
+      <Textarea
+        id="bf-description"
+        v-model="description"
+        rows="4"
+        auto-resize
+        placeholder="A short summary of the book"
         fluid
       />
     </div>
@@ -201,7 +224,7 @@ const onSubmit = () => {
       />
       <Button
         type="submit"
-        label="Save Book"
+        :label="metadataOnly ? 'Done' : 'Save Book'"
         icon="pi pi-check"
         :loading="loading"
       />

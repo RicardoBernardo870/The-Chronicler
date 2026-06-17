@@ -88,6 +88,7 @@ export const useBooksStore = defineStore('books', () => {
       coverUrl: e.coverUrl,
       totalPages: e.totalPages,
       genre: e.genre ?? null,   // 019 — was hardcoded null; now from RPC
+      description: e.description ?? null,  // 030 — from RPC
       createdAt: '',
     }))
   }
@@ -174,6 +175,7 @@ export const useBooksStore = defineStore('books', () => {
         cover_url: input.coverUrl,
         total_pages: input.totalPages,
         genre: input.genre,
+        description: input.description,
       })
       .select()
       .single()
@@ -224,7 +226,7 @@ export const useBooksStore = defineStore('books', () => {
 
   const updateBook = async (
     id: string,
-    changes: Partial<Pick<Book, 'title' | 'author' | 'totalPages' | 'genre' | 'coverUrl' | 'isbn'>>
+    changes: Partial<Pick<Book, 'title' | 'author' | 'totalPages' | 'genre' | 'coverUrl' | 'isbn' | 'description'>>
   ) => {
     const authStore = useAuthStore()
     if (!authStore.user) throw new Error('Not authenticated')
@@ -238,6 +240,7 @@ export const useBooksStore = defineStore('books', () => {
         ...(changes.genre !== undefined && { genre: changes.genre }),
         ...(changes.coverUrl !== undefined && { cover_url: changes.coverUrl }),
         ...(changes.isbn !== undefined && { isbn: changes.isbn }),  // 019 — was missing
+        ...(changes.description !== undefined && { description: changes.description }),  // 030
       })
       .eq('id', id)
       .select()

@@ -173,7 +173,10 @@
       "Bash(Remove-Item \"C:\\\\Users\\\\ricar_nf02dr4\\\\Desktop\\\\BookHero\\\\BookHero\\\\src\\\\composables\\\\useTopThemes.ts\" -ErrorAction SilentlyContinue)",
       "Bash(Write-Host \"Deleted\")",
       "PowerShell(powershell -ExecutionPolicy Bypass -File \".specify\\\\extensions\\\\git\\\\scripts\\\\powershell\\\\create-new-feature.ps1\" -Json -AllowExistingBranch -ShortName \"anki-flashcard-review\" \"anki card system using lexicon with tinder-style swipe review\")",
-      "Bash(xargs ls *)"
+      "Bash(xargs ls *)",
+      "PowerShell(npx vue-tsc -b 2>&1 | Select-Object -Last 40; \"EXIT=$LASTEXITCODE\")",
+      "PowerShell(npm test 2>&1)",
+      "mcp__visualize__read_me"
     ]
   }
 }

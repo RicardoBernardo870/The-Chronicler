@@ -26,6 +26,11 @@ const router = createRouter({
           component: () => import("@/pages/AddBookPage.vue"),
         },
         {
+          path: "books/add/details/:source/:key(.*)",
+          name: "add-book-details",
+          component: () => import("@/pages/BookSearchDetailPage.vue"),
+        },
+        {
           path: "books/:id",
           name: "book-detail",
           component: () => import("@/pages/BookDetailPage.vue"),

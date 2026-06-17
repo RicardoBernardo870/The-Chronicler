@@ -23,7 +23,7 @@ const fetchFromOpenLibrary = async (
       book.cover?.large ?? book.cover?.medium ?? book.cover?.small ?? null;
     const genre = book.subjects?.[0]?.name ?? null;
 
-    return { title: book.title, author, coverUrl, totalPages, genre };
+    return { title: book.title, author, coverUrl, totalPages, genre, description: null };
   } catch {
     return null;
   }
@@ -51,7 +51,7 @@ const fetchFromGoogleBooks = async (
       info.imageLinks?.thumbnail?.replace("http:", "https:") ?? null;
     const genre = info.categories?.[0] ?? null;
 
-    return { title: info.title, author, coverUrl, totalPages, genre };
+    return { title: info.title, author, coverUrl, totalPages, genre, description: null };
   } catch {
     return null;
   }
@@ -77,6 +77,7 @@ const mergeMetadata = (
   coverUrl: primary.coverUrl ?? secondary.coverUrl,
   totalPages: primary.totalPages ?? secondary.totalPages,
   genre: primary.genre ?? secondary.genre,
+  description: primary.description ?? secondary.description,
 });
 
 // ── Public composable ─────────────────────────────────────────────────────────

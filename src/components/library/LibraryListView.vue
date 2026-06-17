@@ -40,6 +40,7 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
     totalPages: entry.totalPages,
     genre:      entry.genre,
     isbn:       entry.isbn,
+    description: entry.description ?? null,
     userId:     '',
     createdAt:  '',
   }
