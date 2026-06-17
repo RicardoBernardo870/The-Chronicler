@@ -3,7 +3,6 @@ import { ref, computed, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useIntersectionObserver } from "@vueuse/core";
 import { useBooksStore } from "@/stores/books";
-import { useLexiconStore } from "@/stores/lexicon";
 import { useGreatLibrarySearch } from "@/composables/useGreatLibrarySearch";
 import LexiconCard from "@/components/lexicon/LexiconCard.vue";
 import AddWordDialog from "@/components/lexicon/AddWordDialog.vue";
@@ -20,7 +19,6 @@ const route = useRoute();
 const router = useRouter();
 
 const booksStore = useBooksStore();
-const lexiconStore = useLexiconStore();
 
 const {
   entries,
@@ -74,12 +72,6 @@ const lexiconBookOptions = computed(() => [
   { label: "All Books", value: null },
   ...bookOptions.value.map((o) => ({ label: o.bookTitle, value: o.bookId })),
 ]);
-
-// ── Leitner handlers ───────────────────────────────────────────────────────
-const onAdvance = (entryId: string) =>
-  lexiconStore.updateLeitner(entryId, "advance");
-const onReset = (entryId: string) =>
-  lexiconStore.updateLeitner(entryId, "reset");
 
 // ── Add word dialog ────────────────────────────────────────────────────────
 const addDialogVisible = ref(false);
@@ -262,8 +254,6 @@ onMounted(async () => {
               :key="entry.id"
               :entry="entry"
               :book-title="entry.bookTitle"
-              @advance="onAdvance(entry.id)"
-              @reset="onReset(entry.id)"
             />
           </TransitionGroup>
         </Transition>

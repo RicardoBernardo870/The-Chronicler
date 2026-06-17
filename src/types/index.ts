@@ -432,6 +432,8 @@ export interface LexiconEntry {
   pageFound: number | null
   leitnerBox: number
   nextReviewAt: string
+  mastered: boolean             // 031 — terminal "learned" flag; excluded from review
+  lastReviewedAt: string | null // 032 — when last reviewed (per-day tally)
   createdAt: string
   source: LexiconEntrySource    // 016
 }
@@ -447,6 +449,8 @@ export interface LexiconEntryRow {
   page_found: number | null
   leitner_box: number
   next_review_at: string
+  mastered: boolean             // 031
+  last_reviewed_at: string | null // 032
   created_at: string
   source: LexiconEntrySource    // 016
 }
@@ -462,6 +466,8 @@ export const mapLexiconEntry = (row: LexiconEntryRow): LexiconEntry => ({
   pageFound: row.page_found,
   leitnerBox: row.leitner_box,
   nextReviewAt: row.next_review_at,
+  mastered: row.mastered ?? false,
+  lastReviewedAt: row.last_reviewed_at ?? null,
   createdAt: row.created_at,
   source: row.source ?? 'manual',
 })

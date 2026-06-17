@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount } from 'vue'
+import { onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLexiconStore } from '@/stores/lexicon'
 import { useAuthStore } from '@/stores/auth'
@@ -13,7 +13,6 @@ const lexiconStore = useLexiconStore()
 const authStore = useAuthStore()
 const booksStore = useBooksStore()
 
-const allEntries = computed(() => lexiconStore.allEntries)
 const {
   dueCards,
   currentCard,
@@ -23,8 +22,9 @@ const {
   isComplete,
   onKnew,
   onDidntKnow,
+  reviewMore,
   onExit,
-} = useAnkiSession(allEntries)
+} = useAnkiSession()
 
 const bookTitleFor = (bookId: string) =>
   booksStore.bookById(bookId)?.title ?? ''
@@ -49,7 +49,7 @@ onBeforeUnmount(() => {
         <i class="pi pi-arrow-left" />
       </button>
       <span class="anki-page__progress">
-        {{ currentIndex }} / {{ dueCards.length }}
+        {{ Math.min(currentIndex + 1, dueCards.length) }} / {{ dueCards.length }}
       </span>
     </header>
 
@@ -58,8 +58,15 @@ onBeforeUnmount(() => {
       <div class="anki-page__empty-icon">
         <i class="pi pi-check" />
       </div>
-      <p class="anki-page__empty-title">You're all caught up!</p>
-      <p class="anki-page__empty-hint">No words due for review today.</p>
+      <template v-if="lexiconStore.extraAvailable">
+        <p class="anki-page__empty-title">Daily review done!</p>
+        <p class="anki-page__empty-hint">You've cleared today's words — more are waiting.</p>
+        <Button label="Review more" icon="pi pi-bolt" @click="reviewMore" />
+      </template>
+      <template v-else>
+        <p class="anki-page__empty-title">You're all caught up!</p>
+        <p class="anki-page__empty-hint">No words due for review today.</p>
+      </template>
       <Button label="Back to dashboard" severity="secondary" @click="handleDone" />
     </div>
 
@@ -85,7 +92,16 @@ onBeforeUnmount(() => {
           <span class="anki-page__stat-label">Didn't know</span>
         </div>
       </div>
-      <Button label="Back to dashboard" @click="handleDone" />
+      <div class="anki-page__summary-actions">
+        <Button
+          v-if="lexiconStore.extraAvailable"
+          label="Review more"
+          icon="pi pi-bolt"
+          severity="secondary"
+          @click="reviewMore"
+        />
+        <Button label="Back to dashboard" @click="handleDone" />
+      </div>
     </div>
 
     <!-- Cards -->
@@ -188,6 +204,13 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 1.5rem;
   margin: 0.5rem 0;
+}
+
+.anki-page__summary-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .anki-page__stat {
