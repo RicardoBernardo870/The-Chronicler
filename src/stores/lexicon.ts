@@ -301,9 +301,20 @@ export const useLexiconStore = defineStore('lexicon', () => {
   })
 
   // ── Daily review limit & today's set (032) ─────────────────────────────────
-  // Soft, non-destructive cap: surface at most (limit − reviewed today) words.
-  const reviewMore = ref(false)
-  const enableReviewMore = () => { reviewMore.value = true }
+  // Soft, non-destructive cap. "Review more" grants another batch of the daily
+  // limit (so the surfaced set — and its count — stays capped and counts down,
+  // rather than dumping the whole backlog at once).
+  const extraAllotment = ref(0)
+  const enableReviewMore = () => {
+    extraAllotment.value += DAILY_REVIEW_LIMIT
+    // Clear today's cached Word of the Day so it re-picks from the new batch;
+    // otherwise the daily cache would keep returning the "caught up" preview.
+    const authStore = useAuthStore()
+    if (authStore.user) {
+      try { localStorage.removeItem(wotdCacheKey(authStore.user.id)) } catch { /* non-fatal */ }
+      resolveWordOfTheDay(authStore.user.id)
+    }
+  }
 
   const _startOfTodayLocal = () => {
     const d = new Date()
@@ -320,7 +331,11 @@ export const useLexiconStore = defineStore('lexicon', () => {
     return allEntries.value.filter(e => _reviewedToday(e, startOfToday)).length
   })
 
-  const dailyRemaining = computed(() => Math.max(0, DAILY_REVIEW_LIMIT - reviewedTodayCount.value))
+  // Remaining in the current allotment = base daily limit (+ any "review more"
+  // batches) minus what's already been reviewed today.
+  const dailyRemaining = computed(() =>
+    Math.max(0, DAILY_REVIEW_LIMIT + extraAllotment.value - reviewedTodayCount.value),
+  )
 
   // Due, non-mastered, not-yet-reviewed-today words, most fragile first
   // (lowest Leitner box, ties broken by most overdue).
@@ -332,11 +347,11 @@ export const useLexiconStore = defineStore('lexicon', () => {
       .sort((a, b) => a.leitnerBox - b.leitnerBox || a.nextReviewAt.localeCompare(b.nextReviewAt))
   })
 
-  // The capped daily set, and the set actually surfaced (cap lifted by "review more").
+  // The capped set actually surfaced today — always bounded by the allotment, so
+  // the count stays small and counts down even after "review more".
   const todaysReviewSet = computed(() => eligibleReviewWords.value.slice(0, dailyRemaining.value))
-  const activeReviewWords = computed(() =>
-    reviewMore.value ? eligibleReviewWords.value : todaysReviewSet.value,
-  )
+  const activeReviewWords = todaysReviewSet
+  // Are there eligible words waiting behind the current cap?
   const extraAvailable = computed(() => eligibleReviewWords.value.length > todaysReviewSet.value.length)
 
   // 016 — invalidate the SWR cache so the next read re-fetches. Used by the
@@ -357,7 +372,6 @@ export const useLexiconStore = defineStore('lexicon', () => {
     todaysReviewSet,
     activeReviewWords,
     extraAvailable,
-    reviewMore,
     enableReviewMore,
     wordOfTheDay,
     isWordOfTheDayPreview,

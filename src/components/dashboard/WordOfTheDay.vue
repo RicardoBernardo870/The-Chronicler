@@ -54,9 +54,9 @@ const markReviewed = async () => {
 }
 
 // 032 — lift the daily cap for the rest of the day and resume reviewing.
+// (the store clears the WotD cache and re-picks the next word)
 const onReviewMore = () => {
   lexiconStore.enableReviewMore()
-  if (authStore.user) lexiconStore.resolveWordOfTheDay(authStore.user.id)
 }
 
 onMounted(() => {
