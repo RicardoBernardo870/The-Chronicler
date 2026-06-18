@@ -176,7 +176,8 @@
       "Bash(xargs ls *)",
       "PowerShell(npx vue-tsc -b 2>&1 | Select-Object -Last 40; \"EXIT=$LASTEXITCODE\")",
       "PowerShell(npm test 2>&1)",
-      "mcp__visualize__read_me"
+      "mcp__visualize__read_me",
+      "mcp__supabase__get_advisors"
     ]
   }
 }
