@@ -1,8 +1,10 @@
 # Architecture
 
-Last updated: 2026-05-17
+Last updated: 2026-06-18
 
 BookHero is a client-heavy Vue PWA backed by Supabase. The browser app owns routing, UI state, caching, offline progress queueing, and most user workflows. Supabase provides authentication, persistence, storage, database RPCs, and edge functions for AI workflows.
+
+> The patterns below remain accurate. Two areas have grown since this page was first written: a **Community + Reading Circles** layer (RPC-heavy, RLS relationship-gated) and the **Search & Add** book flow (Google Books primary, Open Library gap-fill). Full backend surface: [`docs/backend-contract.md`](../backend-contract.md).
 
 ## System Overview
 

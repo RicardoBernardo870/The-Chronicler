@@ -1,17 +1,21 @@
 # API Documentation
 
-Last updated: 2026-05-17
+Last updated: 2026-06-18
+
+> **Canonical inventory:** [`docs/backend-contract.md`](../backend-contract.md) (generated from a live DB introspection) is authoritative for the full surface — 5 edge functions, **60+ functions**, and the Community/Reading-Circles RPCs not listed here. This page covers the AI edge functions and the core reading RPCs.
 
 BookHero does not define a traditional REST backend server. The app talks directly to Supabase tables/RPCs through `supabase-js` and calls Supabase Edge Functions for AI/OCR workflows.
 
 ## Authentication
 
-All Edge Function calls require a Supabase access token:
+All Edge Function calls send a Supabase access token:
 
 ```http
 Authorization: Bearer <supabase-access-token>
 Content-Type: application/json
 ```
+
+> Auth nuance: `generate-recap`, `generate-lore`, and `ocr-page` are deployed with `verify_jwt: false` and **validate the token themselves** in-function; `extract-vocabulary` and `generate-reading-dna` use platform JWT verification. Either way, always send the user's access token. AI provider keys live only in function env — never in the client. (Entitlement/subscription checks, when added, belong here too.)
 
 ## Edge Functions
 
@@ -217,7 +221,11 @@ Response:
 | `get_library_breakdown` | Genre, author, and completion breakdown. |
 | `get_reading_velocity` | Reading speed and projection data for books. |
 | `get_reading_quest_summary` | Yearly goal, XP, level, and source totals. |
-| `get_book_passport_stats` | Book Passport journey statistics. |
+| `get_book_passport_stats` | Book Passport journey statistics (timezone-aware). |
+| `get_retention_summary` | Vocabulary review/retention rollup (timezone-aware). |
+| `upsert_weekly_goal` | Set the per-user weekly reading goal (`user_settings`). |
 
-RPC response details are typed in `src/types/index.ts` and defined in `supabase/migrations`.
+> Not listed: the **Community** and **Reading Circles** RPC sets (~40 functions — `follow/block/search/profile`, `create_reading_circle`, `get_visible_circle_reactions`, etc.). These power features currently used only on the PWA; see [`backend-contract.md`](../backend-contract.md) §6.
+
+RPC response details are typed in `src/types/index.ts` and defined in `supabase/migrations` (note: migrations have drifted from prod — the live DB is canonical).
 

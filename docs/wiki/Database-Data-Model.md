@@ -1,6 +1,8 @@
 # Database Data Model
 
-Last updated: 2026-05-17
+Last updated: 2026-06-18
+
+> **Canonical source:** [`docs/backend-contract.md`](../backend-contract.md) is generated from a live introspection of the database and is authoritative. This page is a curated summary of the **core reading** domain and may lag. The live DB has **25 tables** total — this page historically omitted the **Community** (`community_profiles`, `community_profile_privacy`, `follows`, `blocks`, `community_follow_counts`) and **Reading Circles** (`reading_circles`, `circle_invitations`, `circle_members`, `circle_reactions`) domains and the `user_settings` table; see the contract for those.
 
 BookHero uses Supabase PostgreSQL with row-level security. The frontend reads and writes through `supabase-js`; aggregate views are exposed through Postgres RPC functions.
 
@@ -21,7 +23,10 @@ BookHero uses Supabase PostgreSQL with row-level security. The frontend reads an
 | `vocabulary_extractions` | Ledger for capture-based vocabulary extraction. |
 | `reading_goals` | Yearly reading goal settings. |
 | `reading_quest_events` | Quest event ledger for page captures and XP accounting. |
-| `anki_review_sessions` | Review session stats referenced by the app. Creation migration is not currently visible in the inspected migrations. |
+| `anki_review_sessions` | Lifetime vocab-review aggregates (one row per user). |
+| `user_settings` | Per-user settings (e.g. `weekly_goal`). Written via `upsert_weekly_goal`. |
+
+> Plus the **Community** and **Reading Circles** domains (9 more tables) — see [`backend-contract.md`](../backend-contract.md) §3.
 
 ## Relationship Overview
 
@@ -52,7 +57,8 @@ erDiagram
 
 | Table | Important columns |
 | --- | --- |
-| `books` | `id`, `user_id`, `title`, `author`, `isbn`, `cover_url`, `total_pages`, `genre`, `created_at` |
+| `books` | `id`, `user_id`, `title`, `author`, `isbn`, `cover_url`, `total_pages`, `genre`, `description`, `created_at` |
+| `lexicon_entries` | `id`, `user_id`, `book_id`, `term`, `definition`, `entry_type`, `context_sentence`, `page_found`, `leitner_box`, `next_review_at`, `source`, `mastered` (031), `last_reviewed_at` (032), `created_at` |
 | `reading_progress` | `book_id`, `user_id`, `current_page`, `updated_at`, `session_start_at` |
 | `progress_history` | `book_id`, `user_id`, `page`, `recorded_at`, `session_start_at`, `session_note` |
 | `recaps` | `book_id`, `user_id`, `progress_snapshot`, `page_snapshot`, `memory_jogger`, `concept_watchlist`, `thematic_bridge`, `mode`, `image_path`, `image_status`, `image_generated_at` |
@@ -79,6 +85,12 @@ Notable migrations:
 | `20260512_reading_quest_goal.sql` | `reading_goals`, quest summary RPC, XP sources. |
 | `20260513_page_capture_completion_cleanup.sql` | Quest events, capture cleanup trigger, updated quest RPC. |
 | `20260517_book_passport_stats_rpc.sql` | Book Passport stats RPC and supporting indexes. |
+| `20260616_book_description.sql` (030) | `books.description` column; `get_library_with_progress` returns it. |
+| `20260617_lexicon_mastered.sql` (031) | `lexicon_entries.mastered` terminal flag. |
+| `20260618_lexicon_last_reviewed.sql` (032) | `lexicon_entries.last_reviewed_at` (daily-review tally). |
+| `20260619`–`20260621` | `get_reading_stats` fixes: meaningful-session count + calendar-month pages/sessions. |
+
+> ⚠️ Local `supabase/migrations` has **drifted from prod** (some fixes were applied directly to the live DB). Treat the live database as canonical; a baseline squash is recommended before the iOS port.
 
 ## Row-Level Security
 

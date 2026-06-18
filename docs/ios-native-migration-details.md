@@ -8,6 +8,10 @@
 
 This document expands the existing iOS implementation plan with migration-specific detail. It is intended as a future handoff document for the engineer or agent who starts the native iOS project. Do not treat this as current implementation work in the PWA repo.
 
+> ### ⚠️ Reconciliation note (2026-06-18)
+>
+> The **authoritative backend inventory is now [`docs/backend-contract.md`](./backend-contract.md)** (generated from a live introspection of the Supabase project). The §3 "Backend Surface To Reuse" list below is **incomplete** — defer to the contract. Highlights: prod has **25 tables / 60+ functions / 5 edge functions**; the **Community + Reading Circles backend already exists** (so it's client-only work, not new schema); `lexicon_entries` now has `mastered` + `last_reviewed_at` and `books` has `description`; additional tables include `anki_review_sessions`, `reading_goals`, `reading_quest_events`, `user_settings`. The §7 Phase 0 "document all RPC/Edge Function shapes" and "audit Edge Function auth" tasks are now largely satisfied by the contract (note: `generate-recap`, `generate-lore`, `ocr-page` run with `verify_jwt: false` and self-validate; `extract-vocabulary` and `generate-reading-dna` use platform JWT). Subscriptions/entitlements remain unbuilt.
+
 ## 1. Migration Goal
 
 Build a native iOS app that reaches feature parity with the current BookHero PWA while reusing the existing Supabase backend as the source of truth.

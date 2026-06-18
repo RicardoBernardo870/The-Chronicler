@@ -1,19 +1,26 @@
 # Features
 
-Last updated: 2026-05-17
+Last updated: 2026-06-18
 
-This page documents the main user-facing features and the implementation areas behind them.
+This page documents the main user-facing features and the implementation areas behind them. Backend surface: [`docs/backend-contract.md`](../backend-contract.md).
 
 ## Library Management
 
-Readers can add books manually or through ISBN lookup, view their library, edit metadata, and delete books.
+Readers can add books three ways — **search**, ISBN scan, or manual entry — plus view, edit, and delete.
 
 Technical implementation:
 
 - Store: `src/stores/books.ts`
-- Pages/components: `src/pages/LibraryPage.vue`, `src/pages/AddBookPage.vue`, `src/components/books/*`, `src/components/library/*`
-- Data: `books`, `reading_progress`, `get_library_with_progress`
+- Pages/components: `src/pages/LibraryPage.vue`, `src/pages/AddBookPage.vue`, `src/pages/BookSearchDetailPage.vue`, `src/components/books/*`, `src/components/library/*`
+- Data: `books` (incl. `description`), `reading_progress`, `get_library_with_progress`
 - ISBN tooling: `src/composables/useIsbn.ts`, `src/composables/useScanner.ts`
+
+### Search & Add (030)
+
+The Add Book screen leads with "Scan ISBN" and "Add Manually" buttons plus a search bar. Search uses **Google Books as the primary source** with **Open Library gap-filling** missing cover/pages/genre; selecting a result opens a refresh-safe, pre-filled, editable details page (with cleaned description, duplicate notice, and best-effort "similar books" recommendations). Scan and Manual flows are unchanged.
+
+- Service: `src/services/bookSearchService.ts`; composable: `src/composables/useBookSearch.ts`
+- Components: `src/components/books/BookSearchSection.vue`, `SearchBookHero.vue`, `BookDescription.vue`, `BookRecommendationsScroller.vue`
 
 ## Dashboard and Active Book
 
@@ -105,9 +112,15 @@ Technical implementation:
 
 - Store: `src/stores/lexicon.ts`
 - Search: `src/composables/useGreatLibrarySearch.ts`
-- Review: `src/composables/useAnkiSession.ts`, `src/stores/ankiSession.ts`
+- Review: `src/composables/useAnkiSession.ts`, `src/stores/ankiSession.ts`, `src/composables/useLeitner.ts`
 - Pages/components: `src/pages/GreatLibraryPage.vue`, `src/pages/AnkiReviewPage.vue`, `src/components/lexicon/*`, `src/components/anki/*`
-- Data: `lexicon_entries`, `vocabulary_extractions`, `anki_review_sessions`
+- Data: `lexicon_entries` (incl. `mastered`, `last_reviewed_at`), `vocabulary_extractions`, `anki_review_sessions`
+
+Business rules:
+
+- **Leitner system** (5 boxes, intervals 1/2/4/8/16 days). The Word of the Day card advances words through the boxes; the Anki session is where graduation happens.
+- **Graduation (031):** answering "Knew it" in the Anki session marks a word **Mastered** (terminal) regardless of box — it leaves all review queues but stays in the Great Library with a "Mastered" badge. The WotD arrow never masters; "Didn't know" resets to box 1.
+- **Daily review limit (032):** a shared, non-destructive **20-words/day** cap (per-day tally via `last_reviewed_at`), most-fragile-first (lowest box, then most overdue), with a "Review more" escape hatch that grants another batch of 20. Both surfaces draw from the same capped set.
 
 ## Vocabulary Extraction
 
@@ -148,6 +161,27 @@ Technical implementation:
 - Composables: `src/composables/useReadingProfile.ts`, `src/composables/useLibraryBreakdown.ts`, `src/composables/useReadingVelocity.ts`
 - Edge function: `supabase/functions/generate-reading-dna/index.ts`
 - RPCs: `get_reading_stats`, `get_library_breakdown`, `get_reading_velocity`, `get_reading_quest_summary`
+
+## Community
+
+Public reader profiles with a follow graph and blocking. Per-surface privacy controls (progress / currently-reading / lexicon / reader-DNA visible to everyone / followers / nobody). "Also reading" surfaces followers reading the same book.
+
+Technical implementation:
+
+- Data: `community_profiles`, `community_profile_privacy`, `follows`, `blocks`, `community_follow_counts`; public `community-avatars` storage bucket.
+- RPCs: profile (`get_my_community_profile`, `upsert_my_community_profile`, `get_public_profile_by_username`, `is_username_available`), graph (`follow/unfollow/block/unblock_community_user`, `list_community_followers/following`, `list_my_blocked_users`), discovery (`search_community_readers`, `get_also_reading_for_book`), relationship (`get_community_relationship_state`, `can_community_users_interact`).
+- See [`docs/community-design-notes.md`](../community-design-notes.md) and [`backend-contract.md`](../backend-contract.md) §3/§6.
+
+## Reading Circles
+
+Private, invite-only groups around a single book/work with **spoiler-safe, page-gated reactions** — you only see reactions at or before your own current page.
+
+Technical implementation:
+
+- Data: `reading_circles`, `circle_invitations`, `circle_members`, `circle_reactions`; enums `circle_status`, `circle_member_role`, `circle_invitation_status`.
+- RPCs: `create_reading_circle`, `invite_reading_circle_members`, `respond_to_reading_circle_invitation`, `leave_reading_circle`, `remove_reading_circle_member`, `get_reading_circle_detail`, `list_my_reading_circles`, `add_circle_reaction`, `get_visible_circle_reactions` (enforces the page-gated spoiler safety).
+
+> Community and Reading Circles are fully built on the backend and used on the PWA. They are **deferred for the iOS v1** port (see [`docs/ios-implementation-plan.md`](../ios-implementation-plan.md)).
 
 ## Offline-Friendly Progress
 

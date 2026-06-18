@@ -2,11 +2,22 @@
 
 > A staged roadmap from empty Xcode project to full-featured native iOS app, designed for incremental release and AI-assisted coding.
 
-**Last updated:** 2026-05-02
+**Last updated:** 2026-06-18
 **Target platforms:** iOS 17+ (iPhone), iPadOS 17+ optional later
 **Distribution:** App Store
 
 ---
+
+> ### ⚠️ Reconciliation note (2026-06-18)
+>
+> A live introspection of the Supabase project produced **[`docs/backend-contract.md`](./backend-contract.md)**, which is now the **authoritative backend inventory**. The table/RPC/Edge-Function lists in this roadmap (esp. §5 "Backend Reuse Strategy") are **incomplete** — defer to the contract. Key corrections:
+> - The backend is much larger than this plan assumes: **25 tables, 60+ functions, 5 edge functions** live in prod.
+> - **The Community AND Reading Circles backend is ALREADY BUILT and deployed** (`community_profiles`, `follows`, `blocks`, `reading_circles`, `circle_*`, plus ~40 community/circle RPCs and the `community-avatars` bucket). Phase 5 (§11) is therefore **client-only work**, not "new tables to add" — most of the schema it lists already exists (under different names: `community_profiles` not `user_profiles`, etc.).
+> - Newer columns not reflected here: `books.description`, `lexicon_entries.mastered` + `last_reviewed_at`. Additional live tables: `anki_review_sessions`, `reading_goals`, `reading_quest_events`, `user_settings`.
+> - **Subscriptions still do not exist** server-side (no `entitlements`/`subscriptions` table yet) — that part of Phase 4 is accurate.
+> - **iOS v1 scope steer:** Library/reading + AI memory + capture/vocab + goals. **Defer Community + Circles** despite the backend being ready — they're a large client surface.
+> - Local `supabase/migrations` has drifted from prod; a one-time baseline squash from the live schema is recommended before native work begins.
+> - The Spec Kit `specs/100-…` / companion `docs/wiki/Planned-*.md` references below were aspirational and may not exist on disk.
 
 ## Table of Contents
 

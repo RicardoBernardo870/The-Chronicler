@@ -1,8 +1,8 @@
 # API Quick Reference
 
-Last updated: 2026-05-17
+Last updated: 2026-06-18
 
-This page is optional support material for [[API Documentation]].
+This page is optional support material for [[API Documentation]]. Full inventory: [`docs/backend-contract.md`](../backend-contract.md).
 
 ## Edge Function Summary
 
@@ -25,4 +25,10 @@ This page is optional support material for [[API Documentation]].
 | `get_reading_velocity` | `src/composables/useReadingVelocity.ts` |
 | `get_reading_quest_summary` | `src/stores/readingQuest.ts` |
 | `get_book_passport_stats` | `src/stores/bookPassport.ts` |
+| `get_retention_summary` | Profile retention rollup |
+| `upsert_weekly_goal` | Settings (weekly goal) |
+
+> Plus ~40 **Community + Reading Circles** RPCs (PWA-only today) — see [`backend-contract.md`](../backend-contract.md) §6.
+
+> Edge-function auth nuance: `generate-recap` / `generate-lore` / `ocr-page` run `verify_jwt: false` and self-validate; `extract-vocabulary` / `generate-reading-dna` use platform JWT.
 
