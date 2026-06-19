@@ -10,6 +10,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   addBook: []
   startBook: [bookId: string]
+  import: []
 }>()
 </script>
 
@@ -49,6 +50,13 @@ const emit = defineEmits<{
         icon="pi pi-plus"
         :outlined="props.variant === 'queued'"
         @click="emit('addBook')"
+      />
+      <Button
+        v-if="props.variant === 'empty'"
+        label="Import library"
+        icon="pi pi-file-import"
+        text
+        @click="emit('import')"
       />
     </div>
   </section>

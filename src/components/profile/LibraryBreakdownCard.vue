@@ -22,23 +22,6 @@ const { breakdown } = useLibraryBreakdown();
     </Message>
 
     <template v-else>
-      <!-- Genre distribution -->
-      <div
-        v-if="breakdown.genreDistribution.length > 0"
-        class="library-breakdown__section"
-      >
-        <h3 class="library-breakdown__heading">Genres</h3>
-        <div class="library-breakdown__tags">
-          <span
-            v-for="g in breakdown.genreDistribution"
-            :key="g.genre"
-            class="library-breakdown__genre-tag"
-          >
-            {{ g.genre }} · {{ g.count }}
-          </span>
-        </div>
-      </div>
-
       <!-- Author count -->
       <div class="library-breakdown__section library-breakdown__authors">
         <i class="pi pi-user library-breakdown__author-icon" />

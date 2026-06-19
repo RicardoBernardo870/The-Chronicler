@@ -16,7 +16,7 @@ export const useRecapImage = (input: UseRecapImageInput) => {
   const signedUrl = ref<string | null>(null)
   const isLoading = computed(() => currentStatus.value === 'pending')
   let channel: ReturnType<typeof supabase.channel> | null = null
-  let pollTimer: ReturnType<typeof window.setTimeout> | null = null
+  let pollTimer: number | null = null
 
   const clearPoll = () => {
     if (!pollTimer) return

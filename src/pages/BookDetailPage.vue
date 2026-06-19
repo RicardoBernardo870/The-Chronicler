@@ -96,7 +96,7 @@ watch(progress, (p) => {
 
 const percentage = computed(() => progress.value?.percentage ?? 0);
 const isComplete = computed(() => percentage.value >= 100);
-const canViewJourney = computed(() => isComplete.value);
+const canViewJourney = computed(() => book.value?.source === 'manual');
 const isGenerating = computed(() => recapsStore.generationStatus === "streaming");
 const recapCount = computed(() => recapsStore.recapHistoryForBook(bookId.value).length);
 const completedRecapImages = computed(() =>

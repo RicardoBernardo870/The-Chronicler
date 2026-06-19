@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from "vue";
 import { useRouter } from "vue-router";
 import { useBooksStore } from "@/stores/books";
 import { useProgressStore } from "@/stores/progress";
@@ -26,6 +26,12 @@ import Skeleton from "primevue/skeleton";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState.vue";
 import CompletedOnlyState from "@/components/dashboard/CompletedOnlyState.vue";
 import { useConfirm } from "primevue/useconfirm";
+
+// Lazy: import flow pulls in papaparse — keep it off the dashboard's critical path.
+const LibraryImportDialog = defineAsyncComponent(
+  () => import("@/components/import/LibraryImportDialog.vue"),
+);
+const showImport = ref(false);
 
 const router = useRouter();
 const booksStore = useBooksStore();
@@ -340,6 +346,7 @@ const handleCancelSession = () => {
         key="empty"
         variant="empty"
         @add-book="router.push('/books/add')"
+        @import="showImport = true"
       />
 
       <DashboardEmptyState
@@ -461,6 +468,8 @@ const handleCancelSession = () => {
         </div>
       </TransitionGroup>
     </Transition>
+
+    <LibraryImportDialog v-if="showImport" v-model:visible="showImport" />
   </div>
 </template>
 
