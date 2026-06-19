@@ -8,11 +8,13 @@ const props = defineProps<{
   imageSrc: string
   initialText: string
   confidence: number
+  retakeLabel?: string
 }>()
 
 const emit = defineEmits<{
   confirm: [text: string]
   cancelRetake: []
+  close: []
 }>()
 
 const MAX_CHARS = 10_000
@@ -35,6 +37,10 @@ const handleCancelRetake = (): void => {
   emit('cancelRetake')
 }
 
+const handleClose = (): void => {
+  emit('close')
+}
+
 const handlePopState = (): void => {
   emit('cancelRetake')
 }
@@ -55,6 +61,15 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <section class="capture-review" aria-label="Review captured page">
+      <button
+        type="button"
+        class="capture-review__close"
+        aria-label="Close and choose another capture method"
+        @click="handleClose"
+      >
+        <i class="pi pi-times" />
+      </button>
+
       <div class="capture-review__image-shell">
         <img
           :src="imageSrc"
@@ -105,13 +120,13 @@ onBeforeUnmount(() => {
           @click="handleConfirm"
         />
         <Button
-          label="Retake"
+          :label="props.retakeLabel ?? 'Retake'"
           icon="pi pi-refresh"
           size="large"
           severity="secondary"
           outlined
           class="capture-review__retake"
-          aria-label="Retake this captured page"
+          :aria-label="`${props.retakeLabel ?? 'Retake'} this captured page`"
           @click="handleCancelRetake"
         />
       </div>
@@ -134,6 +149,34 @@ onBeforeUnmount(() => {
     linear-gradient(180deg, rgba(10, 10, 14, 0.98), rgba(18, 18, 25, 0.98)),
     var(--p-surface-950);
   color: var(--p-surface-0);
+}
+
+.capture-review__close {
+  position: absolute;
+  top: max(1rem, calc(env(safe-area-inset-top) + 0.5rem));
+  right: 1.1rem;
+  z-index: 2;
+  width: 2.4rem;
+  height: 2.4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.62);
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  transition: background 0.15s ease;
+}
+
+.capture-review__close:hover {
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.capture-review__close .pi {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
 }
 
 .capture-review__image-shell {

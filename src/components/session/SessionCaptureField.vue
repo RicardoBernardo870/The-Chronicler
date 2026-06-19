@@ -40,9 +40,38 @@ const {
   errorMessage,
   startCamera,
   snap,
+  importImage,
   retake,
   cancel,
 } = useCapture();
+
+// Hidden file input for the "Upload image" path (ebooks / no camera).
+const fileInput = ref<HTMLInputElement | null>(null);
+
+// Which method produced the current capture, so "Retake" returns to the same
+// path (re-open the camera vs re-open the file picker).
+const lastMethod = ref<"camera" | "upload">("camera");
+
+const handlePickUpload = (): void => {
+  fileInput.value?.click();
+};
+
+const handleUploadChange = async (event: Event): Promise<void> => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ""; // allow re-picking the same file
+  if (!file) return;
+  lastMethod.value = "upload";
+  await importImage(file);
+  if (state.value === "error" && errorMessage.value) {
+    toast.add({
+      severity: "error",
+      summary: "Couldn't read that image",
+      detail: errorMessage.value,
+      life: 4000,
+    });
+  }
+};
 
 // 'note' = user chose "Add note instead"; rendered SessionNoteField fallback
 const mode = ref<"capture" | "note">("capture");
@@ -53,6 +82,7 @@ const currentPage = computed(
 
 const handleStartCapture = (): void => {
   // CaptureCameraView mounts and calls startCamera via prop; flip state so view appears
+  lastMethod.value = "camera";
   state.value = "camera";
 };
 
@@ -91,7 +121,17 @@ const handleSave = async (text: string): Promise<void> => {
 };
 
 const handleCancelRetake = (): void => {
-  retake();
+  // Re-run the same capture method the user chose.
+  if (lastMethod.value === "upload") {
+    handlePickUpload();
+  } else {
+    retake();
+  }
+};
+
+// Close the review and return to the method picker (idle prompt).
+const handleReviewClose = (): void => {
+  cancel();
 };
 
 const handleAddNoteInstead = (): void => {
@@ -119,36 +159,61 @@ const handleSkip = (): void => {
 
   <!-- Capture flow -->
   <div v-else class="session-capture">
+    <!-- Hidden upload input, triggered by the "Upload image" buttons -->
+    <input
+      ref="fileInput"
+      type="file"
+      accept="image/*"
+      class="session-capture__file-input"
+      @change="handleUploadChange"
+    />
+
     <!-- State: idle (default prompt) -->
     <template v-if="state === 'idle'">
       <p class="session-capture__prompt">
         <i class="pi pi-camera" /> Capture this page
       </p>
       <p class="session-capture__hint">
-        Take a quick photo of the page you just finished. We'll save the text so
-        future recaps come straight from what you actually read.
+        Reading a paper book? Take a photo. On an ebook or device? Upload a
+        screenshot instead. We'll save the text so future recaps come straight
+        from what you actually read.
       </p>
-      <div class="session-capture__actions">
-        <Button
-          label="Capture"
-          icon="pi pi-camera"
-          aria-label="Capture a photo of the last page you read"
-          @click="handleStartCapture"
-        />
-        <button
-          type="button"
-          class="session-capture__link"
-          @click="handleAddNoteInstead"
-        >
-          Add note instead
-        </button>
-        <button
-          type="button"
-          class="session-capture__link session-capture__skip"
-          @click="handleSkip"
-        >
-          Skip
-        </button>
+      <div class="session-capture__idle-actions">
+        <div class="session-capture__methods">
+          <Button
+            label="Take photo"
+            icon="pi pi-camera"
+            class="session-capture__method-btn"
+            aria-label="Take a photo of the last page you read"
+            @click="handleStartCapture"
+          />
+          <Button
+            label="Upload image"
+            icon="pi pi-upload"
+            outlined
+            class="session-capture__method-btn"
+            aria-label="Upload a screenshot of the last page you read"
+            @click="handlePickUpload"
+          />
+        </div>
+        <div class="session-capture__secondary">
+          <Button
+            label="Add note instead"
+            icon="pi pi-pencil"
+            size="small"
+            severity="secondary"
+            text
+            @click="handleAddNoteInstead"
+          />
+          <Button
+            label="Skip"
+            size="small"
+            severity="secondary"
+            text
+            class="session-capture__skip-btn"
+            @click="handleSkip"
+          />
+        </div>
       </div>
     </template>
 
@@ -171,8 +236,10 @@ const handleSkip = (): void => {
       :image-src="previewImage.dataUrl"
       :initial-text="ocrResult.text"
       :confidence="ocrResult.confidence"
+      :retake-label="lastMethod === 'upload' ? 'Re-upload' : 'Retake'"
       @confirm="handleSave"
       @cancel-retake="handleCancelRetake"
+      @close="handleReviewClose"
     />
 
     <div v-else-if="state === 'verify'" class="session-capture__panel">
@@ -195,10 +262,15 @@ const handleSkip = (): void => {
     <!-- State: camera permission denied -->
     <div v-else-if="state === 'denied'" class="session-capture__panel">
       <p class="session-capture__panel-text">
-        Camera access was denied. You can still leave a note for this session,
-        or grant camera access in your browser settings and try again.
+        Camera access was denied. You can upload a screenshot of the page
+        instead, leave a note, or grant camera access and try again.
       </p>
       <div class="session-capture__actions">
+        <Button
+          label="Upload image"
+          icon="pi pi-upload"
+          @click="handlePickUpload"
+        />
         <Button
           label="Add note instead"
           icon="pi pi-pencil"
@@ -279,6 +351,10 @@ const handleSkip = (): void => {
   }
 }
 
+.session-capture__file-input {
+  display: none;
+}
+
 .session-capture__prompt {
   margin: 0;
   font-size: 0.88rem;
@@ -305,6 +381,52 @@ const handleSkip = (): void => {
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+/* Idle prompt: two capture methods side by side, secondary actions below */
+.session-capture__idle-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.session-capture__methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.session-capture__method-btn {
+  width: 100%;
+}
+
+/* Keep method labels on a single line so the buttons stay a normal height */
+.session-capture__method-btn :deep(.p-button-label) {
+  white-space: nowrap;
+}
+
+.session-capture__secondary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+
+  .p-button-secondary {
+    color: var(--p-indigo-300) !important;
+  }
+}
+
+/* Skip is the most dismissive — push it furthest into the background */
+.session-capture__skip-btn {
+  opacity: 0.55;
+  color: var(--p-indigo-300) !important;
+}
+
+.session-capture__skip-btn:hover {
+  opacity: 1;
 }
 
 .session-capture__link {

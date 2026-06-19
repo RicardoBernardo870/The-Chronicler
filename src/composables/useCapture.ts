@@ -1,5 +1,6 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { supabase } from '@/services/supabase'
+import { imageNormalize } from '@/utils/imageNormalize'
 
 /**
  * Camera + OCR composable (015-corpus-recaps).
@@ -43,7 +44,7 @@ export const useCapture = () => {
 
   let stream: MediaStream | null = null
   let videoEl: HTMLVideoElement | null = null
-  let snapInFlight = false
+  let ocrInFlight = false
 
   const releaseStream = (): void => {
     if (stream) {
@@ -103,41 +104,10 @@ export const useCapture = () => {
   }
 
   /**
-   * Snap the current video frame, encode as base64 JPEG, send to OCR endpoint.
-   * Releases the camera stream regardless of OCR outcome.
+   * Send base64 image bytes to the ocr-page endpoint and transition to 'verify'
+   * on success or 'error' on failure. Shared by the camera and upload paths.
    */
-  const snap = async (): Promise<void> => {
-    if (snapInFlight || !videoEl || !stream) return
-    if (!navigator.onLine) {
-      state.value = 'offline'
-      clearCaptureResult()
-      releaseStream()
-      return
-    }
-
-    snapInFlight = true
-    state.value = 'ocr-running'
-    clearCaptureResult()
-
-    const canvas = document.createElement('canvas')
-    canvas.width = videoEl.videoWidth || 1280
-    canvas.height = videoEl.videoHeight || 960
-    const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      state.value = 'error'
-      errorMessage.value = 'Could not capture frame'
-      releaseStream()
-      snapInFlight = false
-      return
-    }
-    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height)
-
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
-    previewImage.value = { dataUrl, mimeType: 'image/jpeg' }
-    const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '')
-
-    releaseStream()
-
+  const runOcr = async (base64: string, mimeType: string): Promise<void> => {
     try {
       const {
         data: { session },
@@ -150,7 +120,7 @@ export const useCapture = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg' }),
+        body: JSON.stringify({ imageBase64: base64, mimeType }),
       })
 
       if (!response.ok) {
@@ -171,8 +141,87 @@ export const useCapture = () => {
       state.value = 'error'
       errorMessage.value = (err as Error).message ?? 'OCR failed'
       previewImage.value = null
+    }
+  }
+
+  /**
+   * Snap the current video frame, encode as base64 JPEG, send to OCR endpoint.
+   * Releases the camera stream regardless of OCR outcome.
+   */
+  const snap = async (): Promise<void> => {
+    if (ocrInFlight || !videoEl || !stream) return
+    if (!navigator.onLine) {
+      state.value = 'offline'
+      clearCaptureResult()
+      releaseStream()
+      return
+    }
+
+    ocrInFlight = true
+    state.value = 'ocr-running'
+    clearCaptureResult()
+
+    const canvas = document.createElement('canvas')
+    canvas.width = videoEl.videoWidth || 1280
+    canvas.height = videoEl.videoHeight || 960
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      state.value = 'error'
+      errorMessage.value = 'Could not capture frame'
+      releaseStream()
+      ocrInFlight = false
+      return
+    }
+    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height)
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
+    previewImage.value = { dataUrl, mimeType: 'image/jpeg' }
+    const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '')
+
+    releaseStream()
+
+    try {
+      await runOcr(base64, 'image/jpeg')
     } finally {
-      snapInFlight = false
+      ocrInFlight = false
+    }
+  }
+
+  /**
+   * Capture path for ebooks/no-camera: take a user-selected image file
+   * (e.g. a screenshot), normalize it (downscale + JPEG, fits the OCR limits),
+   * then run the same OCR flow as `snap`. No camera stream is involved.
+   */
+  const importImage = async (file: File): Promise<void> => {
+    if (ocrInFlight) return
+    if (!navigator.onLine) {
+      state.value = 'offline'
+      clearCaptureResult()
+      return
+    }
+
+    ocrInFlight = true
+    state.value = 'ocr-running'
+    clearCaptureResult()
+
+    try {
+      let normalized
+      try {
+        normalized = await imageNormalize(file)
+      } catch {
+        state.value = 'error'
+        errorMessage.value =
+          "That file couldn't be read as an image. Try a different screenshot."
+        return
+      }
+
+      previewImage.value = {
+        dataUrl: `data:${normalized.mimeType};base64,${normalized.base64}`,
+        mimeType: normalized.mimeType,
+      }
+      await runOcr(normalized.base64, normalized.mimeType)
+    } finally {
+      ocrInFlight = false
     }
   }
 
@@ -200,6 +249,7 @@ export const useCapture = () => {
     errorMessage,
     startCamera,
     snap,
+    importImage,
     retake,
     cancel,
   }

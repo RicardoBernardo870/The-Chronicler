@@ -64,5 +64,5 @@ TypeScript 5.x + Vue 3.5+: Follow standard conventions
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/032-daily-review-limit/plan.md`
+`specs/033-ebook-support/plan.md`
 <!-- SPECKIT END -->
