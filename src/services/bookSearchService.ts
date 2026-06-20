@@ -33,6 +33,10 @@ const browserLang =
     : 'en'
 const langParam = `&langRestrict=${browserLang}`
 
+// A bare ISBN-10/13 (digits, optional hyphens/spaces, trailing X allowed on ISBN-10).
+const isIsbnQuery = (raw: string): boolean =>
+  /^(?:\d{9}[\dX]|\d{13})$/i.test(raw.replace(/[-\s]/g, ''))
+
 // Google Books categories arrive like "Fiction / Fantasy / General"; keep just
 // the first, most general label so the genre chip shows a single value.
 const primaryGenre = (raw: string | null | undefined): string | null => {
@@ -96,9 +100,14 @@ export const searchBooks = async (
 
   try {
     const startIndex = (page - 1) * SEARCH_PAGE_SIZE
+    // An ISBN identifies one specific edition in one language — query it with the
+    // `isbn:` operator and skip langRestrict, which would otherwise filter out
+    // editions whose language doesn't match the browser (matching the scan path).
+    const isbn = isIsbnQuery(q)
+    const queryParam = isbn ? `isbn:${q.replace(/[-\s]/g, '')}` : q
     const url =
-      `${GOOGLE_BOOKS_URL}?q=${encodeURIComponent(q)}` +
-      `&startIndex=${startIndex}&maxResults=${SEARCH_PAGE_SIZE}&printType=books${langParam}${keyParam('&')}`
+      `${GOOGLE_BOOKS_URL}?q=${encodeURIComponent(queryParam)}` +
+      `&startIndex=${startIndex}&maxResults=${SEARCH_PAGE_SIZE}&printType=books${isbn ? '' : langParam}${keyParam('&')}`
     const res = await fetch(url, { signal })
     if (!res.ok) return []
 
