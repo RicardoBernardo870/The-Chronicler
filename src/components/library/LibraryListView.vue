@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import type { Book, LibraryBookEntry } from '@/types'
 import type { VelocityResult } from '@/composables/useReadingVelocity'
 import { useBooksStore } from '@/stores/books'
 import SwipeableBookCard from '@/components/library/SwipeableBookCard.vue'
+import Button from 'primevue/button'
 
 const props = defineProps<{
   readingBooks:  LibraryBookEntry[]
@@ -18,6 +20,7 @@ const emit = defineEmits<{
 }>()
 
 const booksStore = useBooksStore()
+const router = useRouter()
 
 // Persisted Queue / Completed tab selection
 const activeTab = ref<'queue' | 'completed'>(
@@ -41,6 +44,8 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
     genre:      entry.genre,
     isbn:       entry.isbn,
     description: entry.description ?? null,
+    source:     entry.source,
+    pageCountEstimated: entry.pageCountEstimated,
     userId:     '',
     createdAt:  '',
   }
@@ -109,8 +114,26 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
             @delete="(b) => emit('delete', b)"
           />
         </div>
+        <div
+          v-else-if="activeTab === 'queue'"
+          :key="`${activeTab}-empty`"
+          class="library-list__tbr-empty"
+        >
+          <i class="pi pi-bookmark" />
+          <p class="library-list__tbr-empty-text">
+            Your Want-to-read shelf is empty. Import your Goodreads or StoryGraph library, or search
+            for your next read.
+          </p>
+          <Button
+            label="Add or import books"
+            icon="pi pi-plus"
+            size="small"
+            outlined
+            @click="router.push('/books/add')"
+          />
+        </div>
         <p v-else :key="`${activeTab}-empty`" class="library-list__empty">
-          {{ activeTab === 'queue' ? 'Your queue is empty.' : 'No finished books yet.' }}
+          No finished books yet.
         </p>
       </Transition>
     </div>
@@ -146,6 +169,29 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
   font-size: 0.8rem;
   opacity: 0.35;
   padding: 0.5rem 0;
+}
+
+.library-list__tbr-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: center;
+  padding: 1.5rem 1rem;
+}
+
+.library-list__tbr-empty .pi-bookmark {
+  font-size: 1.4rem;
+  color: var(--p-indigo-300);
+  opacity: 0.8;
+}
+
+.library-list__tbr-empty-text {
+  margin: 0;
+  font-size: 0.82rem;
+  opacity: 0.65;
+  line-height: 1.45;
+  max-width: 22rem;
 }
 
 /* ── Pinned "Now Reading" panel ───────────────────────────────────────── */

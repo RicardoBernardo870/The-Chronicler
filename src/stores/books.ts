@@ -1,7 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/services/supabase'
-import { mapBook, type AddBookInput, type Book, type BookRow, type BookStatus, type LibraryBookEntry } from '@/types'
+import {
+  mapBook,
+  type AddBookInput,
+  type Book,
+  type BookRow,
+  type BookStatus,
+  type ImportRow,
+  type ImportSummary,
+  type LibraryBookEntry,
+} from '@/types'
+import { cleanIsbn, makeDedupeKey } from '@/utils/import/shared'
 import { useAuthStore } from '@/stores/auth'
 import {
   swrStatus,
@@ -89,6 +99,8 @@ export const useBooksStore = defineStore('books', () => {
       totalPages: e.totalPages,
       genre: e.genre ?? null,   // 019 — was hardcoded null; now from RPC
       description: e.description ?? null,  // 030 — from RPC
+      source: e.source ?? 'manual',                  // 034
+      pageCountEstimated: e.pageCountEstimated ?? false,  // 034
       createdAt: '',
     }))
   }
@@ -161,7 +173,7 @@ export const useBooksStore = defineStore('books', () => {
 
   // ── Mutations (T012) ───────────────────────────────────────────────────────
 
-  const addBook = async (input: Omit<Book, 'id' | 'userId' | 'createdAt'>): Promise<Book> => {
+  const addBook = async (input: Omit<Book, 'id' | 'userId' | 'createdAt' | 'source' | 'pageCountEstimated'>): Promise<Book> => {
     const authStore = useAuthStore()
     if (!authStore.user) throw new Error('Not authenticated')
 
@@ -224,6 +236,121 @@ export const useBooksStore = defineStore('books', () => {
     return book
   }
 
+  // ── Bulk import (034) ──────────────────────────────────────────────────────
+  // Quiet, idempotent bulk insert for CSV library import. De-dupes against the
+  // existing library + within the batch, chunks the inserts, and writes completed
+  // status through a batched reading_progress upsert — never updateProgress — so no
+  // progress_history / recap / lore / quest / passport side effects fire (FR-005).
+
+  const IMPORT_CHUNK = 100
+  const PLACEHOLDER_PAGES = 100 // small, clearly-flagged value the reader can fix (FR-007)
+
+  const importBooks = async (
+    rows: ImportRow[],
+  ): Promise<{ insertedIds: string[]; summary: ImportSummary }> => {
+    const authStore = useAuthStore()
+    if (!authStore.user) throw new Error('Not authenticated')
+    const uid = authStore.user.id
+
+    const total = rows.length
+
+    // Dedupe: seed with existing-library keys, then collapse within the file.
+    const seen = new Set<string>()
+    for (const b of books.value) {
+      seen.add(makeDedupeKey(cleanIsbn(b.isbn), b.title, b.author))
+    }
+
+    const toInsert: ImportRow[] = []
+    let skippedDuplicate = 0
+    for (const r of rows) {
+      if (seen.has(r.dedupeKey)) {
+        skippedDuplicate++
+        continue
+      }
+      seen.add(r.dedupeKey)
+      toInsert.push(r)
+    }
+
+    const insertedIds: string[] = []
+    const completedProgress: {
+      book_id: string
+      user_id: string
+      current_page: number
+      session_start_at: null
+    }[] = []
+    let estimatedPageCounts = 0
+
+    for (let i = 0; i < toInsert.length; i += IMPORT_CHUNK) {
+      const chunk = toInsert.slice(i, i + IMPORT_CHUNK)
+      const payload = chunk.map((r) => {
+        const estimated = r.totalPages == null
+        if (estimated) estimatedPageCounts++
+        return {
+          user_id: uid,
+          title: r.title,
+          author: r.author,
+          isbn: r.isbn,
+          cover_url: null,
+          total_pages: r.totalPages ?? PLACEHOLDER_PAGES,
+          genre: null,
+          description: null,
+          source: r.source,
+          page_count_estimated: estimated,
+        }
+      })
+
+      const { data, error: err } = await supabase
+        .from('books')
+        .insert(payload)
+        .select('id, total_pages')
+      if (err) throw err
+
+      // PostgREST returns rows in insertion order, so positional mapping is safe.
+      const inserted = data as { id: string; total_pages: number }[]
+      inserted.forEach((row, idx) => {
+        insertedIds.push(row.id)
+        if (chunk[idx].initialStatus === 'completed') {
+          completedProgress.push({
+            book_id: row.id,
+            user_id: uid,
+            current_page: row.total_pages,
+            session_start_at: null,
+          })
+        }
+      })
+    }
+
+    // Quiet completed-status write — batched, no progress_history.
+    for (let i = 0; i < completedProgress.length; i += IMPORT_CHUNK) {
+      const slice = completedProgress.slice(i, i + IMPORT_CHUNK)
+      const { error: err } = await supabase
+        .from('reading_progress')
+        .upsert(slice, { onConflict: 'book_id,user_id' })
+      if (err) throw err
+    }
+
+    // Invalidate once, then rehydrate the library so the UI reflects the import.
+    swrTouch(cacheKeys.books(uid))
+    invalidate(cacheKeys.progress(uid))
+    invalidate(cacheKeys.library(uid))
+    invalidate(cacheKeys.libraryBreakdown(uid))
+    invalidate(cacheKeys.readingStats(uid))
+    invalidate(cacheKeys.readingQuest(uid), { prefix: true })
+    invalidate(cacheKeys.velocity(uid))
+    await fetchLibraryWithProgress()
+
+    return {
+      insertedIds,
+      summary: {
+        imported: insertedIds.length,
+        skippedDuplicate,
+        failed: [],
+        total,
+        estimatedPageCounts,
+      },
+    }
+  }
+
   const updateBook = async (
     id: string,
     changes: Partial<Pick<Book, 'title' | 'author' | 'totalPages' | 'genre' | 'coverUrl' | 'isbn' | 'description'>>
@@ -236,7 +363,11 @@ export const useBooksStore = defineStore('books', () => {
       .update({
         ...(changes.title !== undefined && { title: changes.title }),
         ...(changes.author !== undefined && { author: changes.author }),
-        ...(changes.totalPages !== undefined && { total_pages: changes.totalPages }),
+        // Setting a real page count clears the imported-placeholder flag (034 / FR-007).
+        ...(changes.totalPages !== undefined && {
+          total_pages: changes.totalPages,
+          page_count_estimated: false,
+        }),
         ...(changes.genre !== undefined && { genre: changes.genre }),
         ...(changes.coverUrl !== undefined && { cover_url: changes.coverUrl }),
         ...(changes.isbn !== undefined && { isbn: changes.isbn }),  // 019 — was missing
@@ -286,5 +417,6 @@ export const useBooksStore = defineStore('books', () => {
     fetchLibrary, fetchLibraryWithProgress,
     applyProgressSnapshot, replaceLibraryEntry,
     bookById, addBook, addBookWithInitialStatus, updateBook, removeBook,
+    importBooks,
   }
 })

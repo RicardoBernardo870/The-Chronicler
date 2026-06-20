@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBooksStore } from '@/stores/books'
 import { useIsbn } from '@/composables/useIsbn'
@@ -9,6 +9,12 @@ import BookSearchSection from '@/components/books/BookSearchSection.vue'
 import type { BookMetadata, InitialBookStatus } from '@/types'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
+
+// Import flow is non-critical and heavy (papaparse) — load it lazily (Principle V).
+const LibraryImportDialog = defineAsyncComponent(
+  () => import('@/components/import/LibraryImportDialog.vue'),
+)
+const showImport = ref(false)
 
 const router = useRouter()
 const booksStore = useBooksStore()
@@ -117,6 +123,14 @@ const onFormCancel = () => {
         />
       </div>
 
+      <Button
+        label="Import from Goodreads or StoryGraph"
+        icon="pi pi-file-import"
+        text
+        class="add-book__import-btn"
+        @click="showImport = true"
+      />
+
       <BookSearchSection />
     </template>
 
@@ -165,6 +179,8 @@ const onFormCancel = () => {
         </p>
       </div>
     </template>
+
+    <LibraryImportDialog v-if="showImport" v-model:visible="showImport" />
   </div>
 </template>
 
@@ -203,6 +219,11 @@ const onFormCancel = () => {
 
 .add-book__primary-btn {
   min-height: 48px;
+}
+
+.add-book__import-btn {
+  align-self: center;
+  font-size: 0.85rem;
 }
 
 .add-book__lookup-loading {

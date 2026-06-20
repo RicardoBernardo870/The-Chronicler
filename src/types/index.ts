@@ -13,6 +13,8 @@ export interface Book {
   genre: string | null
   description: string | null
   createdAt: string
+  source: string                 // 034 — 'manual' | 'goodreads' | 'storygraph'; imported = source !== 'manual'
+  pageCountEstimated: boolean     // 034 — true = flagged placeholder page count the reader can fix
 }
 
 export interface ReadingProgress {
@@ -61,9 +63,43 @@ export interface BookMetadata {
 
 export type InitialBookStatus = 'queued' | 'currentlyReading' | 'completed'
 
-export interface AddBookInput extends Omit<Book, 'id' | 'userId' | 'createdAt'> {
+export interface AddBookInput extends Omit<Book, 'id' | 'userId' | 'createdAt' | 'source' | 'pageCountEstimated'> {
   initialStatus: InitialBookStatus
   currentPage: number | null
+}
+
+// ─────────────────────────────────────────────────────────────
+// Library Import (034) — Goodreads & StoryGraph CSV
+// ─────────────────────────────────────────────────────────────
+
+export type ImportSource = 'goodreads' | 'storygraph'
+
+export type ImportPhase = 'idle' | 'parsing' | 'importing' | 'enriching' | 'done' | 'error'
+
+/** A single usable CSV row mapped to BookHero shape (transient — never persisted as-is). */
+export interface ImportRow {
+  title: string
+  author: string
+  isbn: string | null
+  totalPages: number | null            // null → placeholder + page_count_estimated on insert
+  initialStatus: 'completed' | 'queued'
+  source: ImportSource
+  dedupeKey: string                    // ISBN digits if present, else `lower(title) lower(author)`
+}
+
+export interface ImportFailure {
+  row: number
+  title: string | null
+  reason: string
+}
+
+/** Result of an import run, shown to the reader. */
+export interface ImportSummary {
+  imported: number
+  skippedDuplicate: number
+  failed: ImportFailure[]
+  total: number
+  estimatedPageCounts: number          // imported books left with a placeholder page count
 }
 
 export type DashboardFirstRunStateKind =
@@ -134,6 +170,8 @@ export interface BookRow {
   genre: string | null
   description: string | null
   created_at: string
+  source?: string | null                  // 034
+  page_count_estimated?: boolean | null    // 034
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -158,6 +196,8 @@ export interface LibraryBookEntry {
   genre: string | null           // 019 — pulled from books.genre via RPC
   isbn: string | null            // 019 — pulled from books.isbn via RPC (needed for edit pre-fill)
   description: string | null     // 030 — pulled from books.description via RPC
+  source: string                 // 034 — provenance; imported = source !== 'manual'
+  pageCountEstimated: boolean     // 034 — flagged placeholder page count
 }
 
 /** Returned by get_reading_stats RPC. All numeric fields default to 0. */
@@ -301,6 +341,8 @@ export const mapBook = (row: BookRow): Book => ({
   genre: row.genre,
   description: row.description ?? null,
   createdAt: row.created_at,
+  source: row.source ?? 'manual',                        // 034
+  pageCountEstimated: row.page_count_estimated ?? false,  // 034
 })
 
 // ─────────────────────────────────────────────────────────────

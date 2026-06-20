@@ -21,6 +21,8 @@ const percentage    = computed(() => progressStore.percentageForBook(props.book.
 const currentPage   = computed(() => progressStore.progressForBook(props.book.id)?.currentPage ?? 0)
 const hasNewLore    = computed(() => loreStore.hasUnseenLore(props.book.id))
 const showPageCount = computed(() => currentPage.value > 0 && props.book.totalPages > 0)
+const isImported = computed(() => props.book.source !== 'manual')        // 034
+const pageCountEstimated = computed(() => props.book.pageCountEstimated)  // 034 / FR-007
 const daysLeftLabel = computed(() => {
   if (props.daysLeft == null || percentage.value >= 100) return null
   return props.daysLeft === 'today' ? 'Finish today!' : `~${props.daysLeft} days left`
@@ -71,7 +73,12 @@ const onNewLoreChip = (e: Event) => {
     </div>
 
     <div class="book-card__body">
-      <Chip v-if="book.genre" :label="book.genre" class="book-card__genre" />
+      <div class="book-card__tags">
+        <Chip v-if="book.genre" :label="book.genre" class="book-card__genre" />
+        <span v-if="isImported" class="book-card__imported">
+          <i class="pi pi-file-import" /> Imported
+        </span>
+      </div>
       <h3 class="book-card__title">{{ book.title }}</h3>
       <p class="book-card__author">{{ book.author }}</p>
 
@@ -82,9 +89,12 @@ const onNewLoreChip = (e: Event) => {
         <span class="book-card__progress-pct">{{ percentage.toFixed(0) }}%</span>
       </div>
 
-      <div v-if="showPageCount || daysLeftLabel" class="book-card__meta">
+      <div v-if="showPageCount || daysLeftLabel || pageCountEstimated" class="book-card__meta">
         <span v-if="showPageCount" class="book-card__page-count">
           Page {{ currentPage }} of {{ book.totalPages }}
+        </span>
+        <span v-if="pageCountEstimated" class="book-card__page-fix">
+          <i class="pi pi-exclamation-circle" /> Set page count
         </span>
         <span v-if="daysLeftLabel" class="book-card__days-left">
           {{ daysLeftLabel }}
@@ -148,6 +158,14 @@ const onNewLoreChip = (e: Event) => {
   gap: 0.2rem;
 }
 
+.book-card__tags {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.15rem;
+}
+
 .book-card__genre {
   font-size: 0.65rem;
   font-weight: 700;
@@ -158,7 +176,31 @@ const onNewLoreChip = (e: Event) => {
   border-radius: 999px;
   background: rgba(99, 102, 241, 0.15);
   align-self: flex-start;
-  margin-bottom: 0.15rem;
+}
+
+.book-card__imported {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--p-text-muted-color);
+  opacity: 0.7;
+}
+
+.book-card__imported .pi {
+  font-size: 0.6rem;
+}
+
+.book-card__page-fix {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--p-amber-400, #fbbf24);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .book-card__title {

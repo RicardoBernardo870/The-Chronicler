@@ -41,6 +41,8 @@ All `id` are `uuid default gen_random_uuid()` unless noted; all timestamps are `
 
 **`books`** (RLS: owner ALL) — rows ~42
 - `user_id`, `title` (1–500), `author` (1–200), `isbn` (nullable, `^\d{9}[\dX]$|^\d{13}$`), `cover_url` (nullable), `total_pages` (≥1), `genre` (nullable), `description` (nullable), `created_at`
+- `source` (text, **not null default `'manual'`**) — provenance: `'manual'` (scan/manual/search) vs `'goodreads'`/`'storygraph'` (CSV import, 034). **Imported = `source <> 'manual'`**; period-based stat RPCs exclude these (see below), library-composition RPCs include them.
+- `page_count_estimated` (bool, **not null default `false`**) — `true` = `total_pages` is a flagged placeholder a CSV import couldn't resolve; the reader corrects it later (cleared automatically when `total_pages` is edited).
 - FK target for nearly every other table (`book_id`).
 
 **`reading_progress`** (RLS: owner ALL) — one row per book/user (`onConflict: book_id,user_id`)
@@ -129,13 +131,13 @@ All are `SECURITY DEFINER` and re-assert the caller's identity. **Reads that nee
 ### Library & reading
 | RPC | Args | Returns | Purpose |
 |-----|------|---------|---------|
-| `get_library_with_progress` | `p_user_id uuid` | json | Library list + progress in one call (avoids N+1) |
-| `get_reading_stats` | `p_user_id uuid` | json | Lifetime stats (pages this week/month, total pages, hours, **sessions this month**, streaks, velocity). *Recently fixed: month stats are calendar-month; sessions count meaningful sessions only.* |
+| `get_library_with_progress` | `p_user_id uuid` | json | Library list + progress in one call (avoids N+1). *034: each row also returns `source` + `pageCountEstimated` so the UI can badge imported books / flag placeholder page counts.* |
+| `get_reading_stats` | `p_user_id uuid` | json | Lifetime stats (pages this week/month, total pages, hours, **sessions this month**, streaks, velocity). *Recently fixed: month stats are calendar-month; sessions count meaningful sessions only.* *034: `totalPagesRead` excludes imported books (`source <> 'manual'`); all other fields derive from `progress_history`, which imports never write.* |
 | `get_last_session` | `p_user_id uuid` | json | Most-recent session card data |
-| `get_library_breakdown` | `p_user_id uuid` | json | Genre distribution, author/finished/in-progress counts |
+| `get_library_breakdown` | `p_user_id uuid` | json | Genre distribution, author/finished/in-progress counts. *Includes imported books (lifetime composition) — intentionally not filtered.* |
 | `get_reading_velocity` | `p_user_id uuid, p_book_ids uuid[]` | table(book_id, days_left) | Per-book finish prediction |
 | `get_book_passport_stats` | `p_user_id, p_book_id, p_time_zone text` | json | Completed-book passport stats (TZ-aware) |
-| `get_reading_quest_summary` | `p_user_id, p_year int` | jsonb | XP, level, quest/goal summary |
+| `get_reading_quest_summary` | `p_user_id, p_year int` | jsonb | XP, level, quest/goal summary. *034: `progress_rows` excludes imported books (`source <> 'manual'`) so imports add no quest XP and don't count toward the yearly reading goal.* |
 | `get_retention_summary` | `p_timezone text` | json | Review/retention rollup |
 
 ### Settings
