@@ -4,13 +4,15 @@
 **Created:** 2026-05-02  
 **Base document:** `docs/ios-implementation-plan.md`  
 **Current app:** Vue 3 + TypeScript + Vite PWA backed by Supabase  
-**Target app:** Native SwiftUI iOS app, iOS 17+, App Store distribution
+**Target app:** Native SwiftUI iOS app, iOS 18+, App Store distribution (real Liquid Glass on iOS 26+ via availability branching)
 
 This document expands the existing iOS implementation plan with migration-specific detail. It is intended as a future handoff document for the engineer or agent who starts the native iOS project. Do not treat this as current implementation work in the PWA repo.
 
-> ### ⚠️ Reconciliation note (2026-06-18)
+> ### ⚠️ Reconciliation note (updated 2026-06-20)
 >
-> The **authoritative backend inventory is now [`docs/backend-contract.md`](./backend-contract.md)** (generated from a live introspection of the Supabase project). The §3 "Backend Surface To Reuse" list below is **incomplete** — defer to the contract. Highlights: prod has **25 tables / 60+ functions / 5 edge functions**; the **Community + Reading Circles backend already exists** (so it's client-only work, not new schema); `lexicon_entries` now has `mastered` + `last_reviewed_at` and `books` has `description`; additional tables include `anki_review_sessions`, `reading_goals`, `reading_quest_events`, `user_settings`. The §7 Phase 0 "document all RPC/Edge Function shapes" and "audit Edge Function auth" tasks are now largely satisfied by the contract (note: `generate-recap`, `generate-lore`, `ocr-page` run with `verify_jwt: false` and self-validate; `extract-vocabulary` and `generate-reading-dna` use platform JWT). Subscriptions/entitlements remain unbuilt.
+> The **authoritative backend inventory is now [`docs/backend-contract.md`](./backend-contract.md)** (generated from a live introspection of the Supabase project). The §3 "Backend Surface To Reuse" list below is **incomplete** — defer to the contract. Highlights: prod has **25 tables / 60+ functions / 5 edge functions**; the **Community + Reading Circles backend already exists** (so it's client-only work, not new schema); `lexicon_entries` now has `mastered` + `last_reviewed_at` and `books` has `description`, `source`, and `page_count_estimated`; additional tables include `anki_review_sessions`, `reading_goals`, `reading_quest_events`, `user_settings`. The §7 Phase 0 "document all RPC/Edge Function shapes" and "audit Edge Function auth" tasks are now largely satisfied by the contract (note: `generate-recap`, `generate-lore`, `ocr-page` run with `verify_jwt: false` and self-validate; `extract-vocabulary` and `generate-reading-dna` use platform JWT). Subscriptions/entitlements remain unbuilt.
+>
+> **Library Import (034) shipped on the PWA.** Goodreads/StoryGraph CSV import is now part of the Library surface and should be Phase 1 iOS work (it's a strong empty-library activation win). It's **pure client logic** — no new backend. The iOS client must: (1) write `books.source` (`'goodreads'`/`'storygraph'`) + `books.page_count_estimated` on insert; (2) write completed rows' `reading_progress` directly (quiet — no `progress_history`/recap/lore/quest side effects); (3) prioritize ISBN when enriching via Google Books/Open Library; (4) badge imported books via the `source` field. The period-stat RPCs (`get_reading_quest_summary`, `get_reading_stats`) already exclude imported books, and `get_library_with_progress` now returns `source` + `pageCountEstimated`, so no iOS-side stat math is needed. Also note **Ebook capture (033):** the capture flow now accepts an uploaded image (offer a Photos/Files import beside the camera in the Phase 2/3 capture screen).
 
 ## 1. Migration Goal
 
@@ -227,6 +229,9 @@ struct BookRow: Decodable {
     let cover_url: String?
     let total_pages: Int
     let genre: String?
+    let description: String?
+    let source: String?              // 034 — "manual" | "goodreads" | "storygraph"
+    let page_count_estimated: Bool?  // 034 — placeholder page count to be corrected
     let created_at: Date
 }
 
@@ -239,6 +244,9 @@ struct Book: Identifiable, Equatable {
     var coverUrl: URL?
     var totalPages: Int
     var genre: String?
+    var description: String?
+    var source: String               // default "manual"; imported = source != "manual"
+    var pageCountEstimated: Bool     // 034
     var createdAt: Date
 }
 ```
@@ -320,6 +328,7 @@ Included:
 - Library screen.
 - Add/edit/delete book.
 - ISBN scan/autofill.
+- Library import (034) — Goodreads/StoryGraph CSV via document picker; quiet bulk insert + background enrichment; "Imported" badge + placeholder-page affordance.
 - Book detail.
 - Progress slider.
 - Start/end reading session.
@@ -344,14 +353,15 @@ Excluded:
 Primary Supabase calls:
 
 - `books.select`
-- `books.insert`
+- `books.insert` (incl. chunked bulk insert for import, with `source` + `page_count_estimated`)
 - `books.update`
 - `books.delete`
-- `reading_progress.upsert`
+- `reading_progress.upsert` (incl. batched quiet upsert for imported completed books)
 - `progress_history.insert`
 - `progress_history.update`
 - `up_next_order` read/write
-- `get_library_with_progress`
+- `get_library_with_progress` (returns `source` + `pageCountEstimated`)
+- External: Google Books / Open Library for ISBN-prioritized import enrichment + ISBN-aware search
 - `get_last_session`
 - `get_reading_stats`
 - `get_library_breakdown`
@@ -674,7 +684,7 @@ Use docs/ios-implementation-plan.md as the base roadmap.
 The current PWA is Vue/Pinia/Supabase and remains live.
 Reuse existing Supabase tables, RPCs, and Edge Functions unless the task explicitly says otherwise.
 Do not make breaking backend changes.
-Implement the native app with SwiftUI, SwiftData, Supabase Swift SDK, and iOS 17+.
+Implement the native app with SwiftUI, SwiftData, Supabase Swift SDK, and iOS 18+.
 ```
 
 Recommended first implementation task:

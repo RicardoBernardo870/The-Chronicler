@@ -1,6 +1,6 @@
 # Project Structure
 
-Last updated: 2026-05-17
+Last updated: 2026-06-20
 
 BookHero is organized as a Vue PWA frontend with Supabase backend assets in the same repository.
 
@@ -45,6 +45,7 @@ src/
 | --- | --- |
 | Auth | `src/stores/auth.ts`, `src/pages/AuthPage.vue`, `src/router/index.ts` |
 | Library | `src/stores/books.ts`, `src/pages/LibraryPage.vue`, `src/components/library/*` |
+| Library import (034) | `src/composables/useLibraryImport.ts`, `src/utils/import/*` (csvFormat, goodreadsParser, storygraphParser, shared), `src/components/import/*` (LibraryImportDialog, ImportSummaryPanel), `booksStore.importBooks` |
 | Dashboard | `src/pages/DashboardPage.vue`, `src/components/dashboard/*`, `src/composables/useActiveBook.ts` |
 | Reading progress | `src/stores/progress.ts`, `src/composables/useReadingSession.ts`, `src/components/book/BookProgressPanel.vue` |
 | Recaps | `src/stores/recaps.ts`, `src/services/recapService.ts`, `supabase/functions/generate-recap/*` |
@@ -65,6 +66,7 @@ src/
 - Shared feature logic is extracted into `src/composables`.
 - Unit tests live in `tests/unit`.
 - Feature planning artifacts live in `specs/<number>-<feature-name>`.
+- **Package manager is pnpm** (`pnpm-lock.yaml`). Use `pnpm add` for dependencies; `npm install` fails in this repo.
 
 ## Documentation Artifacts
 

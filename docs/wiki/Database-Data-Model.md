@@ -1,6 +1,6 @@
 # Database Data Model
 
-Last updated: 2026-06-18
+Last updated: 2026-06-20
 
 > **Canonical source:** [`docs/backend-contract.md`](../backend-contract.md) is generated from a live introspection of the database and is authoritative. This page is a curated summary of the **core reading** domain and may lag. The live DB has **25 tables** total — this page historically omitted the **Community** (`community_profiles`, `community_profile_privacy`, `follows`, `blocks`, `community_follow_counts`) and **Reading Circles** (`reading_circles`, `circle_invitations`, `circle_members`, `circle_reactions`) domains and the `user_settings` table; see the contract for those.
 
@@ -57,7 +57,7 @@ erDiagram
 
 | Table | Important columns |
 | --- | --- |
-| `books` | `id`, `user_id`, `title`, `author`, `isbn`, `cover_url`, `total_pages`, `genre`, `description`, `created_at` |
+| `books` | `id`, `user_id`, `title`, `author`, `isbn`, `cover_url`, `total_pages`, `genre`, `description`, `source` (034), `page_count_estimated` (034), `created_at` |
 | `lexicon_entries` | `id`, `user_id`, `book_id`, `term`, `definition`, `entry_type`, `context_sentence`, `page_found`, `leitner_box`, `next_review_at`, `source`, `mastered` (031), `last_reviewed_at` (032), `created_at` |
 | `reading_progress` | `book_id`, `user_id`, `current_page`, `updated_at`, `session_start_at` |
 | `progress_history` | `book_id`, `user_id`, `page`, `recorded_at`, `session_start_at`, `session_note` |
@@ -89,6 +89,9 @@ Notable migrations:
 | `20260617_lexicon_mastered.sql` (031) | `lexicon_entries.mastered` terminal flag. |
 | `20260618_lexicon_last_reviewed.sql` (032) | `lexicon_entries.last_reviewed_at` (daily-review tally). |
 | `20260619`–`20260621` | `get_reading_stats` fixes: meaningful-session count + calendar-month pages/sessions. |
+| `20260619_library_import.sql` (034) | `books.source` + `books.page_count_estimated`; `get_reading_quest_summary` & `get_reading_stats` exclude imported books (`source <> 'manual'`); `get_library_with_progress` returns `source` + `pageCountEstimated`. |
+
+> **034 stat exclusion:** Imported books carry `source <> 'manual'`. Period-based surfaces filter them out — `get_reading_quest_summary.progress_rows` (yearly goal + XP) and `get_reading_stats.current_progress` (`totalPagesRead`). All other `get_reading_stats` fields read `progress_history`, which the quiet import never writes, so they need no filter. Lifetime surfaces (`get_library_breakdown`, `get_library_with_progress`, Reading DNA) intentionally keep imported books.
 
 > ⚠️ Local `supabase/migrations` has **drifted from prod** (some fixes were applied directly to the live DB). Treat the live database as canonical; a baseline squash is recommended before the iOS port.
 

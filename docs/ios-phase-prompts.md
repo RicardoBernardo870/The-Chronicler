@@ -7,8 +7,83 @@
 **Companion docs (referenced by every prompt):**
 - `docs/ios-implementation-plan.md` — high-level roadmap
 - `docs/ios-native-migration-details.md` — backend reuse + handoff details
-- `docs/wiki/Architecture-*.md` — current PWA architecture
-- `docs/wiki/Feature-*.md` — current feature behavior
+- `docs/ios-foundation/` — design foundation (tokens, component/screen inventory, design brief, iOS constitution)
+- `docs/backend-contract.md` — authoritative backend inventory
+- `docs/wiki/Architecture.md` — current PWA architecture
+- `docs/wiki/Features.md` — current feature behavior
+
+---
+
+## Phase 0 — Design Foundation (Design System)
+
+> **Do this first — before any screen.** This builds the shared design system every later feature
+> composes. It's the safeguard against "Spec Kit generates N inconsistent screens." Spec directory:
+> `specs/001-ios-foundation`.
+
+**Prerequisites:** Xcode project scaffolded (SwiftUI, SwiftData, `supabase-swift` via SPM); `.specify`
+initialized with `docs/ios-foundation/ios-constitution.md` copied to `.specify/memory/constitution.md`;
+the five `docs/ios-foundation/*` files copied into the iOS repo.
+
+### `/speckit-specify` prompt
+
+```
+Build the BookHero iOS DESIGN SYSTEM as the first feature, before any screen. Derive it from
+docs/ios-foundation/design-tokens.md, component-inventory.md, ios-design-brief.md, and enforce
+constitution Principle VI (Design-System-First). Spec dir: specs/001-ios-foundation.
+
+Stack: Swift 5.10+, SwiftUI, iOS 18+. No networking, no auth, no SwiftData models, no Supabase — this
+is pure presentation. Everything ships with a #Preview and a snapshot-test baseline.
+
+Goal: produce the tokens + reusable components that every later phase composes, so screens never invent
+colors, type, spacing, or controls.
+
+Scope (in):
+- Color tokens (THE priority artifact). Asset catalog, light + dark:
+  - Accent = indigo #6366F1 + the full indigo ramp (50–950); app tint.
+  - Text roles: primaryText / mutedText (white 0.90 / 0.55 dark; #0F0F1E 0.90 / 0.55 light).
+  - Surface/border roles per design-tokens.md.
+- PageBackground view: the deep indigo radial gradient (dark: #1a1040 / #0d1a3a over #0a0a14;
+  light: #e8e0f8 / #dce8f8 over #f0f4ff). MeshGradient is available at the iOS 18 floor — use it directly.
+- Typography: map to Dynamic Type (largeTitle/title/headline/section-label/body/caption) with the
+  weights + tracking from design-tokens.md §5. Never hardcode point sizes.
+- Spacing (8/12/16/20), Radius (card 20 / inner 16 / cover 6 / pill = Capsule, all .continuous), Motion
+  (easeInOut 0.2; shimmer 1.6s) as constants.
+- Surfaces = NATIVE GLASS, supporting both old and new devices via availability branching (NOT a
+  deployment-target tradeoff). Minimum Deployments is iOS 18.0. Build ONE helper, GlassEffect.swift —
+  a View extension .appGlass(cornerRadius:) that does:
+    if #available(iOS 26.0, *) { .glassEffect(in: .rect(cornerRadius:, style: .continuous)) }
+    else { .background(.ultraThinMaterial/.regularMaterial/.thinMaterial per role).clipShape(...) }
+  This is the ONLY allowed glass wrapper — it exists to express the availability branch once, not to
+  re-create the PWA's rgba/blur recipe. Do NOT build .glassCard()/.glassElevated() modifiers that
+  hand-roll blur/opacity values. Document only the role→weight mapping (cards lighter than sheets/elevated;
+  list items lightest).
+- Reusable DesignSystem components (composing the above):
+  BookCover (AsyncImage + initials-on-gradient placeholder, 2:3, radius 6), Chip/Badge (Capsule, accent
+  tint — covers genre + "Imported"), ProgressTrackView (capsule track + indigo→violet fill), SectionHeader
+  (uppercase caption + count badge), EmptyState (icon + title + body + CTA), PrimaryButton (bordered-prominent,
+  accent tint, white label), LoadingSpinner + ShimmerView (redacted placeholder shimmer), StatTile.
+- A DesignSystemGallery screen previewing every token and component (the visual gate).
+
+Scope (out — later phases):
+- Any feature screen (Library, Dashboard, etc.), navigation graph, networking, auth, SwiftData models.
+- Widgets, Live Activities, haptics-heavy interactions (the components expose hooks; wiring is Phase 1/3).
+
+Decisions for /speckit-clarify:
+- Image loading: native AsyncImage now vs add Kingfisher now (covers benefit from caching early).
+(Min deployment target is settled: iOS 18.0 — same device reach as 17, fewer fallbacks — with real
+Liquid Glass on 26+ via availability branching, not a tradeoff. See GlassEffect.swift above.)
+
+Success criteria:
+- DesignSystemGallery renders correctly in BOTH light and dark, at Dynamic Type XXL, and with Reduce
+  Transparency on (glass falls back to a solid surface) and Reduce Motion on (no gradient/anim).
+- Snapshot-test baseline committed for every component (swift-snapshot-testing).
+- Zero hardcoded colors / point sizes / ad-hoc radii anywhere in the system.
+- A later feature can build a screen using ONLY DesignSystem tokens + components (proven by a throwaway
+  sample screen in the gallery, e.g. a BookCardRow assembled from BookCover + Chip + ProgressTrackView).
+- Palette matches docs/ios-foundation/design-tokens.md §1/§2/§4 exactly.
+
+This phase ends with a buildable design-system module + gallery, no App Store artifact.
+```
 
 ---
 
@@ -20,7 +95,13 @@
 Build the native iOS MVP for BookHero per docs/ios-implementation-plan.md Phase 1
 and docs/ios-native-migration-details.md Section 7 Phase 1.
 
-Stack: Swift 5.10+, SwiftUI, SwiftData, Supabase Swift SDK, iOS 17+. Reuse the
+Prerequisite: Phase 0 (specs/001-ios-foundation) complete. Compose ALL UI from the design system —
+tokens (colors, typography, spacing, radii) and components (BookCover, Chip, ProgressTrackView,
+SectionHeader, EmptyState, PrimaryButton, StatTile) — and use native glass directly. Do NOT introduce
+new colors, point sizes, ad-hoc radii, or one-off controls (constitution Principle VI). Map PWA
+components to SwiftUI per docs/ios-foundation/component-inventory.md.
+
+Stack: Swift 5.10+, SwiftUI, SwiftData, Supabase Swift SDK, iOS 18+. Reuse the
 existing Supabase backend without any schema or Edge Function changes.
 
 Scope (in):
@@ -29,6 +110,15 @@ Scope (in):
 - Library screen with three sections: Currently Reading, The Queue, The Archives
 - Section headers with counts; Archives collapsed by default
 - Add book (manual entry + VisionKit ISBN scan)
+- Library import (034): Goodreads/StoryGraph CSV via document picker (.fileImporter).
+  Auto-detect format by header signature; map status (read → completed; else → Want to read);
+  dedupe ISBN-first then title+author; quiet chunked bulk insert (set books.source +
+  books.page_count_estimated; write completed rows' reading_progress directly, NO progress_history
+  / recap / lore / quest side effects); background ISBN-prioritized enrichment (Google Books →
+  Open Library); placeholder page count for unknown lengths, correctable later; progress + summary UI.
+  Entry points: Add Book screen + empty-library state. "Imported" badge on cards via books.source.
+- ISBN-aware search: when a search query is a bare ISBN, use the Google Books `isbn:` operator and
+  drop langRestrict (else language-mismatched editions return nothing — matches the PWA fix).
 - Edit / delete book (swipe-left actions on row)
 - Book detail screen with progress slider
 - Optimistic progress saves with rollback on failure
@@ -46,12 +136,17 @@ Scope (out — explicitly deferred):
 
 Backend rules:
 - No schema changes, no new RPCs, no new Edge Functions, no migrations
+  (books.source + books.page_count_estimated and the import-aware stat RPCs already exist in prod)
 - All calls via existing tables (books, reading_progress, progress_history, up_next_order)
-- All calls via existing RPCs (get_library_with_progress, get_last_session,
-  get_reading_stats, get_library_breakdown, get_reading_velocity)
+- All calls via existing RPCs (get_library_with_progress [returns source + pageCountEstimated],
+  get_last_session, get_reading_stats, get_library_breakdown, get_reading_velocity)
+- External book APIs (Google Books primary, Open Library gap-fill) for import enrichment + search
 
 Success criteria:
 - New user signs up + adds first book in under 90 seconds
+- A new user can import a ~100-book Goodreads/StoryGraph CSV and see the library populated in under 2 minutes
+- Importing N already-read books adds 0 to current-period stats (yearly goal / streaks / this-month)
+  while lifetime finished count reflects them; re-importing the same file creates 0 duplicates
 - Progress saves reflect in UI in <50ms regardless of network
 - Offline queue drains within 30s of reconnect in 99% of cases
 - Library cold-load <1.5s with up to 100 books

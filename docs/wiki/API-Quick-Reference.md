@@ -1,6 +1,6 @@
 # API Quick Reference
 
-Last updated: 2026-06-18
+Last updated: 2026-06-20
 
 This page is optional support material for [[API Documentation]]. Full inventory: [`docs/backend-contract.md`](../backend-contract.md).
 
@@ -27,6 +27,8 @@ This page is optional support material for [[API Documentation]]. Full inventory
 | `get_book_passport_stats` | `src/stores/bookPassport.ts` |
 | `get_retention_summary` | Profile retention rollup |
 | `upsert_weekly_goal` | Settings (weekly goal) |
+
+> **034:** `get_reading_quest_summary` and `get_reading_stats` exclude imported books (`source <> 'manual'`); `get_library_with_progress` now also returns `source` + `pageCountEstimated`. No new RPCs — library import (`src/composables/useLibraryImport.ts` + `booksStore.importBooks`) writes directly to `books`/`reading_progress` via `supabase-js`.
 
 > Plus ~40 **Community + Reading Circles** RPCs (PWA-only today) — see [`backend-contract.md`](../backend-contract.md) §6.
 

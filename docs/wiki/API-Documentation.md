@@ -1,6 +1,6 @@
 # API Documentation
 
-Last updated: 2026-06-18
+Last updated: 2026-06-20
 
 > **Canonical inventory:** [`docs/backend-contract.md`](../backend-contract.md) (generated from a live DB introspection) is authoritative for the full surface — 5 edge functions, **60+ functions**, and the Community/Reading-Circles RPCs not listed here. This page covers the AI edge functions and the core reading RPCs.
 
@@ -215,12 +215,12 @@ Response:
 
 | RPC | Purpose |
 | --- | --- |
-| `get_library_with_progress` | Library list enriched with progress and status. |
-| `get_reading_stats` | Profile lifetime and recent reading stats. |
+| `get_library_with_progress` | Library list enriched with progress and status. **034:** also returns `source` + `pageCountEstimated` per book. |
+| `get_reading_stats` | Profile lifetime and recent reading stats. **034:** `totalPagesRead` excludes imported books (`source <> 'manual'`); other fields derive from `progress_history` (imports write none). |
 | `get_last_session` | Most recent completed reading session summary. |
-| `get_library_breakdown` | Genre, author, and completion breakdown. |
+| `get_library_breakdown` | Genre, author, and completion breakdown. *Includes imported books (lifetime composition).* |
 | `get_reading_velocity` | Reading speed and projection data for books. |
-| `get_reading_quest_summary` | Yearly goal, XP, level, and source totals. |
+| `get_reading_quest_summary` | Yearly goal, XP, level, and source totals. **034:** excludes imported books so they add no XP and don't count toward the yearly goal. |
 | `get_book_passport_stats` | Book Passport journey statistics (timezone-aware). |
 | `get_retention_summary` | Vocabulary review/retention rollup (timezone-aware). |
 | `upsert_weekly_goal` | Set the per-user weekly reading goal (`user_settings`). |
@@ -228,4 +228,18 @@ Response:
 > Not listed: the **Community** and **Reading Circles** RPC sets (~40 functions — `follow/block/search/profile`, `create_reading_circle`, `get_visible_circle_reactions`, etc.). These power features currently used only on the PWA; see [`backend-contract.md`](../backend-contract.md) §6.
 
 RPC response details are typed in `src/types/index.ts` and defined in `supabase/migrations` (note: migrations have drifted from prod — the live DB is canonical).
+
+## External Data APIs (client-side)
+
+Book metadata is fetched directly from public book APIs in the browser — no BookHero backend proxy. Used for search, ISBN lookup, and post-import enrichment.
+
+| API | Used for | Notes |
+| --- | --- | --- |
+| **Google Books** (`googleapis.com/books/v1/volumes`) | Primary source for search, ISBN lookup, import enrichment, recommendations | Optional `VITE_GOOGLE_BOOKS_API_KEY` raises rate limits. |
+| **Open Library** (`openlibrary.org/api/books`) | Gap-fills missing cover/pages/genre by ISBN | Secondary; best-effort, degrades silently. |
+
+Key behaviors:
+
+- **ISBN-aware search (`src/services/bookSearchService.ts`):** a bare ISBN-10/13 query uses the Google Books `isbn:` operator and **omits `langRestrict`** (an ISBN names one specific-language edition; the language filter would hide it). Free-text searches keep `langRestrict=<browser language>` to suppress IP-geolocated local-market editions.
+- **Import enrichment (`src/composables/useLibraryImport.ts`):** ISBN-prioritized — `useIsbn().lookup(isbn)` first (Google Books then Open Library, both by ISBN), falling back to a title+author search only when no ISBN is available. Throttled (concurrency 3) and best-effort.
 

@@ -2,8 +2,8 @@
 
 > A staged roadmap from empty Xcode project to full-featured native iOS app, designed for incremental release and AI-assisted coding.
 
-**Last updated:** 2026-06-18
-**Target platforms:** iOS 17+ (iPhone), iPadOS 17+ optional later
+**Last updated:** 2026-06-20
+**Target platforms:** iOS 18+ (iPhone), iPadOS 18+ optional later — real Liquid Glass on iOS 26+ via availability branching
 **Distribution:** App Store
 
 ---
@@ -13,9 +13,11 @@
 > A live introspection of the Supabase project produced **[`docs/backend-contract.md`](./backend-contract.md)**, which is now the **authoritative backend inventory**. The table/RPC/Edge-Function lists in this roadmap (esp. §5 "Backend Reuse Strategy") are **incomplete** — defer to the contract. Key corrections:
 > - The backend is much larger than this plan assumes: **25 tables, 60+ functions, 5 edge functions** live in prod.
 > - **The Community AND Reading Circles backend is ALREADY BUILT and deployed** (`community_profiles`, `follows`, `blocks`, `reading_circles`, `circle_*`, plus ~40 community/circle RPCs and the `community-avatars` bucket). Phase 5 (§11) is therefore **client-only work**, not "new tables to add" — most of the schema it lists already exists (under different names: `community_profiles` not `user_profiles`, etc.).
-> - Newer columns not reflected here: `books.description`, `lexicon_entries.mastered` + `last_reviewed_at`. Additional live tables: `anki_review_sessions`, `reading_goals`, `reading_quest_events`, `user_settings`.
+> - Newer columns not reflected here: `books.description`, `books.source` + `books.page_count_estimated` (034 library import), `lexicon_entries.mastered` + `last_reviewed_at`. Additional live tables: `anki_review_sessions`, `reading_goals`, `reading_quest_events`, `user_settings`.
+> - **Library Import (034) shipped on the PWA** (Goodreads/StoryGraph CSV). Backend impact the iOS client must honor: imported books carry `source <> 'manual'` and are **excluded from current-period stat RPCs** (`get_reading_quest_summary`, `get_reading_stats.totalPagesRead`) while **included** in lifetime composition (`get_library_breakdown`, Reading DNA). `get_library_with_progress` now returns `source` + `pageCountEstimated` per book. See §7 for iOS import-parity notes.
+> - **Ebook capture (033) shipped:** the capture flow accepts an uploaded image, not just camera — Phase 3 should offer a `PhotosPicker`/Files import alongside the VisionKit scanner.
 > - **Subscriptions still do not exist** server-side (no `entitlements`/`subscriptions` table yet) — that part of Phase 4 is accurate.
-> - **iOS v1 scope steer:** Library/reading + AI memory + capture/vocab + goals. **Defer Community + Circles** despite the backend being ready — they're a large client surface.
+> - **iOS v1 scope steer:** Library/reading + AI memory + capture/vocab + goals + **library import**. **Defer Community + Circles** despite the backend being ready — they're a large client surface.
 > - Local `supabase/migrations` has drifted from prod; a one-time baseline squash from the live schema is recommended before native work begins.
 > - The Spec Kit `specs/100-…` / companion `docs/wiki/Planned-*.md` references below were aspirational and may not exist on disk.
 
@@ -60,7 +62,7 @@ BookHero iOS is a **native rebuild** of the existing PWA, sharing 100% of the Su
 |---|---|---|
 | Language | Swift 5.10+ | Strict concurrency enabled |
 | UI | SwiftUI (100%) | UIKit only via `UIViewRepresentable` for VisionKit/StoreKit views |
-| Min iOS | 17.0 | Enables `@Observable`, SwiftData, `MeshGradient` (18) feature-flagged |
+| Min iOS | 18.0 | Same device reach as 17 (iPhone XS/XR+); `MeshGradient` available at floor; real Liquid Glass (`.glassEffect`) on iOS 26+ with `Material` fallback via `.appGlass()` |
 | State | `@Observable` macro | Replaces `ObservableObject` boilerplate |
 | Persistence | SwiftData | Local cache + offline queue |
 | Networking | Supabase Swift SDK + URLSession | Same endpoints as PWA |
@@ -227,9 +229,10 @@ BookHero-iOS/
 
 ### Reused Resources
 
-- **All tables** — `books`, `reading_progress`, `progress_history`, `lexicon_entries`, `lore_cards`, `recaps`, `book_passports`, `reading_dna`, `vocabulary_extractions`, `page_captures`, `up_next_order`
-- **All RPC functions** — `get_library_with_progress`, `get_reading_stats`, `get_last_session`, `get_library_breakdown`, `get_reading_velocity`
+- **All tables** — `books` (incl. `description`, `source`, `page_count_estimated`), `reading_progress`, `progress_history`, `lexicon_entries`, `lore_cards`, `recaps`, `book_passports`, `reading_dna`, `vocabulary_extractions`, `page_captures`, `up_next_order` *(plus `reading_goals`, `reading_quest_events`, `anki_review_sessions`, `user_settings` — see contract)*
+- **All RPC functions** — `get_library_with_progress` (returns `source` + `pageCountEstimated`), `get_reading_stats`, `get_last_session`, `get_library_breakdown`, `get_reading_velocity`, `get_reading_quest_summary` *(the period-stat RPCs already exclude imported books — the iOS client gets correct numbers for free)*
 - **All Edge Functions** — `generate-recap`, `generate-lore`, `generate-reading-dna`, `extract-vocabulary`, `ocr-page`
+- **No backend work for library import** — it's pure client logic (CSV parse + bulk insert + best-effort enrichment) writing to existing tables; the iOS client re-implements `useLibraryImport.ts`/`booksStore.importBooks` natively.
 - **All RLS policies** — already enforce per-user isolation
 - **Auth schema** — Supabase Auth supports Sign in with Apple natively
 
@@ -270,6 +273,7 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 - Sign in with Apple (mandatory) + email/password fallback
 - Manual book entry (title, author, total pages, cover URL)
 - ISBN scan → autofill (VisionKit barcode scanner)
+- **Library import (034)** — Goodreads/StoryGraph CSV via `.fileImporter` / document picker. Strong activation win for a brand-new iOS user with an empty library. Parse CSV natively (no `papaparse` equivalent needed — Swift `String` splitting with RFC-4180 quoting, or a tiny CSV helper), map status, dedupe (ISBN-first), bulk-insert quietly, enrich in a background `Task`. Honor `source = 'goodreads'|'storygraph'` + `page_count_estimated` on insert.
 - Library page (3 sections: Currently Reading / The Queue / Archives)
 - Drag-to-reorder Queue (native `List.onMove`)
 - Swipe-left actions (Edit / Delete) — native `.swipeActions`
@@ -284,9 +288,16 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 - `AuthRepository` with Sign in with Apple
 - `BooksRepository` + `ProgressRepository` + `UpNextRepository`
 - SWR cache primitive ported
-- SwiftData models: `Book`, `Progress`, `SyncOperation`
+- SwiftData models: `Book` (incl. `source`, `pageCountEstimated`), `Progress`, `SyncOperation`
 - Offline sync queue with `BGAppRefreshTask` drain
 - Glassmorphism design tokens (Colors, Materials, Typography)
+- `LibraryImportService` (CSV parse + dedupe + chunked bulk insert + background enrichment) and an import sheet with progress + summary
+
+### Import parity notes (034)
+
+- **ISBN-prioritized enrichment** — mirror the PWA: look up by ISBN first (Google Books → Open Library), fall back to title+author search only when no ISBN. Also mirror the **ISBN-aware search fix** in any search bar (use Google Books `isbn:` operator and drop language restriction for ISBN-shaped queries).
+- **Quiet insert** — completed ("read") rows write `reading_progress.current_page = total_pages` directly; do **not** route them through the normal progress-save path (no history rows, no recap/lore/quest side effects).
+- **Stats are correct for free** — because imported books carry `source <> 'manual'` and the server RPCs already exclude them, the iOS Profile/Quest screens need no special-casing; just badge imported books in the UI using the `source` field.
 
 ### Out of scope for MVP
 
@@ -368,7 +379,7 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 - `App Groups` for shared SwiftData container (app + widgets)
 - `VisionKit` `DataScannerViewController` wrapper
 - Haptic engine (`UIImpactFeedbackGenerator`, `UINotificationFeedbackGenerator`)
-- `MeshGradient` (iOS 18+) on detail page, with iOS 17 fallback
+- `MeshGradient` on detail page (available at the iOS 18 floor); real Liquid Glass on iOS 26+ via `.appGlass()`
 
 ### Success criteria
 
@@ -704,6 +715,7 @@ Each phase has a corresponding `spec.md` in `specs/`. To begin implementation, p
 
 | Phase | Spec directory | Primary deliverable |
 |---|---|---|
+| 0 — Design Foundation | `specs/001-ios-foundation/` | Design system: color tokens + PageBackground + typography/spacing/radii + reusable components + gallery (build FIRST; see `docs/ios-foundation/` and `docs/ios-phase-prompts.md` Phase 0) |
 | 1 — MVP | `specs/100-ios-mvp/` | Native auth + library + progress + queue + offline |
 | 2 — AI Parity | `specs/101-ios-ai-parity/` | Recaps, Lexicon, Lore, DNA, Passport, Captures |
 | 3 — Native Polish | `specs/102-ios-native-polish/` | Widgets, Live Activity, haptics, App Store v1.0 |
@@ -716,6 +728,11 @@ Each spec is independently testable and shippable per the Speckit user-story pri
 
 ## Companion Documents
 
+- **`docs/ios-foundation/`** — the **design foundation** extracted from the PWA: `design-tokens.md`,
+  `component-inventory.md`, `screen-inventory.md`, `ios-design-brief.md`, and a drop-in
+  `ios-constitution.md`. Copy these into the new iOS repo and build the design system
+  (`specs/001-ios-foundation`) FIRST, before any screen feature.
 - `docs/ios-native-migration-details.md` — backend reuse rules, repository mapping, contract preservation
+- `docs/backend-contract.md` — authoritative backend inventory (live-introspected)
 - `docs/wiki/` — full project wiki (existing features + planned features + conventions)
-- `.specify/memory/constitution.md` — non-negotiable engineering principles
+- `.specify/memory/constitution.md` — non-negotiable engineering principles (PWA; iOS uses `docs/ios-foundation/ios-constitution.md`)

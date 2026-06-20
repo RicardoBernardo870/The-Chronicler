@@ -1,18 +1,18 @@
 # Features
 
-Last updated: 2026-06-18
+Last updated: 2026-06-20
 
 This page documents the main user-facing features and the implementation areas behind them. Backend surface: [`docs/backend-contract.md`](../backend-contract.md).
 
 ## Library Management
 
-Readers can add books three ways — **search**, ISBN scan, or manual entry — plus view, edit, and delete.
+Readers can add books four ways — **search**, ISBN scan, manual entry, or **CSV import** (Goodreads/StoryGraph) — plus view, edit, and delete.
 
 Technical implementation:
 
 - Store: `src/stores/books.ts`
 - Pages/components: `src/pages/LibraryPage.vue`, `src/pages/AddBookPage.vue`, `src/pages/BookSearchDetailPage.vue`, `src/components/books/*`, `src/components/library/*`
-- Data: `books` (incl. `description`), `reading_progress`, `get_library_with_progress`
+- Data: `books` (incl. `description`, `source`, `page_count_estimated`), `reading_progress`, `get_library_with_progress`
 - ISBN tooling: `src/composables/useIsbn.ts`, `src/composables/useScanner.ts`
 
 ### Search & Add (030)
@@ -21,6 +21,24 @@ The Add Book screen leads with "Scan ISBN" and "Add Manually" buttons plus a sea
 
 - Service: `src/services/bookSearchService.ts`; composable: `src/composables/useBookSearch.ts`
 - Components: `src/components/books/BookSearchSection.vue`, `SearchBookHero.vue`, `BookDescription.vue`, `BookRecommendationsScroller.vue`
+
+**ISBN-aware search:** when the search query is a bare ISBN-10/13, `searchBooks` switches to the Google Books `isbn:` operator and **drops the `langRestrict` filter** (an ISBN identifies one specific-language edition, so the language filter would otherwise hide it and return nothing). Free-text title/author searches keep `langRestrict=<browser language>` to suppress IP-geolocated local-market editions.
+
+### Library Import (034)
+
+Readers can populate BookHero in one step by uploading a **Goodreads or StoryGraph CSV export**. The app auto-detects the format by its header signature, maps read-status (`read` → completed at 100%; `to-read` / `currently-reading` / `did-not-finish` / unknown → "Want to read"), de-duplicates against the existing library (ISBN-first, else case-insensitive title+author) and within the file, and **bulk-creates the books quietly** — no recaps, lore, vocabulary, quest XP, or completion passports. Missing cover/genre/page metadata is filled in afterward in the background by reusing the book-search service (ISBN-prioritized). Books with no discoverable page count import with a flagged placeholder (`page_count_estimated`) the reader can correct. Entry points: the Add Book screen and the empty-library/onboarding state.
+
+- Parsers/utils: `src/utils/import/csvFormat.ts`, `goodreadsParser.ts`, `storygraphParser.ts`, `shared.ts`
+- Orchestration: `src/composables/useLibraryImport.ts` (offline-guarded parse → dedupe → bulk insert → throttled enrichment)
+- Store action: `booksStore.importBooks` (chunked insert + batched quiet `reading_progress` upsert for completed rows)
+- Components: `src/components/import/LibraryImportDialog.vue`, `ImportSummaryPanel.vue` (PrimeVue `Dialog`/`FileUpload`/`ProgressBar`); lazy-loaded with `papaparse`
+- Data: `books.source` (`manual`/`goodreads`/`storygraph`), `books.page_count_estimated`
+
+Business rules:
+
+- **Imported = `source <> 'manual'`.** Imported "read" books count toward **lifetime** library composition (total finished, genre breakdown, Reading DNA) but are **excluded** from current-period metrics — the yearly reading goal, streaks, and pages/sessions-this-month (`get_reading_quest_summary` and `get_reading_stats.totalPagesRead` filter them out; all other stat fields derive from `progress_history`, which imports never write).
+- Import is idempotent — re-running the same file creates zero duplicates.
+- Enrichment is best-effort and never blocks or fails the import.
 
 ## Dashboard and Active Book
 
@@ -161,6 +179,10 @@ Technical implementation:
 - Composables: `src/composables/useReadingProfile.ts`, `src/composables/useLibraryBreakdown.ts`, `src/composables/useReadingVelocity.ts`
 - Edge function: `supabase/functions/generate-reading-dna/index.ts`
 - RPCs: `get_reading_stats`, `get_library_breakdown`, `get_reading_velocity`, `get_reading_quest_summary`
+
+Business rules:
+
+- **Imported books (034)** are excluded from current-period surfaces (yearly goal, streaks, monthly activity, XP) via the `source <> 'manual'` filter in `get_reading_quest_summary` / `get_reading_stats`, but are **included** in lifetime composition (`get_library_breakdown`, Reading DNA) — so a large CSV import grows your library without inflating "this year".
 
 ## Community
 

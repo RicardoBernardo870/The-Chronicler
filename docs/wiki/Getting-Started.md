@@ -17,15 +17,13 @@ This page explains how to set up BookHero locally for development.
 
 ## Install Dependencies
 
+This project uses **pnpm** (`pnpm-lock.yaml`). `npm install` currently fails here, so use pnpm:
+
 ```bash
 pnpm install
 ```
 
-If your environment uses npm instead:
-
-```bash
-npm install
-```
+> `npm test` / `npm run build` still work for running scripts, but **dependency installs must go through pnpm** (`pnpm install`, `pnpm add <pkg>`).
 
 ## Configure Environment
 
