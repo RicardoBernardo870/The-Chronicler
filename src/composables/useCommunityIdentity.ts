@@ -45,6 +45,7 @@ const SAVE_ERROR_MESSAGES: Record<string, string> = {
 // useReadingProfile).
 const _myProfile = ref<MyCommunityProfile | null>(null)
 const _fetchedForUserId = ref<string | null>(null)
+const _loaded = ref(false)
 
 export const useCommunityIdentity = () => {
   const authStore = useAuthStore()
@@ -53,7 +54,10 @@ export const useCommunityIdentity = () => {
     if (!authStore.user) return
     const userId = authStore.user.id
     if (!options.force && _fetchedForUserId.value === userId) return
-    if (_fetchedForUserId.value !== userId) _myProfile.value = null
+    if (_fetchedForUserId.value !== userId) {
+      _myProfile.value = null
+      _loaded.value = false
+    }
 
     try {
       const { data, error } = await supabase.rpc('get_my_community_profile')
@@ -65,6 +69,7 @@ export const useCommunityIdentity = () => {
     }
     // Mark as fetched even on failure so a broken RPC isn't retried per mount.
     _fetchedForUserId.value = userId
+    _loaded.value = true
   }
 
   const saveProfile = async (payload: SaveProfilePayload): Promise<void> => {
@@ -165,6 +170,7 @@ export const useCommunityIdentity = () => {
     profile,
     privacy,
     hasProfile,
+    identityLoaded: _loaded,
     readerName,
     avatarUrl,
     initials,

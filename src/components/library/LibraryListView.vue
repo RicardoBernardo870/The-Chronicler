@@ -5,6 +5,7 @@ import type { Book, LibraryBookEntry } from '@/types'
 import type { VelocityResult } from '@/composables/useReadingVelocity'
 import { useBooksStore } from '@/stores/books'
 import SwipeableBookCard from '@/components/library/SwipeableBookCard.vue'
+import QueueReorderList from '@/components/library/QueueReorderList.vue'
 import Button from 'primevue/button'
 
 const props = defineProps<{
@@ -17,6 +18,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   edit:   [book: Book]
   delete: [book: Book]
+  reorderQueue: [orderedIds: string[]]
 }>()
 
 const booksStore = useBooksStore()
@@ -26,7 +28,13 @@ const router = useRouter()
 const activeTab = ref<'queue' | 'completed'>(
   (localStorage.getItem('library-active-tab') as 'queue' | 'completed') ?? 'queue',
 )
-watch(activeTab, (v) => localStorage.setItem('library-active-tab', v))
+watch(activeTab, (v) => {
+  localStorage.setItem('library-active-tab', v)
+  reorderMode.value = false
+})
+
+// Queue reorder mode — swaps the swipe cards for a drag list.
+const reorderMode = ref(false)
 
 const activeTabBooks = computed(() =>
   activeTab.value === 'queue' ? props.queuedBooks : props.archivedBooks,
@@ -100,9 +108,30 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
 
     <!-- Tab content -->
     <div key="tab-content" class="pill-tabs__content" role="tabpanel">
+      <div
+        v-if="activeTab === 'queue' && queuedBooks.length > 1"
+        class="library-list-view__reorder-row"
+      >
+        <button
+          type="button"
+          class="library-list-view__reorder-toggle"
+          :aria-pressed="reorderMode"
+          @click="reorderMode = !reorderMode"
+        >
+          <i :class="`pi ${reorderMode ? 'pi-check' : 'pi-sort-alt'}`" aria-hidden="true" />
+          {{ reorderMode ? 'Done' : 'Reorder' }}
+        </button>
+      </div>
+
       <Transition name="library-list-view__tab" mode="out-in" appear>
+        <QueueReorderList
+          v-if="activeTab === 'queue' && reorderMode"
+          key="queue-reorder"
+          :books="queuedBooks"
+          @update:books="(v) => emit('reorderQueue', v.map((b) => b.id))"
+        />
         <div
-          v-if="activeTabBooks.length > 0"
+          v-else-if="activeTabBooks.length > 0"
           :key="activeTab"
           class="library-list"
         >
@@ -267,6 +296,13 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   margin-top: 1rem;
+  /* Stays reachable mid-scroll (below the sticky search bar); blur keeps the
+     existing translucent background readable without changing its color. */
+  position: sticky;
+  top: 3.6rem;
+  z-index: 50;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 .pill-tabs__tab {
@@ -325,6 +361,48 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
 
 .pill-tabs__content {
   margin-top: 0.75rem;
+}
+
+.library-list-view__reorder-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.6rem;
+}
+
+.library-list-view__reorder-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.library-list-view__reorder-toggle .pi {
+  font-size: 0.65rem;
+}
+
+.library-list-view__reorder-toggle:hover {
+  opacity: 1;
+}
+
+.library-list-view__reorder-toggle:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+}
+
+:root[data-p-theme="light"] .library-list-view__reorder-toggle {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
 }
 
 .library-list-view__section-enter-active,
