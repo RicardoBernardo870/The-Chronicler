@@ -11,10 +11,13 @@ import { useLoreCardsStore } from '@/stores/loreCards'
 import { useReadingVelocity } from '@/composables/useReadingVelocity'
 import type { Book } from '@/types'
 
-import BookEditDialog   from '@/components/books/BookEditDialog.vue'
-import LibraryListView  from '@/components/library/LibraryListView.vue'
-import LibraryGridView  from '@/components/library/LibraryGridView.vue'
-import EmptyState       from '@/components/shared/EmptyState.vue'
+import BookEditDialog        from '@/components/books/BookEditDialog.vue'
+import LibraryListView       from '@/components/library/LibraryListView.vue'
+import LibraryGridView       from '@/components/library/LibraryGridView.vue'
+import LibrarySearchBar      from '@/components/library/LibrarySearchBar.vue'
+import LibrarySearchResults  from '@/components/library/LibrarySearchResults.vue'
+import EmptyState            from '@/components/shared/EmptyState.vue'
+import { normalizeForSearch } from '@/utils/searchText'
 
 // ── Stores / services ───────────────────────────────────────────────────────
 
@@ -32,6 +35,20 @@ const viewMode = ref<'list' | 'grid'>(
   (localStorage.getItem('library-view-mode') as 'list' | 'grid') ?? 'list',
 )
 watch(viewMode, (v) => localStorage.setItem('library-view-mode', v))
+
+// ── Library search (client-side, accent-insensitive) ───────────────────────
+
+const searchQuery = ref('')
+
+const searchResults = computed(() => {
+  const q = normalizeForSearch(searchQuery.value)
+  if (!q) return null
+  return booksStore.libraryEntries.filter(
+    (e) =>
+      normalizeForSearch(e.title).includes(q) ||
+      normalizeForSearch(e.author ?? '').includes(q),
+  )
+})
 
 // ── Section arrays (list view) ─────────────────────────────────────────────
 
@@ -120,6 +137,21 @@ const confirmDelete = (book: Book) => {
   })
 }
 
+// ── Queue reorder (list + grid views) ──────────────────────────────────────
+
+const saveQueueOrder = async (orderedIds: string[]) => {
+  try {
+    await upNextStore.saveOrder(orderedIds)
+  } catch {
+    toast.add({
+      severity: 'error',
+      summary: 'Reorder failed',
+      detail: 'Could not save the new queue order. Try again.',
+      life: 3000,
+    })
+  }
+}
+
 // ── Mount ──────────────────────────────────────────────────────────────────
 
 onMounted(async () => {
@@ -174,6 +206,14 @@ onMounted(async () => {
       </div>
     </header>
 
+    <!-- Sticky search (both views) -->
+    <div
+      v-if="!booksStore.loading && booksStore.books.length > 0"
+      class="library__search-wrap"
+    >
+      <LibrarySearchBar v-model="searchQuery" />
+    </div>
+
     <Transition name="library-state" mode="out-in" appear>
       <!-- Loading skeletons -->
       <div v-if="booksStore.loading" key="loading" class="library__skeleton-list">
@@ -209,12 +249,24 @@ onMounted(async () => {
       </EmptyState>
 
       <Transition v-else name="library-view" mode="out-in" appear>
+        <!-- Search results (either view mode) -->
+        <LibrarySearchResults
+          v-if="searchResults !== null"
+          key="search"
+          :results="searchResults"
+          :query="searchQuery"
+          :velocity-map="velocity.velocityMap.value"
+          @edit="openEditDialog"
+          @delete="confirmDelete"
+        />
+
         <!-- Grid view -->
         <LibraryGridView
-          v-if="viewMode === 'grid'"
+          v-else-if="viewMode === 'grid'"
           key="grid"
           :books="sortedBooks"
           :velocity-map="velocity.velocityMap.value"
+          @reorder-queue="saveQueueOrder"
         />
 
         <!-- List view -->
@@ -227,6 +279,7 @@ onMounted(async () => {
           :velocity-map="velocity.velocityMap.value"
           @edit="openEditDialog"
           @delete="confirmDelete"
+          @reorder-queue="saveQueueOrder"
         />
       </Transition>
     </Transition>
@@ -259,6 +312,23 @@ onMounted(async () => {
 .library__view-toggle {
   display: flex;
   gap: 0.25rem;
+}
+
+.library__search-wrap {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 60;
+}
+
+/* Readability while stuck over scrolled content — blur only, colors untouched. */
+.library__search-wrap :deep(.library-search) {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  background: rgba(18, 18, 28, 0.55);
+}
+
+:root[data-p-theme="light"] .library__search-wrap :deep(.library-search) {
+  background: rgba(255, 255, 255, 0.7);
 }
 
 .library__title {

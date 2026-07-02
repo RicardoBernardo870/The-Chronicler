@@ -17,6 +17,7 @@ import { useCapturesStore } from "@/stores/captures";
 import { createCompletionPromptTarget } from "@/utils/completionPrompt";
 
 import HeroBookCard from "@/components/dashboard/HeroBookCard.vue";
+import DashboardGreeting from "@/components/dashboard/DashboardGreeting.vue";
 import InProgressSection from "@/components/dashboard/InProgressSection.vue";
 import UpNextSection from "@/components/dashboard/UpNextSection.vue";
 import CompletedSection from "@/components/dashboard/CompletedSection.vue";
@@ -228,10 +229,10 @@ const upNextBooks = computed(() => {
 });
 
 const completedPreview = computed(() =>
-  progressStore.completedBooks.slice(0, 2),
+  progressStore.completedBooks.slice(0, 3),
 );
 const completedOverflow = computed(() =>
-  Math.max(0, progressStore.completedBooks.length - 2),
+  Math.max(0, progressStore.completedBooks.length - 3),
 );
 const pendingSync = computed(() => progressStore.pendingSync);
 const showReadingSupportSections = computed(
@@ -328,7 +329,7 @@ const handleCancelSession = () => {
 
 <template>
   <div class="dashboard">
-    <h1 class="dashboard__heading">Your Reading</h1>
+    <DashboardGreeting />
 
     <Transition name="dashboard-switch" mode="out-in" appear>
       <!-- Loading -->
@@ -443,13 +444,7 @@ const handleCancelSession = () => {
         </div>
 
         <div v-if="showUpNextSection" key="up-next" class="dashboard__section">
-          <UpNextSection
-            :books="upNextBooks"
-            @update:books="
-              (newOrder) => upNextStore.saveOrder(newOrder.map((b) => b.id))
-            "
-            @select="setActive"
-          />
+          <UpNextSection :books="upNextBooks" @select="setActive" />
         </div>
 
         <div
@@ -481,13 +476,6 @@ const handleCancelSession = () => {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-}
-
-.dashboard__heading {
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
 }
 
 .dashboard__skeleton {
