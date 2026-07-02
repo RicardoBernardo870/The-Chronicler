@@ -1,10 +1,30 @@
 # Changelog Release Notes
 
-Last updated: 2026-06-20
+Last updated: 2026-07-02
 
 This repository does not currently include a dedicated changelog file. Use this page as the starter convention for release documentation.
 
 ## Releases
+
+## 2026-07-02 - Unreleased (profile redesign)
+
+### Added
+
+- **Identity-first Profile page:** avatar wrapped in the yearly-goal progress ring with a reader-level badge, compact Reading DNA signature strip (full analysis in a bottom sheet), a fitted row of DNA recommendation covers (tap → add-book flow), stat pills, and a **Recap memories** carousel of generated recap images (one near-full-width image per snap; signed URLs from the private `recap-images` bucket).
+- **Trophy Room** (`/profile/stats`): yearly quest as a large progress ring with pace metrics, XP/level strip, **reading calendar** (month grid showing the cover of the book read each day, with a tappable day-detail list), lifetime stats grid, and library breakdown.
+- **Profile customization** (`/profile/edit`): username (live availability check), display name, bio, avatar upload (client-side downscale to ≤512 px JPEG → `community-avatars`), public-profile toggle, and per-surface privacy (defaults to nobody). A community profile row is created only on first save — sign-up never creates one. First client surface for the community profile RPCs.
+- **Completed books** on the detail page now show a "View Recap History" link next to the image carousel.
+
+### Changed
+
+- The old stacked profile cards (`ReadingQuestCard`, `ReadingDnaCard`) were retired; their content moved to `QuestGoalHero` (Trophy Room) and `DnaSignatureStrip`/`DnaRecommendationsScroller`.
+- DNA recommendation covers resolve sequentially (Google Books primary, Open Library fallback) to avoid Google 503 rate-limiting; unresolved covers stay tappable via the add-book search flow.
+- Recap History back navigation pops real history instead of hard-routing to the book detail page.
+
+### Technical
+
+- New RPC `get_reading_calendar(p_user_id, p_month_start, p_timezone)` — timezone-aware per-day book activity; migration `20260702_get_reading_calendar.sql` (applied to prod and mirrored locally).
+- New composables: `useCommunityIdentity`, `useDnaRecommendations`, `useRecapGallery`, `useReadingCalendar`. New routes: `profile-stats`, `profile-edit`.
 
 ## 2026-06-20 - Version 3.7.0
 

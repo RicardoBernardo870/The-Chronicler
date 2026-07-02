@@ -222,10 +222,14 @@ Response:
 | `get_reading_velocity` | Reading speed and projection data for books. |
 | `get_reading_quest_summary` | Yearly goal, XP, level, and source totals. **034:** excludes imported books so they add no XP and don't count toward the yearly goal. |
 | `get_book_passport_stats` | Book Passport journey statistics (timezone-aware). |
+| `get_reading_calendar` | Per-day distinct books read for a month, from `progress_history` — day buckets in the caller's IANA timezone; auth-guarded. Powers the Trophy Room reading calendar. Migration: `20260702_get_reading_calendar.sql`. |
 | `get_retention_summary` | Vocabulary review/retention rollup (timezone-aware). |
 | `upsert_weekly_goal` | Set the per-user weekly reading goal (`user_settings`). |
+| `get_my_community_profile` | Caller's community profile + privacy (or `null` — no row exists until the reader saves `/profile/edit`). Hydrates the profile identity header. |
+| `upsert_my_community_profile` | Create/update the community profile + privacy from the customization page; typed errors (`username_invalid`, `username_taken`, `bio_too_long`, `visibility_invalid`). |
+| `is_username_available` | Live username availability check for the customization page. |
 
-> Not listed: the **Community** and **Reading Circles** RPC sets (~40 functions — `follow/block/search/profile`, `create_reading_circle`, `get_visible_circle_reactions`, etc.). These power features currently used only on the PWA; see [`backend-contract.md`](../backend-contract.md) §6.
+> Not listed: the remaining **Community** and **Reading Circles** RPC sets (~35 functions — follow graph, discovery, `create_reading_circle`, `get_visible_circle_reactions`, etc.). These have no client surface yet; see [`backend-contract.md`](../backend-contract.md) §6.
 
 RPC response details are typed in `src/types/index.ts` and defined in `supabase/migrations` (note: migrations have drifted from prod — the live DB is canonical).
 

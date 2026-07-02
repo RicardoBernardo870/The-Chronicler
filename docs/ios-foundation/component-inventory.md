@@ -105,12 +105,21 @@ never a custom reconstruction of the PWA's emulated glass (see `design-tokens.md
 ## Profile & Quest  (`Features/Profile/`)
 | PWA | Responsibility | SwiftUI |
 |-----|----------------|---------|
-| `pages/ProfilePage.vue` | Profile screen | `ProfileView` |
+| `pages/ProfilePage.vue` | Identity-first profile screen | `ProfileView` |
+| `pages/ProfileStatsPage.vue` | Trophy Room (analytics, one tap deep) | `TrophyRoomView` |
+| `pages/ProfileEditPage.vue` | Profile customization (creates the community row on first save) | `ProfileEditView` (`.sheet` or push) |
+| `profile/ProfileIdentityHeader.vue` | Avatar in yearly-goal ring + level badge + name | header w/ `Circle` ring (`trim(from:to:)`) |
+| `profile/DnaSignatureStrip.vue` / `MoodSignature.vue` | Compact DNA strip; full analysis in bottom sheet | strip + `.sheet` |
+| `profile/DnaRecommendationsScroller.vue` | DNA suggestion covers, one fitted row → add flow | `HStack` of tappable covers |
+| `profile/ProfileStatsNav.vue` | Stat pills + Trophy Room entry | pill grid + `NavigationLink` row |
+| `profile/RecapImagesCarousel.vue` | Recap memories carousel (signed URLs, 1 image/snap) | `TabView(.page)` or snapping `ScrollView` |
+| `profile/QuestGoalHero.vue` / `ReadingGoalDialog.vue` | Yearly quest ring + pace row, goal editing (excludes imported) | ring hero + goal `.sheet` |
+| `profile/ReaderLevelStrip.vue` | XP / level progress | level strip |
+| `profile/ReadingCalendarCard.vue` | Month grid of per-day book covers (`get_reading_calendar`) | custom calendar grid (day-detail disclosure) |
 | `profile/LifetimeStatsGrid.vue` / `StatTile.vue` | Lifetime stats grid | `LazyVGrid` of DS `StatTile` |
 | `profile/LibraryBreakdownCard.vue` | Genre/author breakdown | `LibraryBreakdownCard` (incl. imported books) |
-| `profile/ReadingDnaCard.vue` / `MoodSignature.vue` | Reading DNA viz | `ReadingDnaCard` (radar/tag viz) |
-| `profile/ReadingQuestCard.vue` / `ReaderLevelStrip.vue` / `ReadingGoalDialog.vue` | Yearly goal, XP, level (excludes imported) | `ReadingQuestCard` + goal `.sheet` |
-| `profile/BookSuggestionItem.vue` | Suggestion row | `BookSuggestionRow` |
+
+> `ReadingQuestCard.vue`, `ReadingDnaCard.vue`, and `BookSuggestionItem.vue` were retired in the 2026-07 profile redesign — the quest card became `QuestGoalHero` (Trophy Room) and the DNA card split into `DnaSignatureStrip` (bottom-sheet analysis) + `DnaRecommendationsScroller` (cover row).
 
 ## Book Passport  (`Features/Passport/`)
 | PWA | Responsibility | SwiftUI |

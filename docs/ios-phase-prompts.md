@@ -177,6 +177,13 @@ Scope (in):
 - Leitner spaced-repetition flashcard review
 - Lore Cards: auto-unlock on milestone crossings (50/75/100), Chronoscope card
 - Reading DNA: auto-generate after 3 finished books OR 90 days, manual regenerate
+- Profile (identity-first, 2026-07 PWA redesign — see ios-foundation/screen-inventory.md):
+  identity header (avatar in goal ring + level badge; get_my_community_profile with
+  email-initials fallback), DNA signature strip + recommendation covers row, stat pills,
+  recap-memories carousel, and pushed Trophy Room (quest ring, XP strip, reading
+  calendar via get_reading_calendar RPC, lifetime stats, library breakdown).
+  Profile customization screen (ProfileEditView) is optional here — no social-graph
+  dependency — or slides to Phase 5a.
 - Book Passport: auto-generate on book completion
 - Page Captures (OCR): VisionKit on-device OCR; fall back to ocr-page Edge Function
   if VisionKit confidence is low; user can edit captured text before save
@@ -335,13 +342,18 @@ This phase ships in five sub-releases. Each sub-release is independently testabl
 and shippable.
 
 Sub-release 5a — Profiles & Follow Graph (P1):
+- NOTE: the profile-customization contract is already live and consumed by the PWA
+  (get_my_community_profile / upsert_my_community_profile / is_username_available +
+  community-avatars bucket, {userId}/ path prefix enforced by RLS; row created only on
+  first save). Match that contract; if ProfileEditView shipped in Phase 2, 5a adds only
+  the social surfaces.
 - Public user profile (username, bio, avatar, DNA tags, currently reading)
 - Username uniqueness + profanity filter (Edge Function)
 - Privacy controls (progress / lexicon / currently reading visibility per follower scope)
 - Follow / unfollow asymmetric graph (Twitter model, not friend model)
 - Followers / following lists
 - Block another user (hard mutual hide)
-- New tables: user_profiles, follows, blocks
+- Tables already exist: community_profiles, community_profile_privacy, follows, blocks
 
 Sub-release 5b — Activity Feed (P1):
 - Server-side fan-out via Postgres trigger to activity_feed table

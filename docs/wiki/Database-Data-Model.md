@@ -90,6 +90,7 @@ Notable migrations:
 | `20260618_lexicon_last_reviewed.sql` (032) | `lexicon_entries.last_reviewed_at` (daily-review tally). |
 | `20260619`–`20260621` | `get_reading_stats` fixes: meaningful-session count + calendar-month pages/sessions. |
 | `20260619_library_import.sql` (034) | `books.source` + `books.page_count_estimated`; `get_reading_quest_summary` & `get_reading_stats` exclude imported books (`source <> 'manual'`); `get_library_with_progress` returns `source` + `pageCountEstimated`. |
+| `20260702_get_reading_calendar.sql` | `get_reading_calendar` RPC — per-day books read for a month (timezone-aware, auth-guarded); Trophy Room calendar. Applied to prod via MCP and mirrored locally (no drift). |
 
 > **034 stat exclusion:** Imported books carry `source <> 'manual'`. Period-based surfaces filter them out — `get_reading_quest_summary.progress_rows` (yearly goal + XP) and `get_reading_stats.current_progress` (`totalPagesRead`). All other `get_reading_stats` fields read `progress_history`, which the quiet import never writes, so they need no filter. Lifetime surfaces (`get_library_breakdown`, `get_library_with_progress`, Reading DNA) intentionally keep imported books.
 

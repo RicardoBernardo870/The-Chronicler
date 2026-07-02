@@ -1,6 +1,6 @@
 # API Quick Reference
 
-Last updated: 2026-06-20
+Last updated: 2026-07-02
 
 This page is optional support material for [[API Documentation]]. Full inventory: [`docs/backend-contract.md`](../backend-contract.md).
 
@@ -24,13 +24,19 @@ This page is optional support material for [[API Documentation]]. Full inventory
 | `get_library_breakdown` | `src/composables/useLibraryBreakdown.ts` |
 | `get_reading_velocity` | `src/composables/useReadingVelocity.ts` |
 | `get_reading_quest_summary` | `src/stores/readingQuest.ts` |
+| `get_reading_calendar` | `src/composables/useReadingCalendar.ts` |
+| `get_my_community_profile` | `src/composables/useCommunityIdentity.ts` |
+| `upsert_my_community_profile` | `src/composables/useCommunityIdentity.ts` (Profile edit save) |
+| `is_username_available` | `src/pages/ProfileEditPage.vue` (via `useCommunityIdentity`) |
 | `get_book_passport_stats` | `src/stores/bookPassport.ts` |
 | `get_retention_summary` | Profile retention rollup |
 | `upsert_weekly_goal` | Settings (weekly goal) |
 
-> **034:** `get_reading_quest_summary` and `get_reading_stats` exclude imported books (`source <> 'manual'`); `get_library_with_progress` now also returns `source` + `pageCountEstimated`. No new RPCs — library import (`src/composables/useLibraryImport.ts` + `booksStore.importBooks`) writes directly to `books`/`reading_progress` via `supabase-js`.
+> **034:** `get_reading_quest_summary` and `get_reading_stats` exclude imported books (`source <> 'manual'`); `get_library_with_progress` now also returns `source` + `pageCountEstimated`. Library import (`src/composables/useLibraryImport.ts` + `booksStore.importBooks`) writes directly to `books`/`reading_progress` via `supabase-js`.
 
-> Plus ~40 **Community + Reading Circles** RPCs (PWA-only today) — see [`backend-contract.md`](../backend-contract.md) §6.
+> **Profile redesign (2026-07):** added `get_reading_calendar` (Trophy Room calendar) and brought the first three community RPCs into use (identity header + `/profile/edit`).
+
+> Plus the remaining **Community + Reading Circles** RPCs (~40, no client surface yet) — see [`backend-contract.md`](../backend-contract.md) §6.
 
 > Edge-function auth nuance: `generate-recap` / `generate-lore` / `ocr-page` run `verify_jwt: false` and self-validate; `extract-vocabulary` / `generate-reading-dna` use platform JWT.
 

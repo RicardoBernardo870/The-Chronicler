@@ -139,11 +139,14 @@ All are `SECURITY DEFINER` and re-assert the caller's identity. **Reads that nee
 | `get_book_passport_stats` | `p_user_id, p_book_id, p_time_zone text` | json | Completed-book passport stats (TZ-aware) |
 | `get_reading_quest_summary` | `p_user_id, p_year int` | jsonb | XP, level, quest/goal summary. *034: `progress_rows` excludes imported books (`source <> 'manual'`) so imports add no quest XP and don't count toward the yearly reading goal.* |
 | `get_retention_summary` | `p_timezone text` | json | Review/retention rollup |
+| `get_reading_calendar` | `p_user_id uuid, p_month_start date, p_timezone text default 'UTC'` | json | Per-day distinct books read for a month, from `progress_history` (`[{date, books:[{bookId,title,coverUrl,furthestPage}]}]`). Day boundaries in the caller's IANA timezone; re-asserts `auth.uid()` internally (returns `[]` for anyone else). Powers the Trophy Room reading calendar. Migration: `supabase/migrations/20260702_get_reading_calendar.sql`. |
 
 ### Settings
 | `upsert_weekly_goal` | `p_goal int` | void | Set weekly reading goal |
 
-### Community (deferred for iOS v1)
+### Community (social layer deferred for iOS v1)
+> The PWA profile now consumes the first three of these: `get_my_community_profile` hydrates the profile identity header (`useCommunityIdentity`, email-initials fallback when no row exists), and `upsert_my_community_profile` + `is_username_available` back the `/profile/edit` customization page (which is the **only** place a `community_profiles` row gets created — sign-up does not create one). Avatars upload to `community-avatars/{userId}/…` (RLS requires the uid folder prefix).
+
 `get_my_community_profile`, `upsert_my_community_profile(payload jsonb)`, `get_public_profile_by_username(p_username)`, `is_username_available(p_username)`, `search_community_readers(p_query,p_limit,p_cursor)`, `follow_community_user`, `unfollow_community_user`, `block_community_user`, `unblock_community_user`, `get_community_relationship_state`, `can_community_users_interact`, `list_community_followers`, `list_community_following`, `list_my_blocked_users`, `get_also_reading_for_book(p_book_id,p_isbn,p_limit,p_cursor)`.
 
 ### Reading circles (deferred for iOS v1)

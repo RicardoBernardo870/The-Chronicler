@@ -325,7 +325,8 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 - **Lexicon** — manual entry, browse by book, flashcard review (Leitner)
 - **Lore Cards** — auto-unlock at milestones (50%, 75%, 100%)
 - **Lore Chronoscope** — collapsible card on book detail
-- **Reading DNA / Profile page** — calls `generate-reading-dna` once threshold met
+- **Reading DNA / Profile page** — calls `generate-reading-dna` once threshold met. The PWA profile was redesigned (2026-07) to an **identity-first layout** — mirror it, don't copy the old stacked-cards version: identity header (avatar in yearly-goal ring + level badge), compact DNA signature strip with the full analysis in a `.sheet`, DNA recommendation covers row (tap → add flow), stat pills, recap-memories carousel (signed URLs from `recap-images`), and a pushed **Trophy Room** (`TrophyRoomView`): quest progress ring, XP strip, **reading calendar** (`get_reading_calendar` RPC — timezone-aware day buckets with book covers per day), lifetime stats, library breakdown. See `ios-foundation/screen-inventory.md` + `component-inventory.md` for the state/component map.
+  - **Community-RPC dependency (pre-Phase-5):** the identity header reads `get_my_community_profile` (already live) with a graceful email-initials fallback when no profile row exists — safe to ship before Phase 5. The **profile customization screen** (`ProfileEditView`: username/avatar/bio/privacy — the only place a `community_profiles` row is created; sign-up never creates one) has no social-graph dependencies, so it can ship with this phase or slide to Phase 5a; decide when scoping.
 - **Book Passport** — auto-generated on book completion
 - **Dashboard page** — "Last session" card, "Up Next" inline, "Currently Reading" hero
 
@@ -447,6 +448,8 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 ### Features (in build order)
 
 #### 5a — Profiles & Follow Graph
+
+> The PWA already ships **profile customization** (`/profile/edit`) against the live RPCs — `get_my_community_profile`, `upsert_my_community_profile`, `is_username_available` — and the `community-avatars` bucket (path must be `{userId}/…` per RLS; PWA downscales avatars to ≤512 px JPEG client-side before upload). iOS 5a should match that page's contract and UX (first-run create state, live username availability, privacy defaults to `nobody`) rather than redesign it. If `ProfileEditView` already shipped with Phase 2 (see §8), 5a only adds the social surfaces.
 
 - Public user profile (username, bio, avatar, DNA tags, currently reading)
 - Privacy controls (progress visible to: everyone/followers/nobody)

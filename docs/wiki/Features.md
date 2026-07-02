@@ -1,6 +1,6 @@
 # Features
 
-Last updated: 2026-06-20
+Last updated: 2026-07-02
 
 This page documents the main user-facing features and the implementation areas behind them. Backend surface: [`docs/backend-contract.md`](../backend-contract.md).
 
@@ -96,7 +96,7 @@ Technical implementation:
 - Store: `src/stores/recaps.ts`
 - Client: `src/services/recapService.ts`
 - Edge function: `supabase/functions/generate-recap/*`
-- UI: `src/components/recap/*`, `src/pages/RecapHistoryPage.vue`
+- UI: `src/components/recap/*`, `src/pages/RecapHistoryPage.vue`; recap images also surface in the profile's Recap memories carousel (`src/components/profile/RecapImagesCarousel.vue` via `useRecapGallery`)
 
 Business rules:
 
@@ -170,19 +170,29 @@ Business rules:
 
 ## Reader Profile and Reading Quest
 
-The profile page summarizes lifetime reading stats, library breakdown, Reading DNA, yearly goal progress, XP, and reader level.
+The profile is **identity-first** and fits roughly one screen: an identity header (avatar wrapped in the yearly-goal progress ring, reader-level badge, name — tap opens profile customization), a compact Reading DNA signature strip (tap opens the full analysis in a bottom sheet), a one-row strip of DNA book-recommendation covers (tap → add-book flow), stat pills (books / pages / hours / streak), a Trophy Room entry, and a **Recap memories** carousel of the reader's generated recap images (one near-full-width image per snap; empty state invites the reader to generate recaps).
+
+The analytical detail lives one tap deep in the **Trophy Room** (`/profile/stats`): yearly quest as a large progress ring with pace metrics (needed / current / forecast), reader level/XP strip, the **reading calendar**, lifetime stats grid, and library breakdown.
 
 Technical implementation:
 
-- Page: `src/pages/ProfilePage.vue`
+- Pages: `src/pages/ProfilePage.vue`, `src/pages/ProfileStatsPage.vue` (Trophy Room), `src/pages/ProfileEditPage.vue` (customization)
+- Components: `src/components/profile/*` — `ProfileIdentityHeader`, `DnaSignatureStrip`, `DnaRecommendationsScroller`, `ProfileStatsNav`, `RecapImagesCarousel`, `QuestGoalHero`, `ReaderLevelStrip`, `ReadingCalendarCard`, `LifetimeStatsGrid`, `LibraryBreakdownCard`
 - Stores: `src/stores/readingDna.ts`, `src/stores/readingQuest.ts`
-- Composables: `src/composables/useReadingProfile.ts`, `src/composables/useLibraryBreakdown.ts`, `src/composables/useReadingVelocity.ts`
+- Composables: `useReadingProfile`, `useLibraryBreakdown`, `useReadingVelocity`, `useCommunityIdentity`, `useDnaRecommendations`, `useRecapGallery`, `useReadingCalendar`
 - Edge function: `supabase/functions/generate-reading-dna/index.ts`
-- RPCs: `get_reading_stats`, `get_library_breakdown`, `get_reading_velocity`, `get_reading_quest_summary`
+- RPCs: `get_reading_stats`, `get_library_breakdown`, `get_reading_velocity`, `get_reading_quest_summary`, `get_reading_calendar`, `get_my_community_profile`
 
 Business rules:
 
 - **Imported books (034)** are excluded from current-period surfaces (yearly goal, streaks, monthly activity, XP) via the `source <> 'manual'` filter in `get_reading_quest_summary` / `get_reading_stats`, but are **included** in lifetime composition (`get_library_breakdown`, Reading DNA) — so a large CSV import grows your library without inflating "this year".
+- **Reading calendar** — `get_reading_calendar(p_user_id, p_month_start, p_timezone)` buckets `progress_history` rows by day **in the reader's IANA timezone**; each active day shows the cover of the book read (a "+n" badge for multiple), and tapping a day lists the books with the furthest page reached. Months are cached per session; forward navigation stops at the current month.
+- **DNA recommendation covers** resolve sequentially via Google Books (gives the add-book-details volume key), with Open Library search as the cover fallback; a suggestion that resolves without a Google key still taps through to the normal add-book search flow with the query pre-seeded. Partially failed sets re-resolve on the next profile visit.
+- **Recap memories** exchanges private `recap-images` paths for batch signed URLs (1 h TTL); only recaps with `image_status = 'succeeded'` appear; tapping an image opens that book's recap history.
+
+### Profile customization (`/profile/edit`)
+
+A community profile row is **not** created at sign-up — it exists only after the reader saves this page for the first time, so the empty state is a first-run setup ("Create your reader profile"), never an error. The reader picks a username (`^[a-z0-9_-]{3,30}$`, live availability check via `is_username_available`, pattern-safe suggestion pre-filled from the auth email), optional display name and bio (≤160, live counter), a public-profile toggle, and per-surface privacy (everyone / followers / nobody — defaults to nobody). Avatar upload accepts a phone photo, downscales client-side to ≤512 px JPEG, and uploads to `community-avatars/{userId}/avatar-{ts}.jpg` on save (timestamped to defeat CDN caching; older files cleaned up best-effort). Saving calls `upsert_my_community_profile`; its typed errors (`username_taken`, `bio_too_long`, …) map to inline copy.
 
 ## Community
 
@@ -203,7 +213,7 @@ Technical implementation:
 - Data: `reading_circles`, `circle_invitations`, `circle_members`, `circle_reactions`; enums `circle_status`, `circle_member_role`, `circle_invitation_status`.
 - RPCs: `create_reading_circle`, `invite_reading_circle_members`, `respond_to_reading_circle_invitation`, `leave_reading_circle`, `remove_reading_circle_member`, `get_reading_circle_detail`, `list_my_reading_circles`, `add_circle_reaction`, `get_visible_circle_reactions` (enforces the page-gated spoiler safety).
 
-> Community and Reading Circles are fully built on the backend and used on the PWA. They are **deferred for the iOS v1** port (see [`docs/ios-implementation-plan.md`](../ios-implementation-plan.md)).
+> Community and Reading Circles are fully built on the backend. On the PWA, the **profile customization page** (`/profile/edit`, see Reader Profile above) is the first client surface consuming the community profile RPCs (`get_my_community_profile`, `upsert_my_community_profile`, `is_username_available`) and the `community-avatars` bucket; the social surfaces (follow graph, discovery, circles) have no PWA UI yet. The social layer is **deferred for the iOS v1** port (see [`docs/ios-implementation-plan.md`](../ios-implementation-plan.md)).
 
 ## Offline-Friendly Progress
 

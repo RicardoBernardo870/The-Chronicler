@@ -15,7 +15,9 @@ not just the happy path (empty/loading/error are where AI-generated screens usua
 | `/lexicon` (`lexicon`) | `GreatLibraryPage` | `LexiconView` | **Tab 3** | loading · empty · search results (server-paginated) · filters · Word-of-the-Day |
 | `/anki-review` (`anki-review`) | `AnkiReviewPage` | `ReviewView` | push from Lexicon / WotD | no-cards-due · reviewing (swipe) · daily-limit reached ("review more") · session complete |
 | `/books/:id/passport` (`book-passport`) | `BookPassportPage` | `BookPassportView` | push from completion prompt / Book Detail | generating · journey + stats + AI summary · error |
-| `/profile` (`profile`) | `ProfilePage` | `ProfileView` | **Tab 4** | loading · lifetime stats · library breakdown · Reading DNA (or below-threshold) · Reading Quest (or no-goal) |
+| `/profile` (`profile`) | `ProfilePage` | `ProfileView` | **Tab 4** | loading · identity header (avatar + goal ring + level badge; email-initials fallback when no community profile row) · DNA signature strip (or below-threshold / generating / error) · DNA recommendation covers row · stat pills · Trophy Room entry · recap-memories carousel (or empty CTA) |
+| `/profile/stats` (`profile-stats`) | `ProfileStatsPage` | `TrophyRoomView` | push from Profile (identity ring caption, stat pills, trophy row) | loading · quest ring hero (or no-goal CTA) · level/XP strip · reading calendar (month nav · day covers · day-detail list) · lifetime stats · library breakdown |
+| `/profile/edit` (`profile-edit`) | `ProfileEditPage` | `ProfileEditView` | push from Profile identity header | **first-run create** (no `community_profiles` row exists until first save — placeholder state, not an error) · edit · username availability (checking/available/taken) · avatar pick + local preview · privacy selects · saving · save error |
 | `*` (`not-found`) | `NotFoundPage` | — | — | native nav has no 404 |
 
 ## Navigation model
@@ -25,6 +27,10 @@ not just the happy path (empty/loading/error are where AI-generated screens usua
 - `BookDetailView` is pushed from Dashboard hero, Library rows, and search results — it's the hub for
   Recaps and Book Passport (child destinations).
 - Completion prompt (book hits 100%) → confirmation → `BookPassportView`.
+- `ProfileView` pushes two children: `TrophyRoomView` (analytics: quest ring, calendar, stats) and
+  `ProfileEditView` (identity/privacy customization). `RecapHistoryView` is also reachable from the
+  profile's recap-memories carousel — back navigation must return to wherever the reader came from
+  (history pop, not a hardcoded parent).
 
 ## Cross-screen states to get right (design once, reuse)
 
