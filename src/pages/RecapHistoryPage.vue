@@ -19,6 +19,13 @@ const recaps = computed(() => recapsStore.recapHistoryForBook(bookId.value))
 const loading = ref(false)
 const error = ref<string | null>(null)
 
+// Return wherever the reader came from (profile carousel, book detail, …);
+// fall back to the book detail page on a deep link with no history.
+const goBack = () => {
+  if (window.history.length > 1) router.back()
+  else router.push({ name: 'book-detail', params: { id: bookId.value } })
+}
+
 onMounted(async () => {
   loading.value = true
   error.value = null
@@ -41,7 +48,7 @@ onMounted(async () => {
         text
         rounded
         aria-label="Back"
-        @click="router.push({ name: 'book-detail', params: { id: bookId } })"
+        @click="goBack"
       />
       <div class="recap-history-page__title-wrap">
         <h1 class="recap-history-page__title">Recap History</h1>
