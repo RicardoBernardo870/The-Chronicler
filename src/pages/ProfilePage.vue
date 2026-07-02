@@ -1,7 +1,9 @@
 <script setup lang="ts">
-// 016 - Reader Profile Page
-// Orchestrates state and layout only; substantive UI is delegated to
-// components under src/components/profile/. (Constitution VI.)
+// Reader Profile — identity-first layout: avatar + goal ring header, compact
+// Reading DNA strip, DNA recommendation scroller, and stat pills. The
+// analytical cards (quest / lifetime stats / breakdown) live one tap deep on
+// ProfileStatsPage. Orchestrates state and layout only; substantive UI is
+// delegated to components under src/components/profile/. (Constitution VI.)
 import { onMounted, ref } from "vue";
 import { Skeleton } from "primevue";
 import { useBooksStore } from "@/stores/books";
@@ -10,11 +12,13 @@ import { useReadingDnaStore } from "@/stores/readingDna";
 import { useReadingQuestStore } from "@/stores/readingQuest";
 import { useReadingProfile } from "@/composables/useReadingProfile";
 import { useLibraryBreakdown } from "@/composables/useLibraryBreakdown";
+import { useCommunityIdentity } from "@/composables/useCommunityIdentity";
 
-import ReadingDnaCard from "@/components/profile/ReadingDnaCard.vue";
-import ReadingQuestCard from "@/components/profile/ReadingQuestCard.vue";
-import LifetimeStatsGrid from "@/components/profile/LifetimeStatsGrid.vue";
-import LibraryBreakdownCard from "@/components/profile/LibraryBreakdownCard.vue";
+import ProfileIdentityHeader from "@/components/profile/ProfileIdentityHeader.vue";
+import DnaSignatureStrip from "@/components/profile/DnaSignatureStrip.vue";
+import DnaRecommendationsScroller from "@/components/profile/DnaRecommendationsScroller.vue";
+import ProfileStatsNav from "@/components/profile/ProfileStatsNav.vue";
+import RecapImagesCarousel from "@/components/profile/RecapImagesCarousel.vue";
 
 const booksStore = useBooksStore();
 const progressStore = useProgressStore();
@@ -22,6 +26,7 @@ const dnaStore = useReadingDnaStore();
 const readingQuestStore = useReadingQuestStore();
 const { booksFinished, fetchStats } = useReadingProfile();
 const { fetchBreakdown } = useLibraryBreakdown();
+const { fetchIdentity } = useCommunityIdentity();
 const profileReady = ref(false);
 
 onMounted(async () => {
@@ -36,9 +41,10 @@ onMounted(async () => {
       fetchStats(),
       readingQuestStore.fetchQuestSummary().catch(() => {}),
       fetchBreakdown(),
+      fetchIdentity(),
     ]);
     // Keep the first profile paint stable: if DNA generation is needed, finish it
-    // before rendering the lower cards so nothing gets pushed down afterward.
+    // before rendering the lower sections so nothing gets pushed down afterward.
     await dnaStore.maybeGenerateDna(booksFinished.value);
   } finally {
     profileReady.value = true;
@@ -48,32 +54,27 @@ onMounted(async () => {
 
 <template>
   <section class="profile-page">
-    <header class="profile-page__header">
-      <h1 class="profile-page__title">Profile</h1>
-    </header>
-
     <Transition name="profile-state" mode="out-in" appear>
       <div v-if="!profileReady" key="loading" class="profile-page__skeletons">
-        <section class="profile-page__skeleton-card glass-surface profile-page__skeleton-card--dna">
-          <Skeleton height="1rem" width="42%" />
-          <Skeleton height="4rem" width="100%" />
-          <Skeleton height="1.25rem" width="55%" />
-          <Skeleton height="3.75rem" width="100%" />
-          <Skeleton height="3.75rem" width="100%" />
-        </section>
-
-        <section class="profile-page__skeleton-card glass-surface">
-          <Skeleton height="1rem" width="38%" />
-          <div class="profile-page__skeleton-grid">
-            <Skeleton v-for="i in 6" :key="i" height="4.75rem" />
+        <div class="profile-page__skeleton-identity">
+          <Skeleton shape="circle" size="76px" />
+          <div class="profile-page__skeleton-identity-meta">
+            <Skeleton height="1.4rem" width="55%" />
+            <Skeleton height="0.9rem" width="40%" />
           </div>
-        </section>
+        </div>
 
         <section class="profile-page__skeleton-card glass-surface">
-          <Skeleton height="1rem" width="44%" />
-          <Skeleton height="2rem" width="80%" />
-          <Skeleton height="3.5rem" width="100%" />
+          <Skeleton height="1.5rem" width="70%" />
         </section>
+
+        <div class="profile-page__skeleton-covers">
+          <Skeleton v-for="i in 4" :key="i" width="92px" height="134px" border-radius="10px" />
+        </div>
+
+        <div class="profile-page__skeleton-pills">
+          <Skeleton v-for="i in 4" :key="i" height="3.6rem" border-radius="14px" />
+        </div>
       </div>
 
       <TransitionGroup
@@ -84,17 +85,20 @@ onMounted(async () => {
         class="profile-page__sections"
         appear
       >
-        <div key="dna" class="profile-page__section">
-          <ReadingDnaCard />
+        <div key="identity" class="profile-page__section">
+          <ProfileIdentityHeader />
         </div>
-        <div key="quest" class="profile-page__section">
-          <ReadingQuestCard />
+        <div key="dna" class="profile-page__section">
+          <DnaSignatureStrip />
+        </div>
+        <div key="recs" class="profile-page__section">
+          <DnaRecommendationsScroller />
         </div>
         <div key="stats" class="profile-page__section">
-          <LifetimeStatsGrid />
+          <ProfileStatsNav />
         </div>
-        <div key="breakdown" class="profile-page__section">
-          <LibraryBreakdownCard />
+        <div key="recap-memories" class="profile-page__section">
+          <RecapImagesCarousel />
         </div>
       </TransitionGroup>
     </Transition>
@@ -111,20 +115,6 @@ onMounted(async () => {
   gap: 1.25rem;
 }
 
-.profile-page__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 0.25rem;
-}
-
-.profile-page__title {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
 .profile-page__sections,
 .profile-page__skeletons {
   display: flex;
@@ -136,20 +126,36 @@ onMounted(async () => {
   min-width: 0;
 }
 
-.profile-page__skeleton-card {
-  padding: 1.25rem;
+.profile-page__skeleton-identity {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 1rem;
 }
 
-.profile-page__skeleton-card--dna {
-  min-height: 21rem;
+.profile-page__skeleton-identity-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.profile-page__skeleton-grid {
+.profile-page__skeleton-card {
+  padding: 0.9rem 1rem;
+}
+
+.profile-page__skeleton-covers {
+  display: flex;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.profile-page__skeleton-covers > * {
+  flex: none;
+}
+
+.profile-page__skeleton-pills {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
@@ -175,18 +181,6 @@ onMounted(async () => {
   position: absolute;
   width: calc(100% - 2rem);
   max-width: 680px;
-}
-
-@media (min-width: 600px) {
-  .profile-page__skeleton-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 900px) {
-  .profile-page__skeleton-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

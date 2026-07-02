@@ -242,6 +242,15 @@ const viewJourney = async () => {
         :recaps="completedRecapImages"
       />
 
+      <div v-if="isComplete && recapCount > 0" class="book-detail__history-link">
+        <Button
+          :label="`View Recap History (${recapCount})`"
+          icon="pi pi-history"
+          link
+          @click="router.push({ name: 'recap-history', params: { id: bookId } })"
+        />
+      </div>
+
       <section v-if="!isComplete" class="book-detail__recap glass-surface">
         <div class="book-detail__recap-header">
           <h2 class="book-detail__section-title">AI Recap</h2>

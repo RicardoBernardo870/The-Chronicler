@@ -59,6 +59,16 @@ const router = createRouter({
           component: () => import("@/pages/ProfilePage.vue"),
         },
         {
+          path: "profile/stats",
+          name: "profile-stats",
+          component: () => import("@/pages/ProfileStatsPage.vue"),
+        },
+        {
+          path: "profile/edit",
+          name: "profile-edit",
+          component: () => import("@/pages/ProfileEditPage.vue"),
+        },
+        {
           path: "anki-review",
           name: "anki-review",
           component: () => import("@/pages/AnkiReviewPage.vue"),

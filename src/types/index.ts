@@ -776,3 +776,45 @@ export const mapPageCapture = (row: PageCaptureRow): PageCapture => ({
   capturedAt: row.captured_at,
   source: row.source,
 })
+
+// ── Community profile (customization page) ────────────────────────────────────
+
+export type ProfileVisibility = 'everyone' | 'followers' | 'nobody'
+
+export interface CommunityPrivacy {
+  progress: ProfileVisibility
+  currentlyReading: ProfileVisibility
+  lexicon: ProfileVisibility
+  readerDna: ProfileVisibility
+}
+
+export interface CommunityProfile {
+  userId: string
+  username: string
+  displayName: string | null
+  bio: string | null
+  avatarUrl: string | null
+  isPublic: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** `get_my_community_profile` / `upsert_my_community_profile` payload — null until the reader customizes their profile. */
+export interface MyCommunityProfile {
+  profile: CommunityProfile
+  privacy: CommunityPrivacy
+}
+
+// ── Reading calendar (get_reading_calendar RPC) ───────────────────────────────
+
+export interface ReadingCalendarBook {
+  bookId: string
+  title: string
+  coverUrl: string | null
+  furthestPage: number
+}
+
+export interface ReadingCalendarDay {
+  date: string // YYYY-MM-DD in the caller's timezone
+  books: ReadingCalendarBook[]
+}
