@@ -15,16 +15,11 @@ const props = defineProps<{
   isComplete: boolean
   canViewJourney: boolean
   lexiconCount: number
-  recapLocked: boolean
-  pagesUntilUnlock: number
-  recapTriggered: boolean
-  recapLockLabel: string
 }>()
 
 const emit = defineEmits<{
   'update:currentPageInput': [value: number]
   save: []
-  getRecap: []
   sessionConflict: [startedAt: Date]
   cancelSession: []
   viewJourney: []
@@ -74,45 +69,14 @@ const emit = defineEmits<{
       Page {{ progress?.currentPage ?? 0 }} of {{ book.totalPages }}
     </p>
 
-    <div v-if="!isComplete" class="progress-panel__actions">
-      <div class="progress-panel__session-action">
-        <SessionStartButton
-          :book-id="book.id"
-          :icon-only="false"
-          @conflict-warning="(startedAt) => emit('sessionConflict', startedAt)"
-          @cancel-session="emit('cancelSession')"
-        />
-      </div>
-      <Button
-        v-if="!recapTriggered && recapLocked"
-        :label="recapLockLabel || `Read ${pagesUntilUnlock} more pages`"
-        disabled
-        class="progress-panel__recap-btn progress-panel__recap-btn--locked"
+    <!-- Primary action: session state machine (start ⇄ save/cancel) -->
+    <div v-if="!isComplete" class="progress-panel__session-action">
+      <SessionStartButton
+        :book-id="book.id"
+        :icon-only="false"
+        @conflict-warning="(startedAt) => emit('sessionConflict', startedAt)"
+        @cancel-session="emit('cancelSession')"
       />
-      <Button
-        v-else
-        :label="recapTriggered ? 'Recap open' : 'Get Recap'"
-        icon="pi pi-sparkles"
-        class="progress-panel__recap-btn"
-        :disabled="recapTriggered"
-        @click="emit('getRecap')"
-      />
-    </div>
-
-    <div v-if="!isComplete" class="progress-panel__vocab-row">
-      <div class="progress-panel__vocab-actions">
-        <Button label="Add Word" icon="pi pi-plus" size="small" outlined @click="emit('openAddWord')" />
-        <span
-          v-if="lexiconCount > 0"
-          class="progress-panel__vocab-count"
-          role="button"
-          tabindex="0"
-          @click="emit('viewLexicon')"
-          @keydown.enter="emit('viewLexicon')"
-        >
-          {{ lexiconCount }} {{ lexiconCount === 1 ? 'word' : 'words' }} saved
-        </span>
-      </div>
     </div>
 
     <Button
@@ -122,6 +86,23 @@ const emit = defineEmits<{
       class="progress-panel__passport-btn"
       @click="emit('viewJourney')"
     />
+
+    <!-- Secondary action chips -->
+    <div class="progress-panel__chips">
+      <button type="button" class="progress-panel__chip" @click="emit('openAddWord')">
+        <i class="pi pi-plus" aria-hidden="true" />
+        <span>Codex</span>
+      </button>
+      <button
+        v-if="lexiconCount > 0"
+        type="button"
+        class="progress-panel__chip"
+        @click="emit('viewLexicon')"
+      >
+        <i class="pi pi-book" aria-hidden="true" />
+        <span>Words {{ lexiconCount }}</span>
+      </button>
+    </div>
   </section>
 </template>
 
@@ -183,16 +164,67 @@ const emit = defineEmits<{
 
 .progress-panel__hint { margin: 0; font-size: 0.8rem; opacity: 0.55; }
 
-.progress-panel__actions {
-  display: flex;
-  gap: 0.75rem;
-  align-items: stretch;
-}
-
 .progress-panel__session-action {
-  flex: 2;
   display: flex;
   min-width: 0;
+}
+
+.progress-panel__chips {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.progress-panel__chip {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.5rem;
+  border: none;
+  border-radius: var(--p-border-radius-lg, 12px);
+  background: rgba(99, 102, 241, 0.18);
+  color: var(--p-indigo-300);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.progress-panel__chip .pi {
+  font-size: 0.8rem;
+  flex: none;
+}
+
+.progress-panel__chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.progress-panel__chip:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.24);
+}
+
+.progress-panel__chip:disabled {
+  cursor: not-allowed;
+}
+
+.progress-panel__chip--locked {
+  opacity: 0.5;
+  font-size: 0.72rem;
+}
+
+.progress-panel__chip:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+}
+
+[data-p-theme='light'] .progress-panel__chip:not(:disabled) {
+  color: var(--p-primary-700, #4338ca);
 }
 
 .progress-panel__session-action :deep(.session-start-btn) {
@@ -213,10 +245,8 @@ const emit = defineEmits<{
   border-radius: var(--p-border-radius-lg, 12px) !important;
 }
 
-.progress-panel__session-action :deep(.session-start-btn__stop) {
+.progress-panel__session-action :deep(.session-start-btn__timer) {
   width: 100%;
-  height: 100%;
-  border-radius: var(--p-border-radius-lg, 12px) !important;
 }
 
 .progress-panel__recap-btn {

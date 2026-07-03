@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useIntersectionObserver } from "@vueuse/core";
 import { useBooksStore } from "@/stores/books";
+import { useLexiconStore } from "@/stores/lexicon";
 import { useGreatLibrarySearch } from "@/composables/useGreatLibrarySearch";
 import LexiconCard from "@/components/lexicon/LexiconCard.vue";
 import AddWordDialog from "@/components/lexicon/AddWordDialog.vue";
@@ -29,6 +30,7 @@ const {
   hasMore,
   searchQuery,
   typeFilter,
+  sortOrder,
   bookFilter,
   bookOptions,
   search,
@@ -36,13 +38,26 @@ const {
   retry,
 } = useGreatLibrarySearch();
 
+const toggleSort = () => {
+  sortOrder.value = sortOrder.value === "newest" ? "alpha" : "newest";
+};
+
 // ── Tab state ──────────────────────────────────────────────────────────────
 const activeIndex = ref<number>(route.query.tab === "lore" ? 1 : 0);
 
 const tabItems = [
   { label: "Lexicon", icon: "pi pi-book" },
-  { label: "Lore Cards", icon: "pi pi-sparkles" },
+  { label: "Insights", icon: "pi pi-sparkles" },
 ];
+
+// ── Header stats (words · mastered) ────────────────────────────────────────
+const lexiconStore = useLexiconStore();
+const totalWords = computed(
+  () => lexiconStore.allEntries.filter((e) => e.entryType !== "quote").length,
+);
+const masteredWords = computed(
+  () => lexiconStore.allEntries.filter((e) => e.mastered).length,
+);
 
 // ── Lore tab book filter (separate from lexicon composable filter) ──────────
 const loreBookId = ref<string | null>((route.query.bookId as string) || null);
@@ -65,7 +80,7 @@ const loreBookOptions = computed(() => [
 const typeFilterOptions = [
   { label: "All", value: "all" },
   { label: "Dictionary", value: "dictionary" },
-  { label: "Lore", value: "lore" },
+  { label: "Quotes", value: "quote" },
 ];
 
 const lexiconBookOptions = computed(() => [
@@ -109,6 +124,9 @@ const clearSearch = () => {
 
 // ── Mount ──────────────────────────────────────────────────────────────────
 onMounted(async () => {
+  // Header stats (words · mastered) — store-cached, non-blocking
+  lexiconStore.fetchEntriesForAllBooks().catch(() => {});
+
   // Load books for Lore tab filter
   await booksStore.fetchLibrary();
 
@@ -128,7 +146,13 @@ onMounted(async () => {
   <div class="great-library">
     <!-- Page header -->
     <header class="great-library__header">
-      <h1 class="great-library__title">Great Library</h1>
+      <div>
+        <h1 class="great-library__title">Codex</h1>
+        <p v-if="totalWords > 0" class="great-library__stats">
+          {{ totalWords.toLocaleString() }} {{ totalWords === 1 ? "word" : "words" }}
+          · {{ masteredWords }} mastered
+        </p>
+      </div>
     </header>
 
     <!-- Tab menu -->
@@ -167,6 +191,18 @@ onMounted(async () => {
               fluid
               class="great-library__type-toggle"
             />
+            <button
+              type="button"
+              class="great-library__sort-toggle"
+              :aria-label="`Sorted by ${sortOrder === 'alpha' ? 'A to Z' : 'newest first'}. Tap to change.`"
+              @click="toggleSort"
+            >
+              <i
+                :class="`pi ${sortOrder === 'alpha' ? 'pi-sort-alpha-down' : 'pi-clock'}`"
+                aria-hidden="true"
+              />
+              {{ sortOrder === "alpha" ? "A–Z" : "Newest" }}
+            </button>
           </div>
         </div>
 
@@ -174,7 +210,7 @@ onMounted(async () => {
         <div class="great-library__tab-actions">
           <Button
             icon="pi pi-plus"
-            label="Add Word"
+            label="Add to Codex"
             size="small"
             @click="addDialogVisible = true"
           />
@@ -340,6 +376,50 @@ onMounted(async () => {
   font-size: 1.6rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+
+.great-library__stats {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  opacity: 0.55;
+}
+
+.great-library__sort-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: none;
+  margin: 0;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.great-library__sort-toggle .pi {
+  font-size: 0.7rem;
+}
+
+.great-library__sort-toggle:hover {
+  opacity: 1;
+}
+
+.great-library__sort-toggle:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+}
+
+:root[data-p-theme="light"] .great-library__sort-toggle {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
 }
 
 /* ── Lexicon filters ─────────────────────────────────────────────────────── */

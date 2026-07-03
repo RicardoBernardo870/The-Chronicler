@@ -26,7 +26,8 @@ const _error = ref<string | null>(null)
 const _hasLoaded = ref(false)
 const _hasMore = ref(true)
 const _searchQuery = ref('')
-const _typeFilter = ref<'all' | 'dictionary' | 'lore'>('all')
+const _typeFilter = ref<'all' | 'dictionary' | 'quote'>('all')
+const _sortOrder = ref<'newest' | 'alpha'>('newest')
 const _bookFilter = ref<string | null>(null)
 const _bookOptions = ref<BookFilterOption[]>([])
 const _currentPage = ref(0)
@@ -49,8 +50,9 @@ const _activeCacheKey = ref<string | null>(null)
 const _searchCacheKey = (uid: string) => {
   const query = _searchQuery.value.trim().toLocaleLowerCase()
   const type = _typeFilter.value
+  const sort = _sortOrder.value
   const book = _bookFilter.value ?? 'all'
-  return `${uid}:${query}:${type}:${book}`
+  return `${uid}:${query}:${type}:${sort}:${book}`
 }
 
 const _rememberActiveResults = () => {
@@ -113,7 +115,10 @@ const _fetch = async (page: number): Promise<LexiconSearchResult[]> => {
     .from('lexicon_entries')
     .select('*, books(title)')
     .eq('user_id', uid)
-    .order('created_at', { ascending: false })
+    .order(
+      _sortOrder.value === 'alpha' ? 'term' : 'created_at',
+      { ascending: _sortOrder.value === 'alpha' },
+    )
 
   const q = _searchQuery.value.trim()
   if (q) {
@@ -225,7 +230,7 @@ watchDebounced(
 )
 
 // Immediate re-fetch on filter changes, batched when both filters change together.
-watch([_typeFilter, _bookFilter], () => { search() })
+watch([_typeFilter, _sortOrder, _bookFilter], () => { search() })
 
 // ─────────────────────────────────────────────────────────────
 // Exported composable
@@ -240,6 +245,7 @@ export const useGreatLibrarySearch = () => ({
   hasMore: _hasMore,
   searchQuery: _searchQuery,
   typeFilter: _typeFilter,
+  sortOrder: _sortOrder,
   bookFilter: _bookFilter,
   bookOptions: _bookOptions,
   search,

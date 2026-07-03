@@ -9,10 +9,11 @@ import { useLexiconStore } from "@/stores/lexicon";
 import { useLoreCardsStore } from "@/stores/loreCards";
 import { useRecapLock } from "@/composables/useRecapLock";
 import { useCapturesStore } from "@/stores/captures";
+import { searchBooks, getBookDetail } from "@/services/bookSearchService";
 import BookDetailHeader from "@/components/book/BookDetailHeader.vue";
 import BookProgressPanel from "@/components/book/BookProgressPanel.vue";
 import RecapStream from "@/components/recap/RecapStream.vue";
-import CompletedRecapImageCarousel from "@/components/recap/CompletedRecapImageCarousel.vue";
+import BookRecapCarousel from "@/components/book/BookRecapCarousel.vue";
 import LoreChronoscopeCard from "@/components/lore/LoreChronoscopeCard.vue";
 import AddWordDialog from "@/components/lexicon/AddWordDialog.vue";
 import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
@@ -88,7 +89,27 @@ onMounted(async () => {
   await passportStore.fetchPassport(bookId.value);
   await lexiconStore.fetchEntriesForBook(bookId.value);
   await loreStore.markBookLoreSeen(bookId.value);
+  void backfillDescription();
 });
+
+// Best-effort, once per book: fetch a missing description (imported/scanned
+// books) from the book-search service and persist it, so it never refetches.
+const backfillDescription = async () => {
+  const b = book.value;
+  if (!b || b.description) return;
+  try {
+    const query = b.isbn ?? `${b.title} ${b.author}`;
+    const results = await searchBooks(query, 1);
+    const key = results[0]?.key;
+    if (!key) return;
+    const draft = await getBookDetail("googlebooks", key);
+    if (draft.description) {
+      await booksStore.updateBook(b.id, { description: draft.description });
+    }
+  } catch {
+    /* silent — the hero simply shows no description */
+  }
+};
 
 watch(progress, (p) => {
   if (p && !progressLoading.value) currentPageInput.value = p.currentPage;
@@ -213,13 +234,8 @@ const viewJourney = async () => {
         :is-complete="isComplete"
         :can-view-journey="canViewJourney"
         :lexicon-count="lexiconCount"
-        :recap-locked="recapLocked"
-        :pages-until-unlock="pagesUntilUnlock"
-        :recap-triggered="recapTriggered"
-        :recap-lock-label="recapLockLabel"
         @update:current-page-input="(v) => (currentPageInput = v)"
         @save="saveProgress"
-        @get-recap="getRecap"
         @cancel-session="handleCancelSession"
         @view-journey="viewJourney"
         @open-add-word="addWordVisible = true"
@@ -237,28 +253,30 @@ const viewJourney = async () => {
 
       <LoreChronoscopeCard :book-id="bookId" :collapsible="true" :initial-collapsed="true" />
 
-      <CompletedRecapImageCarousel
-        v-if="isComplete && completedRecapImages.length > 0"
-        :recaps="completedRecapImages"
-      />
-
-      <div v-if="isComplete && recapCount > 0" class="book-detail__history-link">
-        <Button
-          :label="`View Recap History (${recapCount})`"
-          icon="pi pi-history"
-          link
-          @click="router.push({ name: 'recap-history', params: { id: bookId } })"
-        />
-      </div>
-
-      <section v-if="!isComplete" class="book-detail__recap glass-surface">
+      <!-- Recap memories — images carousel + recap generation, both states -->
+      <section class="book-detail__recap glass-surface">
         <div class="book-detail__recap-header">
-          <h2 class="book-detail__section-title">AI Recap</h2>
+          <h2 class="book-detail__section-title">Recap memories</h2>
+          <Button
+            v-if="!isComplete"
+            :label="recapTriggered ? 'Recap open' : recapLocked ? (recapLockLabel || 'Locked') : 'Get Recap'"
+            icon="pi pi-sparkles"
+            size="small"
+            class="book-detail__recap-btn"
+            :disabled="recapTriggered || recapLocked"
+            :title="recapLocked ? (recapLockLabel || `Read ${pagesUntilUnlock} more pages`) : undefined"
+            @click="getRecap"
+          />
         </div>
-        <p v-if="!recapTriggered && !isGenerating" class="book-detail__recap-hint">
-          Get a spoiler-free summary of your progress so far.
-        </p>
-        <RecapStream v-if="isGenerating || recapTriggered" :bookId="bookId" @retry="retryRecap" />
+
+        <RecapStream
+          v-if="!isComplete && (isGenerating || recapTriggered)"
+          :bookId="bookId"
+          @retry="retryRecap"
+        />
+
+        <BookRecapCarousel :recaps="completedRecapImages" />
+
         <div v-if="recapCount > 0" class="book-detail__history-link">
           <Button
             :label="`View Recap History (${recapCount})`"
@@ -327,5 +345,43 @@ const viewJourney = async () => {
 }
 .book-detail__recap-locked { opacity: 0.55; cursor: not-allowed !important; font-size: 0.82rem; }
 .book-detail__history-link { display: flex; justify-content: flex-end; }
+
+.book-detail__about-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.book-detail__about-toggle:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.book-detail__about-chevron {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  transition: transform 0.18s ease;
+}
+
+.book-detail__about-chevron--open { transform: rotate(180deg); }
+
+.book-detail__about-text {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  opacity: 0.8;
+  white-space: pre-line;
+}
 .book-detail__skeleton { border-radius: var(--p-border-radius-xl, 16px); padding: 1.5rem; }
 </style>

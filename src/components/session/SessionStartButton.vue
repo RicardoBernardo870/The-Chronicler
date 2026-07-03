@@ -13,16 +13,19 @@ const emit = defineEmits<{
   cancelSession: []
 }>()
 
-const { state, startSession } = useReadingSession(props.bookId)
+const { state, startSession, pauseSession, resumeSession } = useReadingSession(props.bookId)
 
 const pending = ref(false)
+const pausePending = ref(false)
 const error = ref<string | null>(null)
 
-// Format elapsed seconds as M:SS
+// Format elapsed seconds as M:SS (H:MM:SS past the hour)
 const elapsedLabel = computed(() => {
   const s = state.value.elapsedSeconds
-  const mins = Math.floor(s / 60)
+  const hours = Math.floor(s / 3600)
+  const mins = Math.floor((s % 3600) / 60)
   const secs = s % 60
+  if (hours > 0) return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   return `${mins}:${secs.toString().padStart(2, '0')}`
 })
 
@@ -43,6 +46,19 @@ const handleClick = async () => {
     pending.value = false
   }
 }
+
+const togglePause = async () => {
+  error.value = null
+  pausePending.value = true
+  try {
+    if (state.value.isPaused) await resumeSession()
+    else await pauseSession()
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Could not update the session'
+  } finally {
+    pausePending.value = false
+  }
+}
 </script>
 
 <template>
@@ -50,12 +66,13 @@ const handleClick = async () => {
 
     <!-- ── Icon-only variant (used next to save button) ── -->
     <template v-if="iconOnly">
-      <!-- Active: clock icon, indigo tint -->
+      <!-- Active: clock/pause icon, indigo tint -->
       <Button
         v-if="state.isActive"
-        icon="pi pi-clock"
-        :aria-label="`Session active — ${elapsedLabel} elapsed. Tap to cancel.`"
+        :icon="`pi ${state.isPaused ? 'pi-pause' : 'pi-clock'}`"
+        :aria-label="`Session ${state.isPaused ? 'paused' : 'active'} — ${elapsedLabel} elapsed. Tap to cancel.`"
         class="session-start-btn__icon-btn session-start-btn__icon-btn--active"
+        :class="{ 'session-start-btn__icon-btn--paused': state.isPaused }"
         @click="handleClick"
       />
       <!-- Idle: play icon -->
@@ -72,19 +89,36 @@ const handleClick = async () => {
 
     <!-- ── Full variant (standalone placement) ── -->
     <template v-else>
-      <!-- Active state: stop session button -->
-      <button
+      <!-- Active state: one card — pause · stop · live timer -->
+      <div
         v-if="state.isActive"
-        class="session-start-btn__stop"
-        aria-label="Session active — save your page to finish, or tap to cancel."
-        @click="handleClick"
+        class="session-start-btn__timer"
+        :class="{ 'session-start-btn__timer--paused': state.isPaused }"
+        aria-live="off"
       >
-        <i class="pi pi-stop-circle session-start-btn__stop-icon" />
-        <span class="session-start-btn__stop-text">
-          <span class="session-start-btn__stop-label">Stop Session</span>
-          <span class="session-start-btn__stop-hint">Save page to finish</span>
-        </span>
-      </button>
+        <Button
+          :icon="`pi ${state.isPaused ? 'pi-play' : 'pi-pause'}`"
+          :aria-label="state.isPaused ? 'Resume session' : 'Pause session'"
+          :loading="pausePending"
+          text
+          rounded
+          class="session-start-btn__pause"
+          @click="togglePause"
+        />
+        <button
+          class="session-start-btn__stop"
+          aria-label="Cancel session — or save your page to finish it."
+          @click="handleClick"
+        >
+          <i class="pi pi-stop-circle session-start-btn__stop-icon" />
+        </button>
+        <div class="session-start-btn__timer-meta">
+          <span class="session-start-btn__timer-value">{{ elapsedLabel }}</span>
+          <span class="session-start-btn__timer-hint">
+            {{ state.isPaused ? 'paused' : 'save page to finish' }}
+          </span>
+        </div>
+      </div>
 
       <!-- Idle state -->
       <Button
@@ -141,23 +175,75 @@ const handleClick = async () => {
   font-size: 0.8rem;
 }
 
-.session-start-btn__stop {
+.session-start-btn__timer {
   width: 100%;
+  min-width: 0;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0.9rem 0.4rem 0.5rem;
+  border-radius: var(--p-border-radius-lg, 12px);
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  animation: pulse-session 2s ease-in-out infinite;
+}
+
+.session-start-btn__timer-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+
+  justify-content: center;
+  gap: 0.1rem;
+  margin-left: 4px;
+}
+
+.session-start-btn__timer--paused {
+  animation: none;
+  opacity: 0.75;
+}
+
+.session-start-btn__timer-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--p-indigo-300);
+}
+
+.session-start-btn__timer-hint {
+  font-size: 0.52rem;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.55;
+    margin-left: 1px;
+}
+
+.session-start-btn__pause {
+  flex: none;
+}
+
+.session-start-btn__icon-btn--paused {
+  animation: none;
+  opacity: 0.8;
+}
+
+.session-start-btn__stop {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
-  padding: 0.65rem 1rem;
-  border-radius: var(--p-border-radius-lg, 12px);
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border-radius: 50%;
   border: none;
-  background: rgba(239, 68, 68, 0.12);
   color: var(--p-red-400);
+  background: transparent;
   cursor: pointer;
   transition: background 0.18s ease;
-}
-
-.session-start-btn__stop:hover {
-  background: rgba(239, 68, 68, 0.22);
 }
 
 .session-start-btn__stop-icon {
@@ -165,25 +251,6 @@ const handleClick = async () => {
   flex-shrink: 0;
 }
 
-.session-start-btn__stop-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-}
-
-.session-start-btn__stop-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.session-start-btn__stop-hint {
-  font-size: 0.65rem;
-  font-weight: 400;
-  opacity: 0.6;
-  line-height: 1;
-}
 
 /* ── Error ── */
 .session-start-btn__error {

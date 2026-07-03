@@ -39,9 +39,11 @@ const saving = ref(false)
 const errors = ref<Record<string, string>>({})
 
 const typeOptions = [
-  { label: 'Dictionary', value: 'dictionary' },
-  { label: 'Lore', value: 'lore' },
+  { label: 'Word', value: 'dictionary' },
+  { label: 'Quote', value: 'quote' },
 ]
+
+const isQuote = computed(() => entryType.value === 'quote')
 
 // The effective book to save against — prop takes priority over internal selection
 const effectiveBookId = computed(() => props.bookId ?? selectedBookId.value ?? '')
@@ -91,8 +93,8 @@ const close = () => {
 const onSave = async () => {
   errors.value = {}
   if (!props.bookId && !selectedBookId.value) errors.value.book = 'Please select a book'
-  if (!term.value.trim()) errors.value.term = 'Word is required'
-  if (!definition.value.trim()) errors.value.definition = 'Definition is required'
+  if (!term.value.trim()) errors.value.term = isQuote.value ? 'Quote is required' : 'Word is required'
+  if (!isQuote.value && !definition.value.trim()) errors.value.definition = 'Definition is required'
   if (Object.keys(errors.value).length) return
 
   saving.value = true
@@ -117,7 +119,7 @@ const onSave = async () => {
   <Dialog
     :visible="visible"
     @update:visible="$emit('update:visible', $event)"
-    header="Add Word"
+    :header="isQuote ? 'Add Quote' : 'Add Word'"
     modal
     :dismissable-mask="true"
     :style="{ width: '92vw', maxWidth: '460px' }"
@@ -133,13 +135,23 @@ const onSave = async () => {
           option-value="value"
           placeholder="Select a book"
           :invalid="!!errors.book"
+          :filter="true"
+          filter-placeholder="Search your books…"
+          auto-filter-focus
           fluid
+          :pt="{ overlay: { style: 'max-width: min(92vw, 420px)' } }"
         />
         <small v-if="errors.book" class="add-word__error">{{ errors.book }}</small>
       </div>
 
-      <!-- Word -->
+      <!-- Type toggle first — it changes the form below -->
       <div class="add-word__field">
+        <label class="add-word__label">Type</label>
+        <SelectButton v-model="entryType" :options="typeOptions" option-label="label" option-value="value" />
+      </div>
+
+      <!-- Word (dictionary) / Quote text -->
+      <div v-if="!isQuote" class="add-word__field">
         <label class="add-word__label">Word *</label>
         <InputText
           v-model="term"
@@ -150,35 +162,42 @@ const onSave = async () => {
         />
         <small v-if="errors.term" class="add-word__error">{{ errors.term }}</small>
       </div>
-
-      <!-- Type toggle -->
-      <div class="add-word__field">
-        <label class="add-word__label">Type</label>
-        <SelectButton v-model="entryType" :options="typeOptions" option-label="label" option-value="value" />
+      <div v-else class="add-word__field">
+        <label class="add-word__label">Quote *</label>
+        <Textarea
+          v-model="term"
+          placeholder='"Not all those who wander are lost."'
+          :invalid="!!errors.term"
+          rows="3"
+          fluid
+          auto-resize
+        />
+        <small v-if="errors.term" class="add-word__error">{{ errors.term }}</small>
       </div>
 
-      <!-- Definition -->
+      <!-- Definition (dictionary) / Note (quote, optional) -->
       <div class="add-word__field">
         <label class="add-word__label">
-          Definition *
-          <span v-if="fetchingDef" class="add-word__fetching">
+          {{ isQuote ? 'Note' : 'Definition *' }}
+          <span v-if="isQuote" class="add-word__optional">(optional)</span>
+          <span v-if="fetchingDef && !isQuote" class="add-word__fetching">
             <i class="pi pi-spin pi-spinner" /> fetching…
           </span>
-          <span v-else-if="phonetic" class="add-word__phonetic">{{ phonetic }}</span>
+          <span v-else-if="phonetic && !isQuote" class="add-word__phonetic">{{ phonetic }}</span>
         </label>
         <Textarea
           v-model="definition"
-          :placeholder="fetchingDef ? 'Fetching definition…' : entryType === 'lore' ? 'Describe this character, place, or concept…' : 'Definition'"
+          :placeholder="isQuote ? 'Why this passage stayed with you' : fetchingDef ? 'Fetching definition…' : 'Definition'"
           :invalid="!!errors.definition"
-          rows="3"
+          :rows="isQuote ? 2 : 3"
           fluid
           auto-resize
         />
         <small v-if="errors.definition" class="add-word__error">{{ errors.definition }}</small>
       </div>
 
-      <!-- Context sentence (optional) -->
-      <div class="add-word__field">
+      <!-- Context sentence (dictionary only — the quote IS its own context) -->
+      <div v-if="!isQuote" class="add-word__field">
         <label class="add-word__label">Context <span class="add-word__optional">(optional)</span></label>
         <Textarea
           v-model="contextSentence"

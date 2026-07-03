@@ -3,6 +3,7 @@ import { useProgressStore } from '@/stores/progress'
 
 export interface ReadingSessionState {
   isActive: boolean
+  isPaused: boolean
   startedAt: Date | null
   elapsedSeconds: number
 }
@@ -12,7 +13,9 @@ export interface ReadingSessionState {
  * session_start_at is always server-confirmed — no optimistic local state.
  *
  * elapsedSeconds is seeded from the stored session_start_at so that a
- * browser refresh mid-session shows the correct running time.
+ * browser refresh mid-session shows the correct running time. While paused,
+ * the ticker freezes at (paused_at - started_at); resuming shifts the start
+ * forward server-side so durations stay correct everywhere.
  */
 export const useReadingSession = (bookId: string) => {
   const progressStore = useProgressStore()
@@ -44,10 +47,30 @@ export const useReadingSession = (bookId: string) => {
 
   const isActive = computed(() => startedAt.value !== null)
 
-  // Side-effect: manage the interval reactively whenever isActive changes
+  const pausedAt = computed((): Date | null => {
+    const raw = progressStore.sessionPausedAt[bookId]
+    return raw ? new Date(raw) : null
+  })
+
+  const isPaused = computed(() => isActive.value && pausedAt.value !== null)
+
+  // Lazily hydrate the paused flag when a session is active (survives refresh)
+  watchEffect(() => {
+    if (isActive.value) void progressStore.fetchPausedState(bookId)
+  })
+
+  // Side-effect: manage the interval reactively whenever active/paused changes
   watchEffect(() => {
     if (isActive.value && startedAt.value) {
-      _startTimer(startedAt.value)
+      if (isPaused.value && pausedAt.value) {
+        _stopTimer()
+        elapsedSeconds.value = Math.max(
+          0,
+          Math.floor((pausedAt.value.getTime() - startedAt.value.getTime()) / 1000),
+        )
+      } else {
+        _startTimer(startedAt.value)
+      }
     } else {
       _stopTimer()
       elapsedSeconds.value = 0
@@ -58,6 +81,7 @@ export const useReadingSession = (bookId: string) => {
 
   const state = computed((): ReadingSessionState => ({
     isActive: isActive.value,
+    isPaused: isPaused.value,
     startedAt: startedAt.value,
     elapsedSeconds: elapsedSeconds.value,
   }))
@@ -75,6 +99,20 @@ export const useReadingSession = (bookId: string) => {
     await progressStore.startSession(bookId)
   }
 
+  const pauseSession = async (): Promise<void> => {
+    if (!navigator.onLine) {
+      throw new Error('You appear to be offline. Pause requires a connection.')
+    }
+    await progressStore.pauseSession(bookId)
+  }
+
+  const resumeSession = async (): Promise<void> => {
+    if (!navigator.onLine) {
+      throw new Error('You appear to be offline. Resume requires a connection.')
+    }
+    await progressStore.resumeSession(bookId)
+  }
+
   /**
    * Resets session_start_at to null on reading_progress.
    * Called internally by the progress store after a page-save; exposed here for
@@ -87,6 +125,8 @@ export const useReadingSession = (bookId: string) => {
   return {
     state: readonly(state),
     startSession,
+    pauseSession,
+    resumeSession,
     clearSession,
   }
 }

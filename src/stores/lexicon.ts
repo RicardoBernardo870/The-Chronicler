@@ -295,9 +295,14 @@ export const useLexiconStore = defineStore('lexicon', () => {
 
   // 031 — count of non-mastered words due today (drives the Word of the Day
   // remaining-count; recomputes as words are advanced/mastered out of "due").
+  // Quotes are keepsakes — excluded from every review surface (WotD, Anki, due counts).
+  const reviewableEntries = computed(() =>
+    allEntries.value.filter(e => e.entryType !== 'quote'),
+  )
+
   const dueTodayCount = computed(() => {
     const today = new Date().toISOString().slice(0, 10)
-    return allEntries.value.filter(e => !e.mastered && e.nextReviewAt <= today).length
+    return reviewableEntries.value.filter(e => !e.mastered && e.nextReviewAt <= today).length
   })
 
   // ── Daily review limit & today's set (032) ─────────────────────────────────
@@ -342,7 +347,7 @@ export const useLexiconStore = defineStore('lexicon', () => {
   const eligibleReviewWords = computed(() => {
     const today = formatISODate(new Date())
     const startOfToday = _startOfTodayLocal()
-    return allEntries.value
+    return reviewableEntries.value
       .filter(e => !e.mastered && e.nextReviewAt <= today && !_reviewedToday(e, startOfToday))
       .sort((a, b) => a.leitnerBox - b.leitnerBox || a.nextReviewAt.localeCompare(b.nextReviewAt))
   })
