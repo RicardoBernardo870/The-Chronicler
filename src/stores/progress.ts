@@ -31,6 +31,10 @@ export const useProgressStore = defineStore('progress', () => {
   const progress = ref<Record<string, ReadingProgress>>({})
   const pendingSync = ref(false)
 
+  // Keyed by bookId — session_paused_at for the (rare) book with an active
+  // session. Fetched lazily so the library RPC never needs the column.
+  const sessionPausedAt = ref<Record<string, string | null>>({})
+
   // T013 (013): reactive slot for the most recent session-ended event.
   // Components watch this ref; a new value means a new session just ended.
   const lastSessionEnded = ref<SessionEndedEvent | null>(null)
@@ -201,6 +205,66 @@ export const useProgressStore = defineStore('progress', () => {
     }
   }
 
+  // ── Pause / resume (session_paused_at) ─────────────────────────────────────
+  // Resuming shifts session_start_at forward by the paused span, so every
+  // downstream duration (recorded_at - session_start_at) stays correct with
+  // zero RPC changes.
+
+  const fetchPausedState = async (bookId: string): Promise<void> => {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+    if (bookId in sessionPausedAt.value) return
+    const { data } = await supabase
+      .from('reading_progress')
+      .select('session_paused_at')
+      .match({ book_id: bookId, user_id: authStore.user.id })
+      .maybeSingle()
+    sessionPausedAt.value[bookId] =
+      (data as { session_paused_at?: string | null } | null)?.session_paused_at ?? null
+  }
+
+  const pauseSession = async (bookId: string): Promise<void> => {
+    const authStore = useAuthStore()
+    if (!authStore.user) throw new Error('Not authenticated')
+    const now = new Date().toISOString()
+    const { error } = await supabase
+      .from('reading_progress')
+      .update({ session_paused_at: now })
+      .match({ book_id: bookId, user_id: authStore.user.id })
+      .not('session_start_at', 'is', null)
+    if (error) throw error
+    sessionPausedAt.value[bookId] = now
+  }
+
+  const resumeSession = async (bookId: string): Promise<void> => {
+    const authStore = useAuthStore()
+    if (!authStore.user) throw new Error('Not authenticated')
+    const pausedAt = sessionPausedAt.value[bookId]
+    const start = progress.value[bookId]?.sessionStartAt
+    if (!pausedAt || !start) return
+
+    const shiftedStart = new Date(
+      new Date(start).getTime() + (Date.now() - new Date(pausedAt).getTime()),
+    ).toISOString()
+
+    const { error } = await supabase
+      .from('reading_progress')
+      .update({ session_start_at: shiftedStart, session_paused_at: null })
+      .match({ book_id: bookId, user_id: authStore.user.id })
+    if (error) throw error
+
+    sessionPausedAt.value[bookId] = null
+    progress.value[bookId] = { ...progress.value[bookId], sessionStartAt: shiftedStart }
+    const booksStore = useBooksStore()
+    booksStore.applyProgressSnapshot(bookId, {
+      currentPage: progress.value[bookId].currentPage,
+      percentage: progress.value[bookId].percentage,
+      updatedAt: progress.value[bookId].updatedAt,
+      sessionStartAt: shiftedStart,
+      progressId: progress.value[bookId].id,
+    })
+  }
+
   const startSession = async (bookId: string): Promise<void> => {
     const authStore = useAuthStore()
     const booksStore = useBooksStore()
@@ -224,6 +288,7 @@ export const useProgressStore = defineStore('progress', () => {
           user_id: authStore.user.id,
           current_page: currentPage,
           session_start_at: now,
+          session_paused_at: null,
         },
         { onConflict: 'book_id,user_id' },
       )
@@ -255,10 +320,11 @@ export const useProgressStore = defineStore('progress', () => {
 
     const { error } = await supabase
       .from('reading_progress')
-      .update({ session_start_at: null })
+      .update({ session_start_at: null, session_paused_at: null })
       .match({ book_id: bookId, user_id: authStore.user.id })
     if (error) throw error
 
+    sessionPausedAt.value[bookId] = null
     if (progress.value[bookId]) {
       progress.value[bookId] = { ...progress.value[bookId], sessionStartAt: null }
       const booksStore = useBooksStore()
@@ -361,8 +427,18 @@ export const useProgressStore = defineStore('progress', () => {
       ? Math.round((currentPage / book.totalPages) * 10000) / 100
       : 0
 
-    // Capture session_start_at BEFORE the optimistic update clears it
-    const capturedSessionStartAt = progress.value[bookId]?.sessionStartAt ?? null
+    // Capture session_start_at BEFORE the optimistic update clears it.
+    // Saving while paused: shift the start forward by the paused span so the
+    // paused tail never counts toward the session's duration.
+    let capturedSessionStartAt = progress.value[bookId]?.sessionStartAt ?? null
+    const capturedPausedAt = sessionPausedAt.value[bookId]
+    if (capturedSessionStartAt && capturedPausedAt) {
+      capturedSessionStartAt = new Date(
+        new Date(capturedSessionStartAt).getTime() +
+          (Date.now() - new Date(capturedPausedAt).getTime()),
+      ).toISOString()
+      sessionPausedAt.value[bookId] = null
+    }
 
     // Snapshot for rollback
     const snapshot = progress.value[bookId]
@@ -432,7 +508,7 @@ export const useProgressStore = defineStore('progress', () => {
         if (capturedSessionStartAt) {
           supabase
             .from('reading_progress')
-            .update({ session_start_at: null })
+            .update({ session_start_at: null, session_paused_at: null })
             .match({ book_id: bookId, user_id: authStore.user.id })
             .then(() => {})
 
@@ -562,6 +638,10 @@ export const useProgressStore = defineStore('progress', () => {
     setInitialProgress,
     startSession,
     clearSession,
+    sessionPausedAt,
+    fetchPausedState,
+    pauseSession,
+    resumeSession,
     saveSessionNote,
     consumeSessionEnded,
     progressForBook,

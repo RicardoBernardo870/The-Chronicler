@@ -557,6 +557,7 @@ onMounted(() => fetchLastSession());
 
 .hero-card__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   align-items: stretch;
 }
@@ -586,10 +587,8 @@ onMounted(() => fetchLastSession());
   border-radius: var(--p-border-radius-lg, 12px) !important;
 }
 
-.hero-card__session-action :deep(.session-start-btn__stop) {
+.hero-card__session-action :deep(.session-start-btn__bar) {
   width: 100%;
-  height: 100%;
-  border-radius: var(--p-border-radius-lg, 12px) !important;
 }
 
 .hero-card__recap-btn {

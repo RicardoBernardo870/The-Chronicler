@@ -131,7 +131,6 @@ const openRecapHistory = (item: RecapGalleryItem) =>
 .recap-carousel__img {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 10;
   object-fit: cover;
 }
 

@@ -245,10 +245,8 @@ const emit = defineEmits<{
   border-radius: var(--p-border-radius-lg, 12px) !important;
 }
 
-.progress-panel__session-action :deep(.session-start-btn__stop) {
+.progress-panel__session-action :deep(.session-start-btn__timer) {
   width: 100%;
-  height: 100%;
-  border-radius: var(--p-border-radius-lg, 12px) !important;
 }
 
 .progress-panel__recap-btn {
