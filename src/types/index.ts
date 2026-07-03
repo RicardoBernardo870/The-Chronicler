@@ -459,7 +459,7 @@ export const mapRecap = (row: RecapRow): Recap => ({
 // Lexicon (T008)
 // ─────────────────────────────────────────────────────────────
 
-export type LexiconEntryType = 'dictionary' | 'lore'
+export type LexiconEntryType = 'dictionary' | 'quote'
 // 016 — distinguishes user-added vs auto-extracted lexicon entries
 export type LexiconEntrySource = 'manual' | 'auto'
 

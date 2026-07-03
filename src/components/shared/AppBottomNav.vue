@@ -87,7 +87,7 @@ const handleAddBook = () => {
       :class="{ active: isLexicon }"
     >
       <i class="pi pi-language" />
-      <span class="app-bottom-nav__label">Great Library</span>
+      <span class="app-bottom-nav__label">Codex</span>
     </RouterLink>
     <RouterLink
       to="/profile"

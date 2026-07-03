@@ -46,7 +46,7 @@ const filteredEntries = computed(() =>
   <div class="lexicon">
     <header class="lexicon__header">
       <h1 class="lexicon__title">Lexicon</h1>
-      <Button icon="pi pi-plus" label="Add Word" size="small" @click="addDialogVisible = true" />
+      <Button icon="pi pi-plus" label="Add to Codex" size="small" @click="addDialogVisible = true" />
     </header>
 
     <div class="lexicon__filters">
