@@ -25,6 +25,7 @@ This page is optional support material for [[API Documentation]]. Full inventory
 | `get_reading_velocity` | `src/composables/useReadingVelocity.ts` |
 | `get_reading_quest_summary` | `src/stores/readingQuest.ts` |
 | `get_reading_calendar` | `src/composables/useReadingCalendar.ts` |
+| `get_monthly_reading` | `src/composables/useMonthlyReading.ts` |
 | `get_my_community_profile` | `src/composables/useCommunityIdentity.ts` |
 | `upsert_my_community_profile` | `src/composables/useCommunityIdentity.ts` (Profile edit save) |
 | `is_username_available` | `src/pages/ProfileEditPage.vue` (via `useCommunityIdentity`) |

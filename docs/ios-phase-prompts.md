@@ -120,11 +120,18 @@ Scope (in):
 - ISBN-aware search: when a search query is a bare ISBN, use the Google Books `isbn:` operator and
   drop langRestrict (else language-mismatched editions return nothing — matches the PWA fix).
 - Edit / delete book (swipe-left actions on row)
-- Book detail screen with progress slider
+- Book detail screen — centered-cover hero + clamped description (auto-backfill via
+  Google Books once, persisted); session-first progress: Start Session -> live timer
+  (pause/resume via session_paused_at; resume shifts session_start_at forward so all
+  duration math is unchanged) -> End Session -> page sheet ("Where did you stop?",
+  stepper + numeric input, unchanged-page block). Pencil edit next to "Page X of Y"
+  outside sessions. Get Recap hidden while a session runs.
 - Optimistic progress saves with rollback on failure
 - Offline queue for progress updates (SwiftData-backed) with auto-drain on reconnect
 - Start / end / cancel reading session
-- Drag-to-reorder Queue with optimistic persistence (no flicker)
+- Drag-to-reorder Queue with optimistic persistence (no flicker); reorder is a
+  toggle mode on the Library views (dashboard Up Next is a tap-to-activate shelf)
+- Library search: sticky, accent-insensitive, results grouped by status
 - Sign out clears local cache and pending queue
 
 Scope (out — explicitly deferred):
@@ -173,10 +180,12 @@ Scope (in):
 - AI Recaps: invoke generate-recap Edge Function, render streaming response
 - Recap History page per book
 - Recap lock mechanics (page + time gates) matching PWA behavior
-- Lexicon: manual entry, browse, filter by book, search
-- Leitner spaced-repetition flashcard review
-- Lore Cards: auto-unlock on milestone crossings (50/75/100), Chronoscope card
-- Reading DNA: auto-generate after 3 finished books OR 90 days, manual regenerate
+- Codex (renamed Great Library): header stats, Lexicon/Insights tabs, All/Dictionary/Quotes
+  chips, Newest<->A-Z sort; Word/Quote add sheet (quotes = keepsakes, excluded from review)
+- Leitner flashcard review: progress bar, undo-last-answer (reverses terminal mastery),
+  missed-words summary list, en-US pronunciation (AVSpeechSynthesizer)
+- Insight Cards (user-facing rename of lore): auto-unlock at 10% milestones (10-90), collapsible Insights card on book detail
+- Reading DNA: auto-generate after 2 finished books (threshold = 2, matching the PWA store) OR 90 days / 2 more finished since generation
 - Profile (identity-first, 2026-07 PWA redesign — see ios-foundation/screen-inventory.md):
   identity header (avatar in goal ring + level badge; get_my_community_profile with
   email-initials fallback), DNA signature strip + recommendation covers row, stat pills,
@@ -212,7 +221,7 @@ Success criteria:
 - Recap lock state matches PWA on the same book/progress combination
 - Capture flow allows user correction before save
 - Lore cards unlock within 3s of milestone crossing
-- DNA generates after 3 finished books, threshold matches PWA
+- DNA generates after 2 finished books, threshold matches PWA (FINISHED_THRESHOLD = 2)
 - Auto-vocabulary appears in Lexicon within 10s of capture save (online)
 ```
 

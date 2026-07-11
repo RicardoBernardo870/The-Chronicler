@@ -140,6 +140,9 @@ All are `SECURITY DEFINER` and re-assert the caller's identity. **Reads that nee
 | `get_reading_quest_summary` | `p_user_id, p_year int` | jsonb | XP, level, quest/goal summary. *034: `progress_rows` excludes imported books (`source <> 'manual'`) so imports add no quest XP and don't count toward the yearly reading goal.* |
 | `get_retention_summary` | `p_timezone text` | json | Review/retention rollup |
 | `get_reading_calendar` | `p_user_id uuid, p_month_start date, p_timezone text default 'UTC'` | json | Per-day distinct books read for a month, from `progress_history` (`[{date, books:[{bookId,title,coverUrl,furthestPage}]}]`). Day boundaries in the caller's IANA timezone; re-asserts `auth.uid()` internally (returns `[]` for anyone else). Powers the Trophy Room reading calendar. Migration: `supabase/migrations/20260702_get_reading_calendar.sql`. |
+| `get_monthly_reading` | `p_user_id uuid, p_year int, p_timezone text default 'UTC'` | json | `[{month, pages, booksFinished}]` ×12 — monthly page deltas + first-finish months from `progress_history`; timezone-aware, auth-guarded, organic-only (imports write no history). Trophy Room "Your year" chart. Migration: `20260703_get_monthly_reading.sql`. |
+
+**Schema notes (2026-07):** `reading_progress.session_paused_at timestamptz` (pause/resume — resume shifts `session_start_at` forward by the paused span, so all `recorded_at − session_start_at` duration math is unchanged); `lexicon_entries.entry_type` CHECK is now `('dictionary','quote')` — the manual `lore` type was retired (rows deleted by user decision) and `quote` entries are keepsakes excluded from review client-side.
 
 ### Settings
 | `upsert_weekly_goal` | `p_goal int` | void | Set weekly reading goal |
