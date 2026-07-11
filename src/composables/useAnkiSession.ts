@@ -33,10 +33,32 @@ export const useAnkiSession = () => {
   const currentCard = computed(() => dueCards.value[currentIndex.value] ?? null)
   const isComplete = computed(() => currentIndex.value >= dueCards.value.length)
 
+  // Words answered "didn't know" this session — listed on the summary screen.
+  const missedCards = ref<LexiconEntry[]>([])
+
+  // Undo (last answer only): "Knew it" masters permanently, so a misswipe
+  // must be reversible. The snapshot restores the pre-answer Leitner state.
+  const _lastAnswer = ref<{ snapshot: LexiconEntry; kind: 'known' | 'unknown' } | null>(null)
+  const canUndo = computed(() => _lastAnswer.value !== null)
+
+  const undoLast = async () => {
+    const last = _lastAnswer.value
+    if (!last) return
+    await lexiconStore.restoreEntryState(last.snapshot)
+    if (last.kind === 'known') sessionKnown.value = Math.max(0, sessionKnown.value - 1)
+    else {
+      sessionUnknown.value = Math.max(0, sessionUnknown.value - 1)
+      missedCards.value = missedCards.value.filter((c) => c.id !== last.snapshot.id)
+    }
+    currentIndex.value = Math.max(0, currentIndex.value - 1)
+    _lastAnswer.value = null
+  }
+
   // 031 — "Knew it" masters the word (terminal), regardless of its box.
   const onKnew = async () => {
     const card = currentCard.value
     if (!card) return
+    _lastAnswer.value = { snapshot: { ...card }, kind: 'known' }
     await lexiconStore.masterWord(card.id)
     sessionKnown.value++
     currentIndex.value++
@@ -45,8 +67,10 @@ export const useAnkiSession = () => {
   const onDidntKnow = async () => {
     const card = currentCard.value
     if (!card) return
+    _lastAnswer.value = { snapshot: { ...card }, kind: 'unknown' }
     await lexiconStore.updateLeitner(card.id, 'reset')
     sessionUnknown.value++
+    missedCards.value = [...missedCards.value, card]
     currentIndex.value++
   }
 
@@ -57,10 +81,18 @@ export const useAnkiSession = () => {
     currentIndex.value = 0
     sessionKnown.value = 0
     sessionUnknown.value = 0
+    missedCards.value = []
+    _lastAnswer.value = null
+    _saved.value = false
   }
 
+  // Idempotent: handleDone and the unmount guard can both call this without
+  // writing two session rows.
+  const _saved = ref(false)
   const onExit = async (userId: string) => {
+    if (_saved.value) return
     if (sessionKnown.value + sessionUnknown.value >= 1) {
+      _saved.value = true
       await ankiSessionStore.saveSession(userId, sessionKnown.value, sessionUnknown.value)
     }
   }
@@ -72,6 +104,9 @@ export const useAnkiSession = () => {
     sessionKnown,
     sessionUnknown,
     isComplete,
+    missedCards,
+    canUndo,
+    undoLast,
     onKnew,
     onDidntKnow,
     reviewMore,
