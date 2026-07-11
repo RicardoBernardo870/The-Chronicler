@@ -32,8 +32,10 @@ never a custom reconstruction of the PWA's emulated glass (see `design-tokens.md
 ## Library  (`Features/Library/`)
 | PWA component | Responsibility | SwiftUI |
 |---------------|----------------|---------|
-| `library/LibraryListView.vue` | 3-section list: Now Reading / Queue / Completed (tabbed) | `LibraryView` — native `List` w/ sections; Queue/Completed as a `Picker`/segmented control |
-| `library/LibraryGridView.vue` | Grid layout variant | `LazyVGrid` variant (view toggle) |
+| `library/LibraryListView.vue` | Now Reading + sticky Queue/Completed tabs; queue reorder mode | `LibraryView` — native `List` w/ sections; segmented control; `.onMove` reorder |
+| `library/LibrarySearchBar.vue` / `LibrarySearchResults.vue` | Sticky accent-insensitive search; grouped flat results | `.searchable` + grouped `List` |
+| `library/QueueReorderList.vue` | Drag-handle queue reorder (list + grid views) | `.onMove` list (native) |
+| `library/LibraryGridView.vue` | Grid variant — sticky collapsible section headers, queue reorder toggle | `LazyVGrid` + `Section` w/ collapse |
 | `library/SwipeableBookCard.vue` | Card w/ swipe edit/delete | row + **`.swipeActions`** (drop the custom swipe code) |
 | `library/ReadingWideCard.vue` | Wide "now reading" hero card | `NowReadingCard` |
 | `books/BookCard.vue` | Standard list card (cover, genre/Imported chip, progress, page-fix hint) | `BookCardRow` (composes DS `BookCover`/`Chip`/`ProgressTrackView`) |
@@ -42,10 +44,11 @@ never a custom reconstruction of the PWA's emulated glass (see `design-tokens.md
 ## Dashboard  (`Features/Dashboard/`)
 | PWA | Responsibility | SwiftUI |
 |-----|----------------|---------|
-| `dashboard/HeroBookCard.vue` | Active book + inline progress save + recap CTA | `HeroBookCard` (the dashboard centerpiece) |
+| `dashboard/HeroBookCard.vue` | Active book: pulse line (pages left · finish date / Insight nudge), pencil page-edit, session states, End Session, recap CTA | `HeroBookCard` (the dashboard centerpiece) |
+| `dashboard/DashboardGreeting.vue` | Salutation + avatar (or profile-setup CTA) | header w/ `AsyncImage` avatar |
 | `dashboard/InProgressSection.vue` | In-progress carousel | horizontal `ScrollView` section |
-| `dashboard/UpNextSection.vue` | Reorderable up-next strip | `.onMove` list section |
-| `dashboard/CompletedSection.vue` / `CompletedOnlyState.vue` | Completed preview / completed-only first-run | sections + first-run state |
+| `dashboard/UpNextSection.vue` | Horizontal cover shelf, tap-to-activate (reorder lives in Library) | `ScrollView(.horizontal)` covers |
+| `dashboard/CompletedSection.vue` / `CompletedOnlyState.vue` | One-row Completed link (count + cover fan) / completed-only first-run | `NavigationLink` row + first-run state |
 | `dashboard/DashboardEmptyState.vue` | Empty / single-queued onboarding (now incl. **Import** action) | `DashboardEmptyState` |
 | `dashboard/LastSessionCard.vue` / `LastTimedSessionCard.vue` / `LastUpdateCard.vue` | "Last session" variants | `LastSessionCard` (variant enum) |
 | `dashboard/WordOfTheDay.vue` | Daily lexicon card (Leitner advance) | `WordOfTheDayCard` |
@@ -67,13 +70,15 @@ never a custom reconstruction of the PWA's emulated glass (see `design-tokens.md
 | PWA | Responsibility | SwiftUI |
 |-----|----------------|---------|
 | `pages/BookDetailPage.vue` | Detail screen | `BookDetailView` |
-| `book/BookDetailHeader.vue` | Cover + title + meta header | `BookDetailHeader` (matched-geometry target from library) |
-| `book/BookProgressPanel.vue` | Progress slider + save | `ProgressPanel` (native `Slider` + sensory feedback every 10 pp) |
+| `book/BookDetailHeader.vue` | Centered cover hero + meta + clamped description (Read more; Google Books backfill) | `BookDetailHeader` (matched-geometry target from library) |
+| `book/BookRecapCarousel.vue` | Book-scoped recap-image carousel (signed URLs) | `TabView(.page)` |
+| `book/BookProgressPanel.vue` | Progress + session state machine (primary) + pencil edit + Codex/Words chips | `ProgressPanel` (haptics on save) |
 
 ## Reading Session & Capture  (`Features/Capture/`, session sheets)
 | PWA | Responsibility | SwiftUI |
 |-----|----------------|---------|
-| `session/SessionStartButton.vue` | Start session | button + Live Activity start (Phase 3) |
+| `session/SessionStartButton.vue` | Start ⇄ timer card (pause · stop · live count) | button + Live Activity (Phase 3); pause survives relaunch |
+| `session/PageSaveSheet.vue` | "Where did you stop?" / page edit — stepper + numeric input, unchanged-page block | **`.sheet`** w/ number pad |
 | `session/SessionNoteField.vue` | Session note | inline field |
 | `session/SessionCaptureField.vue` | Capture prompt (camera **or upload** — 033) | offer camera + **`PhotosPicker`/files** |
 | `capture/CaptureCameraView.vue` | Camera viewport | AVFoundation wrapper |
@@ -90,15 +95,15 @@ never a custom reconstruction of the PWA's emulated glass (see `design-tokens.md
 ## Lexicon & Review  (`Features/Lexicon/`)
 | PWA | Responsibility | SwiftUI |
 |-----|----------------|---------|
-| `pages/GreatLibraryPage.vue` / `LexiconPage.vue` | Lexicon browse/search (server-paginated) | `LexiconView` (searchable `List`) |
+| `pages/GreatLibraryPage.vue` | Codex — header stats, Lexicon/Insights tabs, type chips + A–Z sort (server-paginated) | `CodexView` (searchable `List`) |
 | `lexicon/LexiconCard.vue` | Term card (flip) | `LexiconCard` |
-| `lexicon/AddWordDialog.vue` | Add term | **`.sheet`** |
-| `pages/AnkiReviewPage.vue` / `anki/SwipeableFlashcard.vue` | Leitner review (swipe know/don't) | `ReviewView` + drag-to-rate card |
+| `lexicon/AddWordDialog.vue` | Add to Codex — Word/Quote type swap (quote: passage + optional note) | **`.sheet`** |
+| `pages/AnkiReviewPage.vue` / `anki/SwipeableFlashcard.vue` | Leitner review — progress bar, undo, missed-words summary, en-US pronunciation, content-sized card | `ReviewView` + drag-to-rate card; `AVSpeechSynthesizer` |
 
 ## Lore  (`Features/Lore/`)
 | PWA | Responsibility | SwiftUI |
 |-----|----------------|---------|
-| `lore/LoreChronoscopeCard.vue` | Collapsible lore on detail | `LoreChronoscopeView` |
+| `lore/LoreChronoscopeCard.vue` | Collapsible Insights card on detail (user-facing rename of lore) | `InsightsView` |
 | `lore/LoreCardList.vue` / `LoreCardDetail.vue` | Lore browse/detail | list + detail |
 | `lore/LoreGenerationBanner.vue` | Generating state | inline banner |
 

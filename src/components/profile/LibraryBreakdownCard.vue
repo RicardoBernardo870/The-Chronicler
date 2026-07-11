@@ -1,9 +1,34 @@
 <script setup lang="ts">
 // 017 — Library breakdown: genres, author count, status counts. PrimeVue primitives only.
+import { computed } from "vue";
 import { Message } from "primevue";
 import { useLibraryBreakdown } from "@/composables/useLibraryBreakdown";
 
 const { breakdown } = useLibraryBreakdown();
+
+// Segmented genre bar — top genres + an "Other" bucket, indigo-family ramp.
+const GENRE_COLORS = ["#6366f1", "#a78bfa", "#818cf8", "#c4b5fd", "#4f46e5"];
+const OTHER_COLOR = "rgba(148, 148, 178, 0.35)";
+const MAX_SEGMENTS = 4;
+
+const genreSegments = computed(() => {
+  const dist = breakdown.value?.genreDistribution ?? [];
+  if (dist.length === 0) return [];
+  const top = dist.slice(0, MAX_SEGMENTS).map((g, i) => ({
+    genre: g.genre,
+    percentage: g.percentage,
+    color: GENRE_COLORS[i % GENRE_COLORS.length],
+  }));
+  const rest = dist.slice(MAX_SEGMENTS);
+  if (rest.length > 0) {
+    top.push({
+      genre: `Other (${rest.length})`,
+      percentage: rest.reduce((sum, g) => sum + g.percentage, 0),
+      color: OTHER_COLOR,
+    });
+  }
+  return top;
+});
 </script>
 
 <template>
@@ -22,6 +47,29 @@ const { breakdown } = useLibraryBreakdown();
     </Message>
 
     <template v-else>
+      <!-- Genre distribution — segmented bar + legend -->
+      <div v-if="genreSegments.length > 0" class="library-breakdown__section">
+        <div class="library-breakdown__genre-bar" aria-hidden="true">
+          <span
+            v-for="seg in genreSegments"
+            :key="seg.genre"
+            class="library-breakdown__genre-seg"
+            :style="{ width: `${seg.percentage}%`, background: seg.color }"
+          />
+        </div>
+        <ul class="library-breakdown__genre-legend">
+          <li v-for="seg in genreSegments" :key="seg.genre">
+            <span
+              class="library-breakdown__genre-dot"
+              :style="{ background: seg.color }"
+              aria-hidden="true"
+            />
+            {{ seg.genre }}
+            <span class="library-breakdown__genre-pct">{{ Math.round(seg.percentage) }}%</span>
+          </li>
+        </ul>
+      </div>
+
       <!-- Author count -->
       <div class="library-breakdown__section library-breakdown__authors">
         <i class="pi pi-user library-breakdown__author-icon" />
@@ -76,6 +124,49 @@ const { breakdown } = useLibraryBreakdown();
 
 .library-breakdown__empty {
   width: 100%;
+}
+
+.library-breakdown__genre-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+
+.library-breakdown__genre-seg {
+  display: block;
+  min-width: 4px;
+  border-radius: 2px;
+}
+
+.library-breakdown__genre-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.library-breakdown__genre-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.library-breakdown__genre-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.library-breakdown__genre-pct {
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
 }
 
 .library-breakdown__section {

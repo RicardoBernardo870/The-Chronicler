@@ -6,6 +6,24 @@ This repository does not currently include a dedicated changelog file. Use this 
 
 ## Releases
 
+## 2026-07-04 - Unreleased (Codex, sessions, book detail, Trophy Room charts, review polish)
+
+### Added
+
+- **Codex** (Great Library renamed): header stats, Lexicon/Insights tabs, **quotes** as a lexicon type (Add-to-Codex modal reshapes for quote text + optional note), Newest ↔ A–Z sort, All/Dictionary/Quotes chips. Quotes are keepsakes — excluded from all review surfaces.
+- **Library findability**: sticky accent-insensitive search (both views, grouped results), sticky collapsible grid section headers, sticky list-view tabs, queue **reorder mode** on both views.
+- **Session timer + pause/resume**: live count on the session card (pause · stop · count), `session_paused_at` column; resume shifts `session_start_at` so stats need no changes.
+- **End Session flow**: explicit End Session button (recap button hides during sessions) opening the page sheet ("Where did you stop?" — −/+ stepper, native numeric input, inline no-pages-read handling); pencil-edit for quiet page corrections; permanent CURRENT PAGE inputs removed from hero + book panel.
+- **Dashboard**: greeting with avatar/setup CTA, Up Next cover shelf, one-row Completed link, hero pulse line ("N pages left · finish by ~date") with Insight-milestone nudge takeover.
+- **Book detail redesign**: centered-cover hero + clamped description (auto-backfilled once from Google Books), Recap memories section (book-scoped image carousel for reading and completed states, Get Recap in header, history link restored), Codex/Words chips.
+- **Trophy Room**: "Your year" monthly bars (`get_monthly_reading` RPC), genre distribution bar, Book Lengths card.
+- **Anki review**: undo last answer (reverses mastery/reset), missed-words summary list, progress bar, `en-US`-pinned pronunciation button, deep-link data fetch, idempotent session save, content-sized flashcards.
+- **PWA social rollout plan** recorded (discovery → circles + invite links → following feed → clubs); see Features § Community.
+
+### Migrations
+
+- `20260703_session_pause_resume.sql`, `20260703_get_monthly_reading.sql`, `lexicon_quote_entry_type` (MCP-applied; deleted legacy lore rows, CHECK now dictionary|quote).
+
 ## 2026-07-02 - Unreleased (profile redesign)
 
 ### Added

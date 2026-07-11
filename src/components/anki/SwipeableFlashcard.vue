@@ -52,6 +52,33 @@ const triggerExit = (result: 'known' | 'unknown') => {
 const flipCard = () => {
   if (!exiting.value) isFlipped.value = !isFlipped.value
 }
+
+// Pronunciation — built-in speech synthesis (offline, system voices).
+// The utterance language is pinned to English: without it the engine uses the
+// device locale (e.g. pt-BR) and mangles the accent. Voices load async on
+// some browsers, so getVoices() is warmed at setup and re-read at speak time.
+const SPEECH_LANG = 'en-US'
+const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window
+if (canSpeak) window.speechSynthesis.getVoices()
+
+const pickVoice = (): SpeechSynthesisVoice | null => {
+  const voices = window.speechSynthesis.getVoices()
+  return (
+    voices.find((v) => v.lang === SPEECH_LANG) ??
+    voices.find((v) => v.lang.replace('_', '-').startsWith('en')) ??
+    null
+  )
+}
+
+const speak = () => {
+  if (!canSpeak) return
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(props.entry.term)
+  utterance.lang = SPEECH_LANG
+  const voice = pickVoice()
+  if (voice) utterance.voice = voice
+  window.speechSynthesis.speak(utterance)
+}
 </script>
 
 <template>
@@ -65,7 +92,18 @@ const flipCard = () => {
       <div class="sfc-inner" :class="{ 'sfc-inner--flipped': isFlipped }">
         <!-- Front -->
         <div class="sfc-face sfc-front glass-surface">
-          <p class="sfc-term">{{ entry.term }}</p>
+          <p class="sfc-term">
+            {{ entry.term }}
+            <button
+              v-if="canSpeak"
+              type="button"
+              class="sfc-speak"
+              aria-label="Pronounce this word"
+              @click.stop="speak"
+            >
+              <i class="pi pi-volume-up" aria-hidden="true" />
+            </button>
+          </p>
           <p class="sfc-hint">tap to reveal</p>
         </div>
 
@@ -103,6 +141,28 @@ const flipCard = () => {
 </template>
 
 <style scoped>
+.sfc-speak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin-left: 0.3rem;
+  padding: 0;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--p-indigo-300);
+  font-size: 0.8rem;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.sfc-speak:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+}
+
 .sfc-container {
   display: flex;
   flex-direction: column;
@@ -119,9 +179,10 @@ const flipCard = () => {
 }
 
 .sfc-inner {
-  position: relative;
+  /* Grid-stacked faces: the card grows to fit the taller face instead of
+     clipping long definitions inside a fixed-height absolute stack. */
+  display: grid;
   width: 100%;
-  min-height: 200px;
   transform-style: preserve-3d;
   transition: transform 0.45s cubic-bezier(0.4, 0.2, 0.2, 1);
 }
@@ -131,8 +192,8 @@ const flipCard = () => {
 }
 
 .sfc-face {
-  position: absolute;
-  inset: 0;
+  grid-area: 1 / 1;
+  width: 100%;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   border-radius: 16px;
@@ -142,6 +203,9 @@ const flipCard = () => {
   justify-content: center;
   gap: 0.75rem;
   min-height: 200px;
+  max-height: 62vh;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
 }
 
 .sfc-back {

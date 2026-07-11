@@ -223,6 +223,7 @@ Response:
 | `get_reading_quest_summary` | Yearly goal, XP, level, and source totals. **034:** excludes imported books so they add no XP and don't count toward the yearly goal. |
 | `get_book_passport_stats` | Book Passport journey statistics (timezone-aware). |
 | `get_reading_calendar` | Per-day distinct books read for a month, from `progress_history` — day buckets in the caller's IANA timezone; auth-guarded. Powers the Trophy Room reading calendar. Migration: `20260702_get_reading_calendar.sql`. |
+| `get_monthly_reading` | Pages read + books finished per month for a year (`[{month, pages, booksFinished}]` ×12) — page deltas and first-finish months from `progress_history`; timezone-aware, auth-guarded, organic reads only. Powers the Trophy Room "Your year" chart. Migration: `20260703_get_monthly_reading.sql`. |
 | `get_retention_summary` | Vocabulary review/retention rollup (timezone-aware). |
 | `upsert_weekly_goal` | Set the per-user weekly reading goal (`user_settings`). |
 | `get_my_community_profile` | Caller's community profile + privacy (or `null` — no row exists until the reader saves `/profile/edit`). Hydrates the profile identity header. |

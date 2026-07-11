@@ -41,3 +41,21 @@ export const detectCrossedMilestone = (
 
   return milestone
 }
+
+/**
+ * Pages remaining until the next Insight (lore) milestone — multiples of 10%
+ * in [10, 90]. Returns null when past the last milestone or the book has no
+ * usable page count.
+ */
+export const pagesToNextInsight = (
+  currentPage: number,
+  totalPages: number,
+): number | null => {
+  if (totalPages <= 0 || currentPage < 0) return null
+  const pct = (currentPage / totalPages) * 100
+  const nextMilestone = (Math.floor(pct / 10) + 1) * 10
+  if (nextMilestone > 90) return null
+  const milestonePage = Math.ceil((nextMilestone / 100) * totalPages)
+  const pages = milestonePage - currentPage
+  return pages > 0 ? pages : null
+}

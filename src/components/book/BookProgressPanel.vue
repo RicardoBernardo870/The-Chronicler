@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import type { Book, ReadingProgress } from '@/types'
 import SessionStartButton from '@/components/session/SessionStartButton.vue'
+import PageSaveSheet from '@/components/session/PageSaveSheet.vue'
+import { useReadingSession } from '@/composables/useReadingSession'
 import Button from 'primevue/button'
-import InputNumber from 'primevue/inputnumber'
 import ProgressBar from 'primevue/progressbar'
 
 const props = defineProps<{
@@ -26,6 +28,26 @@ const emit = defineEmits<{
   openAddWord: []
   viewLexicon: []
 }>()
+
+// Session state drives the panel's two modes (same pattern as the hero card)
+const { state: sessionState } = useReadingSession(props.book.id)
+const sessionActive = computed(() => sessionState.value.isActive)
+
+const sheetVisible = ref(false)
+const sheetMode = ref<'end' | 'edit'>('edit')
+
+const openEndSheet = () => {
+  sheetMode.value = 'end'
+  sheetVisible.value = true
+}
+const openEditSheet = () => {
+  sheetMode.value = 'edit'
+  sheetVisible.value = true
+}
+const onSheetSave = (page: number) => {
+  emit('update:currentPageInput', page)
+  emit('save')
+}
 </script>
 
 <template>
@@ -37,36 +59,21 @@ const emit = defineEmits<{
       <span class="progress-panel__pct">{{ percentage.toFixed(1) }}%</span>
     </div>
 
-    <div class="progress-panel__input-row">
-      <InputNumber
-        :model-value="currentPageInput"
-        :min="0"
-        :max="book.totalPages"
-        :placeholder="`Page (max ${book.totalPages})`"
-        class="progress-panel__page-input"
-        show-buttons
-        :step="1"
-        fluid
-        @update:model-value="(v) => emit('update:currentPageInput', v ?? 0)"
-        @input="(e: any) => emit('update:currentPageInput', e.value ?? 0)"
-      />
-      <Button
-        label="Save"
-        icon="pi pi-check"
-        :loading="progressLoading"
-        :disabled="currentPageInput === (progress?.currentPage ?? 0)"
-        aria-label="Save progress"
-        class="progress-panel__save-btn"
-        @click="emit('save')"
-      />
-    </div>
-
     <p v-if="progressError" class="progress-panel__error">
       <i class="pi pi-exclamation-triangle" /> {{ progressError }}
     </p>
 
     <p class="progress-panel__hint">
       Page {{ progress?.currentPage ?? 0 }} of {{ book.totalPages }}
+      <button
+        v-if="!isComplete && !sessionActive"
+        type="button"
+        class="progress-panel__page-edit"
+        aria-label="Update your page"
+        @click="openEditSheet"
+      >
+        <i class="pi pi-pencil" aria-hidden="true" />
+      </button>
     </p>
 
     <!-- Primary action: session state machine (start ⇄ save/cancel) -->
@@ -80,11 +87,28 @@ const emit = defineEmits<{
     </div>
 
     <Button
+      v-if="!isComplete && sessionActive"
+      label="End Session"
+      :loading="progressLoading"
+      class="progress-panel__end-btn"
+      @click="openEndSheet"
+    />
+
+    <Button
       v-if="isComplete && canViewJourney"
       label="View Reading Journey"
       icon="pi pi-star"
       class="progress-panel__passport-btn"
       @click="emit('viewJourney')"
+    />
+
+    <PageSaveSheet
+      v-model:visible="sheetVisible"
+      :mode="sheetMode"
+      :current-page="progress?.currentPage ?? 0"
+      :total-pages="book.totalPages"
+      @save="onSheetSave"
+      @cancel-session="emit('cancelSession')"
     />
 
     <!-- Secondary action chips -->
@@ -163,6 +187,36 @@ const emit = defineEmits<{
 }
 
 .progress-panel__hint { margin: 0; font-size: 0.8rem; opacity: 0.55; }
+
+.progress-panel__page-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 0 0.35rem;
+  padding: 0.25rem 0.45rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--p-indigo-300);
+  font-size: 0.7rem;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.progress-panel__page-edit:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+}
+
+.progress-panel__end-btn {
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.75rem 1rem !important;
+  border-radius: var(--p-border-radius-lg, 12px) !important;
+  border: none !important;
+  background: var(--p-primary-color) !important;
+  color: #fff !important;
+}
 
 .progress-panel__session-action {
   display: flex;

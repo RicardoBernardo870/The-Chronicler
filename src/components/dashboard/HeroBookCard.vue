@@ -4,16 +4,19 @@ import type { Book, ReadingProgress } from "@/types";
 import { useLoreCardsStore } from "@/stores/loreCards";
 import { useProgressStore } from "@/stores/progress";
 import { useLastSession } from "@/composables/useLastSession";
+import { useReadingVelocity } from "@/composables/useReadingVelocity";
+import { addDays, format } from "date-fns";
 import RecapStream from "@/components/recap/RecapStream.vue";
 import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 import SessionStartButton from "@/components/session/SessionStartButton.vue";
+import PageSaveSheet from "@/components/session/PageSaveSheet.vue";
+import { useReadingSession } from "@/composables/useReadingSession";
 import Button from "primevue/button";
 import Chip from "primevue/chip";
 import Tag from "primevue/tag";
 import ProgressBar from "primevue/progressbar";
-import InputNumber from "primevue/inputnumber";
-import InputGroup from "primevue/inputgroup";
 import { coverFallback } from "@/utils/coverFallback";
+import { pagesToNextInsight } from "@/utils/milestoneDetect";
 import { Message } from "primevue";
 
 const props = defineProps<{
@@ -44,6 +47,27 @@ const emit = defineEmits<{
 const loreStore = useLoreCardsStore();
 const progressStore = useProgressStore();
 const { lastSession, fetchLastSession } = useLastSession();
+
+// Session state drives the card's two modes (card remounts per book via :key)
+const { state: sessionState } = useReadingSession(props.book.id);
+const sessionActive = computed(() => sessionState.value.isActive);
+
+// Page-save sheet — single entry point for typing a page number
+const sheetVisible = ref(false);
+const sheetMode = ref<"end" | "edit">("edit");
+
+const openEndSheet = () => {
+  sheetMode.value = "end";
+  sheetVisible.value = true;
+};
+const openEditSheet = () => {
+  sheetMode.value = "edit";
+  sheetVisible.value = true;
+};
+const onSheetSave = (page: number) => {
+  emit("update:pageInput", page);
+  emit("save");
+};
 
 const showCaptureField = ref(false);
 const pendingHistoryRowId = ref<string | null>(null);
@@ -77,6 +101,37 @@ const heroSessionNote = computed(() =>
     ? lastSession.value.sessionNote
     : null,
 );
+
+// Forward-looking pulse: exact pages left + estimated finish date (from the
+// same days-left velocity the library cards use). Backward-looking session
+// stats stay on the Last Session card — no duplication.
+const heroBookIds = computed(() => [props.book.id]);
+const velocity = useReadingVelocity(heroBookIds);
+onMounted(() => velocity.fetch().catch(() => {}));
+
+const pagesLeft = computed(() =>
+  Math.max(0, props.book.totalPages - (props.progress?.currentPage ?? 0)),
+);
+
+const finishDate = computed((): string | null => {
+  const daysLeft = velocity.velocityMap.value[props.book.id];
+  if (daysLeft === null || daysLeft === undefined) return null;
+  if (daysLeft === "today") return "today";
+  return format(addDays(new Date(), daysLeft), "MMM d");
+});
+
+// Milestone takeover: within 15 pages of the next Insight unlock, the pulse
+// line becomes a nudge — unless the finish itself is that close (finish wins).
+const MILESTONE_NUDGE_THRESHOLD = 15;
+const insightNudgePages = computed(() => {
+  const p = pagesToNextInsight(
+    props.progress?.currentPage ?? 0,
+    props.book.totalPages,
+  );
+  if (p === null || p > MILESTONE_NUDGE_THRESHOLD) return null;
+  if (pagesLeft.value <= MILESTONE_NUDGE_THRESHOLD) return null;
+  return p;
+});
 
 const handleCaptureComplete = () => {
   showCaptureField.value = false;
@@ -146,37 +201,38 @@ onMounted(() => fetchLastSession());
 
         <p class="hero-card__page-hint">
           Page {{ progress?.currentPage ?? 0 }} of {{ book.totalPages }}
+          <button
+            v-if="!sessionActive"
+            type="button"
+            class="hero-card__page-edit"
+            aria-label="Update your page"
+            @click="openEditSheet"
+          >
+            <i class="pi pi-pencil" aria-hidden="true" />
+          </button>
+          <span v-else-if="justSaved" class="hero-card__page-saved">
+            <i class="pi pi-check" aria-hidden="true" /> Saved
+          </span>
         </p>
       </div>
     </div>
 
-    <div class="hero-card__update-section">
-      <span class="hero-card__update-label">CURRENT PAGE</span>
-      <div class="hero-card__update-row">
-        <InputGroup class="hero-card__page-group">
-          <InputNumber
-            :model-value="pageInput"
-            :min="0"
-            :max="book.totalPages"
-            placeholder="Page"
-            show-buttons
-            :step="1"
-            class="hero-card__page-input"
-            @update:model-value="(v) => emit('update:pageInput', v ?? 0)"
-            @input="(e: any) => emit('update:pageInput', e.value ?? 0)"
-          />
-        </InputGroup>
-        <Button
-          :label="justSaved ? 'Saved!' : 'Save'"
-          :icon="justSaved ? 'pi pi-check' : 'pi pi-check'"
-          :loading="saving"
-          :disabled="pageInput === (progress?.currentPage ?? 0)"
-          class="hero-card__save-btn"
-          :class="{ 'hero-card__save-btn--saved': justSaved }"
-          @click="emit('save')"
-        />
-      </div>
-    </div>
+    <p v-if="insightNudgePages !== null" class="hero-card__forecast">
+      <span class="hero-card__forecast-item">
+        <i class="pi pi-sparkles" aria-hidden="true" />
+        {{ insightNudgePages }} {{ insightNudgePages === 1 ? "page" : "pages" }} to your next Insight
+      </span>
+    </p>
+    <p v-else-if="pagesLeft > 0" class="hero-card__forecast">
+      <span class="hero-card__forecast-item">
+        <i class="pi pi-book" aria-hidden="true" />
+        {{ pagesLeft.toLocaleString() }} {{ pagesLeft === 1 ? "page" : "pages" }} left
+      </span>
+      <span v-if="finishDate" class="hero-card__forecast-item">
+        <i class="pi pi-flag" aria-hidden="true" />
+        {{ finishDate === "today" ? "you could finish today" : `finish by ~${finishDate}` }}
+      </span>
+    </p>
 
     <Transition name="hero-card__fade">
       <p v-if="saveError" class="hero-card__error">
@@ -213,7 +269,14 @@ onMounted(() => fetchLastSession());
         />
       </div>
       <Button
-        v-if="!recapTriggered && recapLocked"
+        v-if="sessionActive"
+        label="End Session"
+        :loading="saving"
+        class="hero-card__end-btn"
+        @click="openEndSheet"
+      />
+      <Button
+        v-else-if="!recapTriggered && recapLocked"
         :label="recapLockLabel || `Read ${pagesUntilUnlock} more pages`"
         disabled
         class="hero-card__recap-btn hero-card__recap-btn--locked"
@@ -250,6 +313,14 @@ onMounted(() => fetchLastSession());
         </p>
       </div>
     </Transition>
+    <PageSaveSheet
+      v-model:visible="sheetVisible"
+      :mode="sheetMode"
+      :current-page="progress?.currentPage ?? 0"
+      :total-pages="book.totalPages"
+      @save="onSheetSave"
+      @cancel-session="emit('cancelSession')"
+    />
   </article>
 
   <!-- Inline Recap Panel -->
@@ -322,8 +393,8 @@ onMounted(() => fetchLastSession());
 }
 
 .hero-card__cover {
-  width: 88px;
-  height: 128px;
+  width: 96px;
+  height: 142px;
   object-fit: cover;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
@@ -338,8 +409,8 @@ onMounted(() => fetchLastSession());
 }
 
 .hero-card__cover-placeholder {
-  width: 88px;
-  height: 128px;
+  width: 96px;
+  height: 142px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
   display: flex;
@@ -607,6 +678,73 @@ onMounted(() => fetchLastSession());
 .hero-card__recap-btn:hover:not(:disabled) {
   background: rgba(99, 102, 241, 0.24) !important;
   color: var(--p-indigo-300) !important;
+}
+
+.hero-card__forecast {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+
+.hero-card__forecast-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.hero-card__forecast .pi {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--p-indigo-300);
+}
+
+.hero-card__page-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 0 0.3rem;
+  padding: 0.15rem 0.3rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--p-indigo-300);
+  font-size: 0.6rem;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.hero-card__page-edit:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+}
+
+.hero-card__page-saved {
+  margin-left: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--p-green-400, #4ade80);
+}
+
+.hero-card__end-btn {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.75rem 1rem !important;
+  border-radius: var(--p-border-radius-lg, 12px) !important;
+  border: none !important;
+  background: var(--p-primary-color) !important;
+  color: #fff !important;
 }
 
 .hero-card__recap-btn--locked {

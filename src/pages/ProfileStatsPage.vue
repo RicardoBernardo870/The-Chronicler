@@ -13,8 +13,10 @@ import { useLibraryBreakdown } from '@/composables/useLibraryBreakdown'
 
 import QuestGoalHero from '@/components/profile/QuestGoalHero.vue'
 import ReaderLevelStrip from '@/components/profile/ReaderLevelStrip.vue'
+import MonthlyReadingChart from '@/components/profile/MonthlyReadingChart.vue'
 import ReadingCalendarCard from '@/components/profile/ReadingCalendarCard.vue'
 import LifetimeStatsGrid from '@/components/profile/LifetimeStatsGrid.vue'
+import BookLengthCard from '@/components/profile/BookLengthCard.vue'
 import LibraryBreakdownCard from '@/components/profile/LibraryBreakdownCard.vue'
 
 const router = useRouter()
@@ -74,8 +76,10 @@ onMounted(async () => {
     <div v-else class="trophy-room__sections">
       <QuestGoalHero />
       <ReaderLevelStrip v-if="level" :level="level" />
+      <MonthlyReadingChart />
       <ReadingCalendarCard />
       <LifetimeStatsGrid />
+      <BookLengthCard />
       <LibraryBreakdownCard />
     </div>
   </section>

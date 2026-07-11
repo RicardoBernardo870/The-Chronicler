@@ -2,7 +2,7 @@
 
 > A staged roadmap from empty Xcode project to full-featured native iOS app, designed for incremental release and AI-assisted coding.
 
-**Last updated:** 2026-06-20
+**Last updated:** 2026-07-04
 **Target platforms:** iOS 18+ (iPhone), iPadOS 18+ optional later — real Liquid Glass on iOS 26+ via availability branching
 **Distribution:** App Store
 
@@ -274,12 +274,13 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 - Manual book entry (title, author, total pages, cover URL)
 - ISBN scan → autofill (VisionKit barcode scanner)
 - **Library import (034)** — Goodreads/StoryGraph CSV via `.fileImporter` / document picker. Strong activation win for a brand-new iOS user with an empty library. Parse CSV natively (no `papaparse` equivalent needed — Swift `String` splitting with RFC-4180 quoting, or a tiny CSV helper), map status, dedupe (ISBN-first), bulk-insert quietly, enrich in a background `Task`. Honor `source = 'goodreads'|'storygraph'` + `page_count_estimated` on insert.
-- Library page (3 sections: Currently Reading / The Queue / Archives)
-- Drag-to-reorder Queue (native `List.onMove`)
+- Library page (Now Reading + sticky Queue/Completed tabs; grid variant with sticky collapsible sections)
+- Library search (accent-insensitive title/author filter, grouped results)
+- Drag-to-reorder Queue (native `List.onMove`, reorder mode on both views)
 - Swipe-left actions (Edit / Delete) — native `.swipeActions`
-- Book detail page with progress slider
+- Book detail page — centered-cover hero + clamped description (Google Books backfill); session-first progress: Start Session ⇄ live timer (pause/resume, `session_paused_at`) ⇄ End Session → page sheet ("Where did you stop?"); pencil page-edit outside sessions
 - "Page X of Y" + percentage
-- Save progress (optimistic + offline queue)
+- Save progress via the page sheet (optimistic + offline queue; unchanged-page inline block with cancel-session escape)
 - Sign out
 
 ### Architecture deliverables
@@ -322,8 +323,8 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 
 - **AI Recaps** — `generate-recap` Edge Function call, streaming response via `AsyncStream`
 - **Recap history** per book
-- **Lexicon** — manual entry, browse by book, flashcard review (Leitner)
-- **Lore Cards** — auto-unlock at milestones (50%, 75%, 100%)
+- **Codex** (renamed from Great Library) — header stats, Lexicon/Insights tabs, type chips (All/Dictionary/Quotes), Newest↔A–Z sort; Word/Quote add sheet (quotes = keepsakes, excluded from review); Leitner flashcard review with progress bar, undo-last-answer, missed-words summary, en-US pronunciation (AVSpeechSynthesizer)
+- **Insight Cards** (user-facing rename of lore) — auto-unlock at 10% milestones (10–90)
 - **Lore Chronoscope** — collapsible card on book detail
 - **Reading DNA / Profile page** — calls `generate-reading-dna` once threshold met. The PWA profile was redesigned (2026-07) to an **identity-first layout** — mirror it, don't copy the old stacked-cards version: identity header (avatar in yearly-goal ring + level badge), compact DNA signature strip with the full analysis in a `.sheet`, DNA recommendation covers row (tap → add flow), stat pills, recap-memories carousel (signed URLs from `recap-images`), and a pushed **Trophy Room** (`TrophyRoomView`): quest progress ring, XP strip, **reading calendar** (`get_reading_calendar` RPC — timezone-aware day buckets with book covers per day), lifetime stats, library breakdown. See `ios-foundation/screen-inventory.md` + `component-inventory.md` for the state/component map.
   - **Community-RPC dependency (pre-Phase-5):** the identity header reads `get_my_community_profile` (already live) with a graceful email-initials fallback when no profile row exists — safe to ship before Phase 5. The **profile customization screen** (`ProfileEditView`: username/avatar/bio/privacy — the only place a `community_profiles` row is created; sign-up never creates one) has no social-graph dependencies, so it can ship with this phase or slide to Phase 5a; decide when scoping.
@@ -350,7 +351,7 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 - Generate 10 recaps, all stream successfully
 - Add 30 lexicon entries, complete a Leitner review session
 - Hit 50% on a book, lore card auto-unlocks within 3s
-- DNA profile generates after 3 finished books
+- DNA profile generates after 2 finished books (FINISHED_THRESHOLD = 2 in the PWA)
 
 ---
 
@@ -446,6 +447,15 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 > **Goal:** Social layer. v2.0 release. Highest retention impact.
 
 ### Features (in build order)
+
+### PWA-validated rollout order (2026-07)
+
+The PWA will pioneer the social surfaces in this order — iOS should follow the same sequencing (a feed is people × content; discovery and invites must precede it):
+
+1. **Discovery (zero BE):** reader search + public profiles + follow + "also reading" on book detail — all existing RPCs.
+2. **Circles UI + external invite links** (small BE: invite-token table + redemption surviving signup) — the growth loop.
+3. **Following feed** (new `activity_feed`): mostly automatic events (finished, milestone, opt-in shared recap image / Insight). Sharing an image needs explicit consent + a public asset copy + progress-bracket spoiler labeling (blur-until-tap for readers earlier in the book). Report/hide UX ships with the feed, not after.
+4. **Circles → clubs:** multi-book history, reading schedule, page-gated discussion threads (extends the reaction gating — the differentiator vs Fable), group pace, AI group recaps.
 
 #### 5a — Profiles & Follow Graph
 

@@ -114,9 +114,7 @@ const togglePause = async () => {
         </button>
         <div class="session-start-btn__timer-meta">
           <span class="session-start-btn__timer-value">{{ elapsedLabel }}</span>
-          <span class="session-start-btn__timer-hint">
-            {{ state.isPaused ? 'paused' : 'save page to finish' }}
-          </span>
+          <span v-if="state.isPaused" class="session-start-btn__timer-hint">paused</span>
         </div>
       </div>
 
@@ -145,7 +143,7 @@ const togglePause = async () => {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 /* ── Icon-only wrapper: no extra column gap needed ── */
@@ -179,9 +177,10 @@ const togglePause = async () => {
   width: 100%;
   min-width: 0;
   display: flex;
-  gap: 0.5rem;
+  gap: 0.15rem;
   align-items: center;
-  padding: 0.4rem 0.9rem 0.4rem 0.5rem;
+  justify-content: center;
+  padding: 0.25rem 0.5rem;
   border-radius: var(--p-border-radius-lg, 12px);
   background: rgba(99, 102, 241, 0.12);
   border: 1px solid rgba(99, 102, 241, 0.3);
@@ -189,14 +188,10 @@ const togglePause = async () => {
 }
 
 .session-start-btn__timer-meta {
-  flex: 1;
-  min-width: 0;
   display: flex;
-  flex-direction: column;
-
-  justify-content: center;
-  gap: 0.1rem;
-  margin-left: 4px;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-left: 0.4rem;
 }
 
 .session-start-btn__timer--paused {
@@ -205,7 +200,7 @@ const togglePause = async () => {
 }
 
 .session-start-btn__timer-value {
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
@@ -223,6 +218,9 @@ const togglePause = async () => {
 
 .session-start-btn__pause {
   flex: none;
+  width: 2.2rem !important;
+  height: 2.2rem !important;
+  padding: 0 !important;
 }
 
 .session-start-btn__icon-btn--paused {
@@ -235,8 +233,8 @@ const togglePause = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.6rem;
-  height: 2.6rem;
+  width: 2.2rem;
+  height: 2.2rem;
   padding: 0;
   border-radius: 50%;
   border: none;

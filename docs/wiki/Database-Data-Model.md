@@ -91,6 +91,9 @@ Notable migrations:
 | `20260619`–`20260621` | `get_reading_stats` fixes: meaningful-session count + calendar-month pages/sessions. |
 | `20260619_library_import.sql` (034) | `books.source` + `books.page_count_estimated`; `get_reading_quest_summary` & `get_reading_stats` exclude imported books (`source <> 'manual'`); `get_library_with_progress` returns `source` + `pageCountEstimated`. |
 | `20260702_get_reading_calendar.sql` | `get_reading_calendar` RPC — per-day books read for a month (timezone-aware, auth-guarded); Trophy Room calendar. Applied to prod via MCP and mirrored locally (no drift). |
+| `lexicon_quote_entry_type` (MCP, 2026-07-03; not mirrored locally) | Deleted legacy `entry_type='lore'` rows (user decision); `lexicon_entries` CHECK now `('dictionary','quote')` — quotes are keepsake passages, excluded from review client-side. |
+| `20260703_session_pause_resume.sql` | `reading_progress.session_paused_at` — pause stamps it; resume shifts `session_start_at` forward by the paused span so all duration math needs no RPC changes. |
+| `20260703_get_monthly_reading.sql` | `get_monthly_reading` RPC — pages read + books finished per month for a year (timezone-aware, auth-guarded, organic-only); Trophy Room "Your year" chart. |
 
 > **034 stat exclusion:** Imported books carry `source <> 'manual'`. Period-based surfaces filter them out — `get_reading_quest_summary.progress_rows` (yearly goal + XP) and `get_reading_stats.current_progress` (`totalPagesRead`). All other `get_reading_stats` fields read `progress_history`, which the quiet import never writes, so they need no filter. Lifetime surfaces (`get_library_breakdown`, `get_library_with_progress`, Reading DNA) intentionally keep imported books.
 

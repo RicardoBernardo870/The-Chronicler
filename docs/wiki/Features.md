@@ -1,6 +1,6 @@
 # Features
 
-Last updated: 2026-07-02
+Last updated: 2026-07-04
 
 This page documents the main user-facing features and the implementation areas behind them. Backend surface: [`docs/backend-contract.md`](../backend-contract.md).
 
@@ -8,8 +8,11 @@ This page documents the main user-facing features and the implementation areas b
 
 Readers can add books four ways — **search**, ISBN scan, manual entry, or **CSV import** (Goodreads/StoryGraph) — plus view, edit, and delete.
 
+**Findability (large libraries):** a sticky, accent-insensitive **library search** filters title/author in both views (results grouped by status using the standard section headers); the grid view's Now Reading / Queue / Completed headers are **sticky and collapsible** (state persisted); the list view's Queue/Completed pill tabs are sticky. **Queue reordering** lives on both views via a "Reorder" toggle that swaps in a drag-handle list (`QueueReorderList`), saving on every drop through `upNextStore.saveOrder`.
+
 Technical implementation:
 
+- Search: `src/components/library/LibrarySearchBar.vue` + `LibrarySearchResults.vue`, `normalizeForSearch` in `src/utils/searchText.ts`
 - Store: `src/stores/books.ts`
 - Pages/components: `src/pages/LibraryPage.vue`, `src/pages/AddBookPage.vue`, `src/pages/BookSearchDetailPage.vue`, `src/components/books/*`, `src/components/library/*`
 - Data: `books` (incl. `description`, `source`, `page_count_estimated`), `reading_progress`, `get_library_with_progress`
@@ -42,30 +45,35 @@ Business rules:
 
 ## Dashboard and Active Book
 
-The dashboard highlights the active book, current reading state, up-next books, completed-only states, recent session information, and Word of the Day.
+The dashboard opens with a **time-of-day greeting** (display name + avatar → profile; readers without a profile see a "Set up your reader profile" CTA instead), then the hero book card, Word of the Day, Last Session, other in-progress books, the **Up Next cover shelf** (horizontal, tap to activate; reordering lives on the Library page), and a compact one-row **Completed** link into the Library.
+
+The hero card: enlarged cover, progress, and a **pulse line** — "N pages left · finish by ~date" (date from the same `get_reading_velocity` estimate the library uses). Within 15 pages of the next Insight milestone the line becomes a nudge ("N pages to your next Insight"); the finish takes precedence when the end is equally close.
 
 Technical implementation:
 
 - Page: `src/pages/DashboardPage.vue`
-- Components: `src/components/dashboard/*`
+- Components: `src/components/dashboard/*` (`DashboardGreeting`, `HeroBookCard`, `UpNextSection` shelf, `CompletedSection` row)
 - Active book logic: `src/composables/useActiveBook.ts`
 - First-run state: `src/composables/useDashboardOnboardingState.ts`
+- Nudge math: `pagesToNextInsight` in `src/utils/milestoneDetect.ts`
 
 ## Reading Sessions and Progress
 
-Readers can start a session, save a current page, optionally attach a session note, and complete a book. Progress writes update `reading_progress` and append history to `progress_history`.
+Readers start a session (live **timer** with pause/resume), read, then tap **End Session**, which opens the page sheet ("Where did you stop?" — compact −/+ stepper, native numeric input). Saving writes `reading_progress` + `progress_history` and triggers the capture prompt. Outside a session, a pencil next to "Page X of Y" opens the same sheet in edit mode for quiet corrections. Session notes and completion behave as before.
 
 Technical implementation:
 
-- Store: `src/stores/progress.ts`
-- Timer: `src/composables/useReadingSession.ts`
-- UI: `src/components/session/*`, `src/components/book/BookProgressPanel.vue`
+- Store: `src/stores/progress.ts` (`startSession` / `pauseSession` / `resumeSession` / `clearSession`)
+- Timer: `src/composables/useReadingSession.ts` (elapsed freezes while paused)
+- UI: `src/components/session/SessionStartButton.vue` (timer card: pause · stop · count), `PageSaveSheet.vue`, `src/components/book/BookProgressPanel.vue`
+- Validation: `src/utils/pageSave.ts`
 - Offline queue: `src/composables/useOfflineSync.ts`, `src/sw.ts`
 
 Business rules:
 
 - A book is complete when progress reaches 100%.
-- Page progress is clamped by book total pages.
+- Page progress is clamped by book total pages; an unchanged page can't end a session (inline hint offers "cancel session" instead).
+- **Pause/resume**: pausing stamps `reading_progress.session_paused_at`; resuming shifts `session_start_at` forward by the paused span, so every duration computed as `recorded_at − session_start_at` (last-session stats, velocity, reading hours) stays correct with **no RPC changes**. Saving while paused applies the shift first, so paused time never counts. Pause state survives refresh/devices.
 - Starting a session should work even if the selected book has no previous progress row.
 - Completing a book clears it from active reading candidates and makes the Book Passport journey available.
 
@@ -96,7 +104,9 @@ Technical implementation:
 - Store: `src/stores/recaps.ts`
 - Client: `src/services/recapService.ts`
 - Edge function: `supabase/functions/generate-recap/*`
-- UI: `src/components/recap/*`, `src/pages/RecapHistoryPage.vue`; recap images also surface in the profile's Recap memories carousel (`src/components/profile/RecapImagesCarousel.vue` via `useRecapGallery`)
+- UI: `src/components/recap/*`, `src/pages/RecapHistoryPage.vue`; recap images surface in the profile's Recap memories carousel (`src/components/profile/RecapImagesCarousel.vue` via `useRecapGallery`) and on the book detail page's **Recap memories** section (`src/components/book/BookRecapCarousel.vue` — book-scoped, shown for reading *and* completed books, with the Get Recap button in its header and the history link below)
+
+**Book detail layout (2026-07):** centered-cover hero (search-detail style) with the description clamped under it ("Read more" expander; missing descriptions are backfilled once from Google Books and persisted via `updateBook`); progress panel with the session state machine as the sole primary action plus Codex/Words chips; Insights card; Recap memories; no separate About section.
 
 Business rules:
 
@@ -122,15 +132,17 @@ Business rules:
 - Saved capture text is user-reviewed before storage.
 - Completion cleanup deletes page captures when a book is completed.
 
-## Lexicon and Review
+## Codex (Lexicon and Review)
 
-Readers can collect terms, definitions, context sentences, and page references. The app also supports review flows inspired by spaced repetition.
+The Great Library was renamed **Codex** (nav label, page title; header shows "N words · M mastered"). Tabs: **Lexicon / Insights**. Readers collect **words** (dictionary lookup) and **quotes** (multiline passage + optional note — `entry_type = 'quote'`, replacing the old manual `lore` type, whose entries were deleted by user decision). One "Add to Codex" modal serves both via a type switch that reshapes the form. The lexicon list has a **Newest ↔ A–Z** sort toggle (server-side) and type filter chips (All / Dictionary / Quotes). Quotes are **keepsakes**: excluded from Word of the Day, Anki review, due counts, and mastery.
+
+The Anki review page: progress bar, **undo of the last answer** (restores the exact pre-answer Leitner/mastered state — protects against accidental permanent mastery), a "Worth another look" list of missed words on the summary, and a **pronunciation** button (built-in speech synthesis pinned to `en-US` so device locales don't distort the accent). Flashcard faces grid-stack so long definitions never clip.
 
 Technical implementation:
 
-- Store: `src/stores/lexicon.ts`
-- Search: `src/composables/useGreatLibrarySearch.ts`
-- Review: `src/composables/useAnkiSession.ts`, `src/stores/ankiSession.ts`, `src/composables/useLeitner.ts`
+- Store: `src/stores/lexicon.ts` (incl. `restoreEntryState` for review undo)
+- Search: `src/composables/useGreatLibrarySearch.ts` (`typeFilter`, `sortOrder`)
+- Review: `src/composables/useAnkiSession.ts` (undo, missed list), `src/stores/ankiSession.ts`, `src/composables/useLeitner.ts`
 - Pages/components: `src/pages/GreatLibraryPage.vue`, `src/pages/AnkiReviewPage.vue`, `src/components/lexicon/*`, `src/components/anki/*`
 - Data: `lexicon_entries` (incl. `mastered`, `last_reviewed_at`), `vocabulary_extractions`, `anki_review_sessions`
 
@@ -150,9 +162,9 @@ Technical implementation:
 - Edge function: `supabase/functions/extract-vocabulary/index.ts`
 - Ledger: `vocabulary_extractions`
 
-## Lore Chronoscope
+## Insights (Lore Chronoscope)
 
-Lore cards unlock at reading milestones and are generated from the master recap, keeping them spoiler-safe.
+Insight cards (user-facing rename of lore cards, 2026-07 — internal names `lore_cards`/`generate-lore` unchanged) unlock at reading milestones and are generated from the master recap, keeping them spoiler-safe.
 
 Technical implementation:
 
@@ -189,6 +201,7 @@ Business rules:
 - **Reading calendar** — `get_reading_calendar(p_user_id, p_month_start, p_timezone)` buckets `progress_history` rows by day **in the reader's IANA timezone**; each active day shows the cover of the book read (a "+n" badge for multiple), and tapping a day lists the books with the furthest page reached. Months are cached per session; forward navigation stops at the current month.
 - **DNA recommendation covers** resolve sequentially via Google Books (gives the add-book-details volume key), with Open Library search as the cover fallback; a suggestion that resolves without a Google key still taps through to the normal add-book search flow with the query pre-seeded. Partially failed sets re-resolve on the next profile visit.
 - **Recap memories** exchanges private `recap-images` paths for batch signed URLs (1 h TTL); only recaps with `image_status = 'succeeded'` appear; tapping an image opens that book's recap history.
+- **Trophy Room charts (2026-07):** "Your year" — 12 hand-rolled bars of pages/month with year selector and tap-a-bar detail (`get_monthly_reading` RPC: page deltas + first-finish months from `progress_history`, timezone-aware, organic reads only since imports write no history); segmented **genre bar** in the Library Breakdown card (top 4 + Other, from the existing `genreDistribution`); **Book Lengths** card (average/longest/shortest finished, client-side). Page order: quest ring → XP → Your year → calendar → stats tiles → lengths → breakdown.
 
 ### Profile customization (`/profile/edit`)
 
@@ -214,6 +227,15 @@ Technical implementation:
 - RPCs: `create_reading_circle`, `invite_reading_circle_members`, `respond_to_reading_circle_invitation`, `leave_reading_circle`, `remove_reading_circle_member`, `get_reading_circle_detail`, `list_my_reading_circles`, `add_circle_reaction`, `get_visible_circle_reactions` (enforces the page-gated spoiler safety).
 
 > Community and Reading Circles are fully built on the backend. On the PWA, the **profile customization page** (`/profile/edit`, see Reader Profile above) is the first client surface consuming the community profile RPCs (`get_my_community_profile`, `upsert_my_community_profile`, `is_username_available`) and the `community-avatars` bucket; the social surfaces (follow graph, discovery, circles) have no PWA UI yet. The social layer is **deferred for the iOS v1** port (see [`docs/ios-implementation-plan.md`](../ios-implementation-plan.md)).
+
+### PWA social rollout plan (agreed 2026-07)
+
+1. **Discovery first (zero backend):** reader search + public profile view + follow/unfollow + "also reading" on book detail — all backed by existing RPCs.
+2. **Circles UI + external invite links:** surface the idle circles backend; add token-based invite links that survive signup (small BE: token table + redemption) — the growth loop.
+3. **Following feed (new BE):** `activity_feed` of mostly automatic events (finished book, milestone, opt-in shared recap image / Insight). Not a global feed. Sharing an image requires explicit consent + a public asset copy + progress-bracket spoiler labeling (blur-until-tap for readers earlier in the book). Report/hide UX ships with it.
+4. **Circles → clubs:** multi-book history, reading schedule, **page-gated discussion threads** (extending the reaction gating — the differentiator vs Fable), group pace, AI group recaps at checkpoints.
+
+Rationale: a feed is people × content — discovery and invites must precede it or it launches empty.
 
 ## Offline-Friendly Progress
 

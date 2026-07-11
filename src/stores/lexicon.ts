@@ -282,6 +282,36 @@ export const useLexiconStore = defineStore('lexicon', () => {
     }
   }
 
+  // Undo support (Anki review): write a snapshotted entry state back — reverses
+  // masterWord / updateLeitner('reset') after a misswipe.
+  const restoreEntryState = async (snapshot: LexiconEntry) => {
+    const authStore = useAuthStore()
+    const list = entriesByBook.value[snapshot.bookId]
+    const idx = list?.findIndex(e => e.id === snapshot.id) ?? -1
+    const current = idx !== -1 ? { ...list[idx] } : null
+
+    if (idx !== -1) entriesByBook.value[snapshot.bookId][idx] = { ...snapshot }
+    try {
+      const { error } = await supabase
+        .from('lexicon_entries')
+        .update({
+          leitner_box: snapshot.leitnerBox,
+          next_review_at: snapshot.nextReviewAt,
+          mastered: snapshot.mastered,
+          last_reviewed_at: snapshot.lastReviewedAt,
+        })
+        .eq('id', snapshot.id)
+      if (error) throw error
+      if (authStore.user) {
+        swrTouch(cacheKeys.lexicon(authStore.user.id, snapshot.bookId))
+        swrTouch(cacheKeys.lexiconAll(authStore.user.id))
+      }
+    } catch (e) {
+      if (idx !== -1 && current) entriesByBook.value[snapshot.bookId][idx] = current
+      throw e
+    }
+  }
+
   // ── Computed ───────────────────────────────────────────────────────────────
 
   const wordOfTheDay = computed(() => {
@@ -386,6 +416,7 @@ export const useLexiconStore = defineStore('lexicon', () => {
     addEntry,
     updateLeitner,
     masterWord,
+    restoreEntryState,
     resolveWordOfTheDay,
   }
 })
