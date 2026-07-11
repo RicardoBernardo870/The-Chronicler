@@ -716,7 +716,7 @@ onMounted(() => fetchLastSession());
   padding: 0.15rem 0.3rem;
   border: none;
   border-radius: 6px;
-  background: rgba(99, 102, 241, 0.14);
+  background: transparent;
   color: var(--p-indigo-300);
   font-size: 0.6rem;
   cursor: pointer;

@@ -196,7 +196,7 @@ const onSheetSave = (page: number) => {
   padding: 0.25rem 0.45rem;
   border: none;
   border-radius: 8px;
-  background: rgba(99, 102, 241, 0.14);
+  background: transparent;
   color: var(--p-indigo-300);
   font-size: 0.7rem;
   cursor: pointer;
