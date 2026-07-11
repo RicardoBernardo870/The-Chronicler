@@ -271,7 +271,6 @@ onMounted(() => fetchLastSession());
       <Button
         v-if="sessionActive"
         label="End Session"
-        icon="pi pi-flag-fill"
         :loading="saving"
         class="hero-card__end-btn"
         @click="openEndSheet"

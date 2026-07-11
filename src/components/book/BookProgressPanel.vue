@@ -89,7 +89,6 @@ const onSheetSave = (page: number) => {
     <Button
       v-if="!isComplete && sessionActive"
       label="End Session"
-      icon="pi pi-flag-fill"
       :loading="progressLoading"
       class="progress-panel__end-btn"
       @click="openEndSheet"
