@@ -350,6 +350,14 @@ Prerequisite: Phase 4 complete; subscription model live.
 This phase ships in five sub-releases. Each sub-release is independently testable
 and shippable.
 
+Sequencing note (2026-07, PWA-validated plan): build in this order — (1) discovery:
+reader search + public profiles + follow + "also reading" (all existing RPCs);
+(2) circles UI + external invite links (small BE: token table + redemption surviving
+signup); (3) following feed of automatic events with opt-in image/Insight sharing
+(consent + public asset copy + progress-bracket spoiler blur; report/hide ships with
+it); (4) circles -> clubs (schedule, page-gated threads, group recaps). A feed before
+discovery launches empty.
+
 Sub-release 5a — Profiles & Follow Graph (P1):
 - NOTE: the profile-customization contract is already live and consumed by the PWA
   (get_my_community_profile / upsert_my_community_profile / is_username_available +
