@@ -3,6 +3,7 @@ import { ref, computed, defineAsyncComponent } from "vue";
 import { useProgressStore } from "@/stores/progress";
 import { useCapturesStore } from "@/stores/captures";
 import { useCapture } from "@/composables/useCapture";
+import { useGlassToast } from "@/composables/useGlassToast";
 import Button from "primevue/button";
 import { useToast } from "primevue/usetoast";
 
@@ -32,6 +33,7 @@ const emit = defineEmits<{
 const progressStore = useProgressStore();
 const capturesStore = useCapturesStore();
 const toast = useToast();
+const glassToast = useGlassToast();
 
 const {
   state,
@@ -149,12 +151,7 @@ const maybeAutoSave = async (): Promise<void> => {
   try {
     const saved = await handleSave(text);
     if (saved) {
-      toast.add({
-        severity: "success",
-        summary: "Page captured",
-        detail: "Text analysed successfully.",
-        life: 5000,
-      });
+      glassToast.show("Page captured", "Text analysed successfully.");
     }
   } finally {
     autoSaving.value = false;
