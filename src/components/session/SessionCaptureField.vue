@@ -152,7 +152,8 @@ const maybeAutoSave = async (): Promise<void> => {
       toast.add({
         severity: "success",
         summary: "Page captured",
-        life: 3000,
+        detail: "Text analysed successfully.",
+        life: 5000,
       });
     }
   } finally {
