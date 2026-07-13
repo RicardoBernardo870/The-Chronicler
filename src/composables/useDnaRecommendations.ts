@@ -9,9 +9,14 @@ import type { BookSearchSource, BookSuggestion } from '@/types'
  * key for the add-book details flow); Open Library search is the cover
  * fallback when Google is unavailable (e.g. 503 rate limiting). Lookups run
  * sequentially — the parallel burst was tripping Google's rate limiter.
+ *
+ * Resolutions persist to localStorage keyed by the suggestion-set signature,
+ * so the 3-5 Google lookups are spent once per DNA generation — not on every
+ * profile visit/reload (which was tripping the Books API 503 throttle).
  */
 
 const OL_SEARCH_URL = 'https://openlibrary.org/search.json'
+const STORAGE_KEY = 'bookhero:dna-covers'
 
 export interface DnaRecommendation extends BookSuggestion {
   coverUrl: string | null
@@ -25,6 +30,31 @@ const _recommendations = ref<DnaRecommendation[]>([])
 const _resolving = ref(false)
 let _resolvedSignature: string | null = null
 let _inFlight: Promise<void> | null = null
+
+interface StoredCovers {
+  signature: string
+  items: DnaRecommendation[]
+}
+
+const readStoredCovers = (signature: string): DnaRecommendation[] | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const stored = JSON.parse(raw) as StoredCovers
+    if (stored.signature !== signature || !Array.isArray(stored.items)) return null
+    return stored.items
+  } catch {
+    return null
+  }
+}
+
+const writeStoredCovers = (signature: string, items: DnaRecommendation[]): void => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ signature, items } satisfies StoredCovers))
+  } catch {
+    /* Quota/private mode — cache stays session-local. */
+  }
+}
 
 const unresolved = (s: BookSuggestion): DnaRecommendation => ({
   ...s,
@@ -103,6 +133,18 @@ export const useDnaRecommendations = () => {
     ) {
       return
     }
+
+    // Hydrate from localStorage before spending any network calls — a fully
+    // resolved stored set makes profile reloads free.
+    if (_resolvedSignature !== signature) {
+      const stored = readStoredCovers(signature)
+      if (stored && stored.length === suggestions.length) {
+        _recommendations.value = stored
+        _resolvedSignature = signature
+        if (stored.every(isResolved)) return
+      }
+    }
+
     if (_inFlight) return _inFlight
 
     _resolving.value = true
@@ -118,6 +160,7 @@ export const useDnaRecommendations = () => {
           next[i] = await resolveOne(suggestions[i])
           _recommendations.value = [...next]
         }
+        writeStoredCovers(signature, next)
       } finally {
         _resolving.value = false
         _inFlight = null
