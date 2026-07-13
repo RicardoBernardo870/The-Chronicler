@@ -70,11 +70,23 @@ const handleUploadChange = async (event: Event): Promise<void> => {
       detail: errorMessage.value,
       life: 4000,
     });
+    return;
   }
+  await maybeAutoSave();
 };
 
 // 'note' = user chose "Add note instead"; rendered SessionNoteField fallback
 const mode = ref<"capture" | "note">("capture");
+
+// Captures at or above this confidence save without the manual review step.
+const AUTO_SAVE_CONFIDENCE = 0.9;
+// Mirrors CaptureVerifyView's textarea limit so auto-saved text obeys the
+// same cap as manually reviewed text.
+const MAX_CHARS = 10_000;
+
+// True while a high-confidence capture is being saved automatically; keeps
+// the loading state on screen instead of flashing the review UI.
+const autoSaving = ref(false);
 
 const currentPage = computed(
   () => progressStore.progressForBook(props.bookId)?.currentPage ?? 0,
@@ -95,11 +107,13 @@ const handleSnap = async (): Promise<void> => {
       detail: errorMessage.value,
       life: 4000,
     });
+    return;
   }
+  await maybeAutoSave();
 };
 
-const handleSave = async (text: string): Promise<void> => {
-  if (!ocrResult.value) return;
+const handleSave = async (text: string): Promise<boolean> => {
+  if (!ocrResult.value) return false;
   try {
     const wordCount = text.split(/\s+/).filter(Boolean).length;
     await capturesStore.saveCapture({
@@ -110,6 +124,7 @@ const handleSave = async (text: string): Promise<void> => {
       wordCount,
     });
     emit("saved");
+    return true;
   } catch (e) {
     toast.add({
       severity: "error",
@@ -117,6 +132,31 @@ const handleSave = async (text: string): Promise<void> => {
       detail: e instanceof Error ? e.message : "Unknown error",
       life: 4000,
     });
+    return false;
+  }
+};
+
+// High-confidence captures skip the manual review step: save immediately and
+// confirm with a toast. On save failure the error toast has already fired and
+// state stays 'verify', so the normal review UI appears as the fallback.
+const maybeAutoSave = async (): Promise<void> => {
+  if (state.value !== "verify" || !ocrResult.value) return;
+  if (ocrResult.value.confidence < AUTO_SAVE_CONFIDENCE) return;
+  const text = ocrResult.value.text.slice(0, MAX_CHARS).trim();
+  if (!text) return;
+
+  autoSaving.value = true;
+  try {
+    const saved = await handleSave(text);
+    if (saved) {
+      toast.add({
+        severity: "success",
+        summary: "Page captured",
+        life: 3000,
+      });
+    }
+  } finally {
+    autoSaving.value = false;
   }
 };
 
@@ -225,8 +265,11 @@ const handleSkip = (): void => {
       @cancel="handleSkip"
     />
 
-    <!-- State: OCR running -->
-    <div v-else-if="state === 'ocr-running'" class="session-capture__loading">
+    <!-- State: OCR running (or auto-saving a high-confidence capture) -->
+    <div
+      v-else-if="state === 'ocr-running' || autoSaving"
+      class="session-capture__loading"
+    >
       <i class="pi pi-spin pi-spinner" /> Reading the page...
     </div>
 
