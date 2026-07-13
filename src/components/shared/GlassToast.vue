@@ -1,7 +1,19 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useGlassToast } from '@/composables/useGlassToast'
 
 const glassToast = useGlassToast()
+
+const iconClass = computed(() => {
+  switch (glassToast.variant.value) {
+    case 'loading':
+      return 'pi pi-spin pi-spinner glass-toast__icon--loading'
+    case 'warn':
+      return 'pi pi-exclamation-triangle glass-toast__icon--warn'
+    default:
+      return 'pi pi-check-circle glass-toast__icon--success'
+  }
+})
 </script>
 
 <template>
@@ -11,9 +23,9 @@ const glassToast = useGlassToast()
       class="glass-toast glass-surface"
       role="status"
       aria-live="polite"
-      @click="glassToast.dismiss"
+      @click="glassToast.variant.value !== 'loading' && glassToast.dismiss()"
     >
-      <i class="pi pi-check-circle glass-toast__icon" />
+      <i :key="glassToast.variant.value" class="glass-toast__icon" :class="iconClass" />
       <span class="glass-toast__text">
         <span class="glass-toast__summary">{{ glassToast.summary.value }}</span>
         <span v-if="glassToast.detail.value" class="glass-toast__detail">
@@ -27,14 +39,14 @@ const glassToast = useGlassToast()
 <style scoped>
 .glass-toast {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+  top: calc(env(safe-area-inset-top, 0px) + 0.85rem);
   left: 50%;
   transform: translateX(-50%);
   z-index: 1210;
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.55rem 1.05rem 0.55rem 0.85rem;
+  gap: 0.8rem;
+  padding: 0.75rem 1.3rem 0.75rem 1.05rem;
   border-radius: 999px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
   max-width: calc(100vw - 2rem);
@@ -42,32 +54,45 @@ const glassToast = useGlassToast()
 }
 
 .glass-toast__icon {
-  font-size: 1.05rem;
-  color: var(--p-green-400);
+  font-size: 1.35rem;
   flex-shrink: 0;
+}
+
+.glass-toast__icon--success {
+  color: var(--p-green-400);
+  animation: glass-toast-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.glass-toast__icon--loading {
+  color: var(--p-indigo-300);
+}
+
+.glass-toast__icon--warn {
+  color: var(--p-amber-400);
   animation: glass-toast-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .glass-toast__text {
   display: flex;
   flex-direction: column;
-  line-height: 1.15;
+  gap: 0.1rem;
+  line-height: 1.2;
   min-width: 0;
 }
 
 .glass-toast__summary {
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
 
 .glass-toast__detail {
-  font-size: 0.7rem;
-  opacity: 0.6;
+  font-size: 0.78rem;
+  opacity: 0.65;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 16rem;
+  max-width: 19rem;
 }
 
 @keyframes glass-toast-pop {

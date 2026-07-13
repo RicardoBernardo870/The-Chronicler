@@ -64,8 +64,10 @@ const handleUploadChange = async (event: Event): Promise<void> => {
   input.value = ""; // allow re-picking the same file
   if (!file) return;
   lastMethod.value = "upload";
+  glassToast.showLoading("Reading the page…", "Analysing the text");
   await importImage(file);
   if (state.value === "error" && errorMessage.value) {
+    glassToast.dismiss();
     toast.add({
       severity: "error",
       summary: "Couldn't read that image",
@@ -74,7 +76,7 @@ const handleUploadChange = async (event: Event): Promise<void> => {
     });
     return;
   }
-  await maybeAutoSave();
+  await finishCapture();
 };
 
 // 'note' = user chose "Add note instead"; rendered SessionNoteField fallback
@@ -101,8 +103,10 @@ const handleStartCapture = (): void => {
 };
 
 const handleSnap = async (): Promise<void> => {
+  glassToast.showLoading("Reading the page…", "Analysing the text");
   await snap();
   if (state.value === "error" && errorMessage.value) {
+    glassToast.dismiss();
     toast.add({
       severity: "error",
       summary: "OCR failed",
@@ -111,7 +115,7 @@ const handleSnap = async (): Promise<void> => {
     });
     return;
   }
-  await maybeAutoSave();
+  await finishCapture();
 };
 
 const handleSave = async (text: string): Promise<boolean> => {
@@ -138,24 +142,39 @@ const handleSave = async (text: string): Promise<boolean> => {
   }
 };
 
-// High-confidence captures skip the manual review step: save immediately and
-// confirm with a toast. On save failure the error toast has already fired and
-// state stays 'verify', so the normal review UI appears as the fallback.
-const maybeAutoSave = async (): Promise<void> => {
-  if (state.value !== "verify" || !ocrResult.value) return;
-  if (ocrResult.value.confidence < AUTO_SAVE_CONFIDENCE) return;
-  const text = ocrResult.value.text.slice(0, MAX_CHARS).trim();
-  if (!text) return;
-
-  autoSaving.value = true;
-  try {
-    const saved = await handleSave(text);
-    if (saved) {
-      glassToast.show("Page captured", "Text analysed successfully.");
-    }
-  } finally {
-    autoSaving.value = false;
+// Runs after OCR completes, while the loading glass toast is still up.
+// High confidence → save immediately and swap the toast to success. Low
+// confidence (or empty text) → the review UI appears; swap the toast to a
+// warning so the user knows why they're being asked to check the text. On
+// save failure the error toast has already fired and state stays 'verify',
+// so the review UI is the fallback.
+const finishCapture = async (): Promise<void> => {
+  if (state.value !== "verify" || !ocrResult.value) {
+    // denied / offline / preview-missing paths — the inline panels take over
+    glassToast.dismiss();
+    return;
   }
+
+  const text = ocrResult.value.text.slice(0, MAX_CHARS).trim();
+  if (ocrResult.value.confidence >= AUTO_SAVE_CONFIDENCE && text) {
+    autoSaving.value = true;
+    try {
+      const saved = await handleSave(text);
+      if (saved) {
+        glassToast.show("Page captured", "Text analysed successfully.");
+      } else {
+        glassToast.dismiss();
+      }
+    } finally {
+      autoSaving.value = false;
+    }
+    return;
+  }
+
+  glassToast.showWarn(
+    "Check the captured text",
+    "The scan wasn't clear — review the text or retake the photo.",
+  );
 };
 
 const handleCancelRetake = (): void => {
@@ -263,12 +282,16 @@ const handleSkip = (): void => {
       @cancel="handleSkip"
     />
 
-    <!-- State: OCR running (or auto-saving a high-confidence capture) -->
+    <!-- State: OCR running (or auto-saving a high-confidence capture).
+         The glass toast carries the loading feedback; this is just a quiet
+         placeholder so the panel doesn't collapse. -->
     <div
       v-else-if="state === 'ocr-running' || autoSaving"
       class="session-capture__loading"
+      aria-hidden="true"
     >
-      <i class="pi pi-spin pi-spinner" /> Reading the page...
+      <div class="glass-shimmer session-capture__shimmer session-capture__shimmer--wide" />
+      <div class="glass-shimmer session-capture__shimmer" />
     </div>
 
     <!-- State: review captured image + OCR text -->
@@ -491,11 +514,18 @@ const handleSkip = (): void => {
 
 .session-capture__loading {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  opacity: 0.75;
+  flex-direction: column;
+  gap: 0.55rem;
   padding: 0.5rem 0;
+}
+
+.session-capture__shimmer {
+  height: 0.8rem;
+  width: 55%;
+}
+
+.session-capture__shimmer--wide {
+  width: 80%;
 }
 
 .session-capture__panel {
