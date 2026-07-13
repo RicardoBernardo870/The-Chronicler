@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Recap } from '@/types'
 import Accordion from 'primevue/accordion'
 import AccordionPanel from 'primevue/accordionpanel'
@@ -9,9 +10,28 @@ import RecapImagePanel from '@/components/recap/RecapImagePanel.vue'
 
 const props = defineProps<{
   recap: Recap
+  // Journal framing (both derived from the chronologically previous recap;
+  // omitted for standalone usage — the chip falls back to a single page).
+  fromPage?: number | null
+  daysSinceLast?: number | null
 }>()
 
 const formatDate = (iso: string): string => formatShortDate(iso)
+
+// Delta ranges are (fromPage, toPage] — display starts at fromPage + 1.
+// A regenerated same-range recap degenerates to a single page label.
+const rangeLabel = computed(() => {
+  const to = props.recap.pageSnapshot
+  if (to == null) return 'page —'
+  const from = Math.max(0, props.fromPage ?? 0) + 1
+  return from >= to ? `page ${to}` : `pages ${from}–${to}`
+})
+
+const daysLaterLabel = computed(() => {
+  const days = props.daysSinceLast
+  if (days == null || days < 1) return ''
+  return days === 1 ? '1 day later' : `${days} days later`
+})
 </script>
 
 <template>
@@ -19,7 +39,10 @@ const formatDate = (iso: string): string => formatShortDate(iso)
     <header class="recap-card__header">
       <span class="recap-card__progress">
         <i class="pi pi-chart-bar" />
-        page {{ recap.pageSnapshot ?? '—' }} · {{ recap.progressSnapshot }}%
+        {{ rangeLabel }} · {{ recap.progressSnapshot }}%
+      </span>
+      <span v-if="daysLaterLabel" class="recap-card__days-later">
+        {{ daysLaterLabel }}
       </span>
       <span
         v-if="recap.mode === 'corpus'"
@@ -113,6 +136,12 @@ const formatDate = (iso: string): string => formatShortDate(iso)
 .recap-card__date {
   font-size: 0.75rem;
   opacity: 0.55;
+}
+
+.recap-card__days-later {
+  font-size: 0.72rem;
+  font-style: italic;
+  opacity: 0.5;
 }
 
 /* 015-corpus-recaps: visible signal that this recap was grounded in

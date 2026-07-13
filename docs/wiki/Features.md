@@ -113,6 +113,7 @@ Business rules:
 - Mid-book recaps are gated by page progress and cooldown logic in `src/composables/useRecapLock.ts`.
 - Corpus recaps use saved page captures when available.
 - Captures are filtered client-side to the relevant page range before recap generation.
+- **Arc-shaped recaps (2026-07):** the `memory_jogger` is written as an arc — one sentence anchoring where the reader left off, then what changed across the stretch, ending on the moment with the strongest dramatic/visual weight — and `thematic_bridge` names the thread left open. Output JSON shape and DB schema are unchanged; all fields stay plain label-free prose because `memory_jogger` feeds the image prompt refiner verbatim. Recap cards and the fresh-recap stream show a journal header ("pages 61–104 · 9 days later") computed client-side from the previous recap's `pageSnapshot` and `createdAt` — no schema changes.
 
 ## Page Capture and OCR
 

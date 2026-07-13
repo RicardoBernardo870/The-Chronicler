@@ -23,6 +23,26 @@ const streamingText = computed(() => recapsStore.streamingText)
 const error = computed(() => recapsStore.error)
 const currentRecap = computed(() => recapsStore.latestRecapForBook(props.bookId))
 
+// Journal header for the fresh recap. History is newest-first and the new
+// recap is unshifted on completion, so the previous recap sits at index 1.
+const previousRecap = computed(() => recapsStore.recapHistoryForBook(props.bookId)[1] ?? null)
+
+const rangeLabel = computed(() => {
+  const to = currentRecap.value?.pageSnapshot
+  if (to == null) return ''
+  const from = Math.max(0, previousRecap.value?.pageSnapshot ?? 0) + 1
+  return from >= to ? `Page ${to}` : `Pages ${from}–${to}`
+})
+
+const daysLaterLabel = computed(() => {
+  if (!previousRecap.value || !currentRecap.value) return ''
+  const gapMs = new Date(currentRecap.value.createdAt).getTime()
+    - new Date(previousRecap.value.createdAt).getTime()
+  const days = Math.floor(gapMs / 86_400_000)
+  if (days < 1) return ''
+  return days === 1 ? '1 day later' : `${days} days later`
+})
+
 // Parse streaming text as JSON sections when complete
 const parsedRecap = computed(() => {
   if (status.value !== 'complete') return null
@@ -70,6 +90,11 @@ const parsedRecap = computed(() => {
 
   <!-- Complete recap -->
    <div v-else-if="status === 'complete' && parsedRecap" class="recap-stream recap-stream--done">
+    <p v-if="rangeLabel" class="recap-stream__range">
+      <i class="pi pi-bookmark" aria-hidden="true" />
+      {{ rangeLabel }}<template v-if="daysLaterLabel"> · {{ daysLaterLabel }}</template>
+    </p>
+
     <RecapImagePanel
       v-if="currentRecap"
       :recap-id="currentRecap.id"
@@ -157,6 +182,21 @@ const parsedRecap = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.recap-stream__range {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.65;
+}
+
+.recap-stream__range .pi {
+  font-size: 0.72rem;
+  color: #818cf8;
 }
 
 .recap-section {
