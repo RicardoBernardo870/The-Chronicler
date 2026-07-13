@@ -1,6 +1,6 @@
 # FAQ
 
-Last updated: 2026-05-17
+Last updated: 2026-07-13
 
 ## Is this app called BookHero or The Chronicler?
 
@@ -8,7 +8,7 @@ The README and package name identify the app as BookHero. Some older comments, p
 
 ## Does BookHero store captured page images?
 
-No. The capture flow sends image data to the OCR edge function and stores reviewed text in `page_captures`. Images are not persisted by the app.
+No. The capture flow sends image data to the OCR edge function and stores reviewed text in `page_captures`. Images are not persisted by the app. The capture text (and the AI session resume derived from it, stored on the same row) is deleted when the book is completed.
 
 ## Can the app work offline?
 

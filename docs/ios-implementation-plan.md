@@ -2,7 +2,7 @@
 
 > A staged roadmap from empty Xcode project to full-featured native iOS app, designed for incremental release and AI-assisted coding.
 
-**Last updated:** 2026-07-04
+**Last updated:** 2026-07-13
 **Target platforms:** iOS 18+ (iPhone), iPadOS 18+ optional later — real Liquid Glass on iOS 26+ via availability branching
 **Distribution:** App Store
 
@@ -16,6 +16,8 @@
 > - Newer columns not reflected here: `books.description`, `books.source` + `books.page_count_estimated` (034 library import), `lexicon_entries.mastered` + `last_reviewed_at`. Additional live tables: `anki_review_sessions`, `reading_goals`, `reading_quest_events`, `user_settings`.
 > - **Library Import (034) shipped on the PWA** (Goodreads/StoryGraph CSV). Backend impact the iOS client must honor: imported books carry `source <> 'manual'` and are **excluded from current-period stat RPCs** (`get_reading_quest_summary`, `get_reading_stats.totalPagesRead`) while **included** in lifetime composition (`get_library_breakdown`, Reading DNA). `get_library_with_progress` now returns `source` + `pageCountEstimated` per book. See §7 for iOS import-parity notes.
 > - **Ebook capture (033) shipped:** the capture flow accepts an uploaded image, not just camera — Phase 3 should offer a `PhotosPicker`/Files import alongside the VisionKit scanner.
+> - **Session Resume shipped on the PWA (2026-07-13):** a 6th edge function `generate-page-resume` exists (stateless: capture text → ≤3 one-sentence bullets + 1 tension line; client persists onto `page_captures.resume` jsonb). Start Session opens a pre-session "Previously" dialog and **only writes `session_start_at` when the reader confirms "Begin reading"** — dismissing aborts the start. Suppressed when the latest recap covers the current position (`pageSnapshot >= currentPage`). Resume generation is fire-and-forget at capture time; at most one AI call per capture (persisted). iOS must mirror this timer-gating flow (see §7/§8 notes below).
+> - **Recap presentation redesigned (2026-07-13):** Get Recap opens a modal (image-first: illustration slot → corpus/days byline → arc prose → ≤5 watchlist chips → open-thread quote); history cards use the same layout (accordions removed). Recap prompt is arc-shaped (v84 deployed; repo synced); journal header "pages X–Y · N days later" is computed client-side from the previous recap's `page_snapshot`/`created_at`.
 > - **Subscriptions still do not exist** server-side (no `entitlements`/`subscriptions` table yet) — that part of Phase 4 is accurate.
 > - **iOS v1 scope steer:** Library/reading + AI memory + capture/vocab + goals + **library import**. **Defer Community + Circles** despite the backend being ready — they're a large client surface.
 > - Local `supabase/migrations` has drifted from prod; a one-time baseline squash from the live schema is recommended before native work begins.
@@ -231,7 +233,7 @@ BookHero-iOS/
 
 - **All tables** — `books` (incl. `description`, `source`, `page_count_estimated`), `reading_progress`, `progress_history`, `lexicon_entries`, `lore_cards`, `recaps`, `book_passports`, `reading_dna`, `vocabulary_extractions`, `page_captures`, `up_next_order` *(plus `reading_goals`, `reading_quest_events`, `anki_review_sessions`, `user_settings` — see contract)*
 - **All RPC functions** — `get_library_with_progress` (returns `source` + `pageCountEstimated`), `get_reading_stats`, `get_last_session`, `get_library_breakdown`, `get_reading_velocity`, `get_reading_quest_summary` *(the period-stat RPCs already exclude imported books — the iOS client gets correct numbers for free)*
-- **All Edge Functions** — `generate-recap`, `generate-lore`, `generate-reading-dna`, `extract-vocabulary`, `ocr-page`
+- **All Edge Functions** — `generate-recap`, `generate-lore`, `generate-reading-dna`, `extract-vocabulary`, `ocr-page`, `generate-page-resume`
 - **No backend work for library import** — it's pure client logic (CSV parse + bulk insert + best-effort enrichment) writing to existing tables; the iOS client re-implements `useLibraryImport.ts`/`booksStore.importBooks` natively.
 - **All RLS policies** — already enforce per-user isolation
 - **Auth schema** — Supabase Auth supports Sign in with Apple natively
@@ -278,7 +280,7 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 - Library search (accent-insensitive title/author filter, grouped results)
 - Drag-to-reorder Queue (native `List.onMove`, reorder mode on both views)
 - Swipe-left actions (Edit / Delete) — native `.swipeActions`
-- Book detail page — centered-cover hero + clamped description (Google Books backfill); session-first progress: Start Session ⇄ live timer (pause/resume, `session_paused_at`) ⇄ End Session → page sheet ("Where did you stop?"); pencil page-edit outside sessions
+- Book detail page — centered-cover hero + clamped description (Google Books backfill); session-first progress: Start Session → **pre-session "Previously" resume sheet** (last capture's stored `resume`; timer starts only on "Begin reading"; skipped when no resume or when a fresh recap covers the current position) ⇄ live timer (pause/resume, `session_paused_at`) ⇄ End Session → page sheet ("Where did you stop?"); pencil page-edit outside sessions
 - "Page X of Y" + percentage
 - Save progress via the page sheet (optimistic + offline queue; unchanged-page inline block with cancel-session escape)
 - Sign out
@@ -321,8 +323,9 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 
 ### Features
 
-- **AI Recaps** — `generate-recap` Edge Function call, streaming response via `AsyncStream`
-- **Recap history** per book
+- **AI Recaps** — `generate-recap` Edge Function call, streaming response via `AsyncStream`. Presented as a **modal sheet** (PWA parity, 2026-07): shimmer while streaming, then image-first story layout — illustration slot ("Illustrating this stretch…" while `image_status = 'pending'`), corpus/days byline, arc prose, ≤5 watchlist chips, open-thread quote; footer = View history + Done. Journal header "pages X–Y · N days later" derives from the previous recap row.
+- **Recap history** per book — same story-card layout as the modal (no accordions)
+- **Session Resume** — pre-session "Previously" sheet from `page_captures.resume` (see Phase 1 book-detail flow); generation piggybacks on capture save via `generate-page-resume` (fire-and-forget, once per capture)
 - **Codex** (renamed from Great Library) — header stats, Lexicon/Insights tabs, type chips (All/Dictionary/Quotes), Newest↔A–Z sort; Word/Quote add sheet (quotes = keepsakes, excluded from review); Leitner flashcard review with progress bar, undo-last-answer, missed-words summary, en-US pronunciation (AVSpeechSynthesizer)
 - **Insight Cards** (user-facing rename of lore) — auto-unlock at 10% milestones (10–90)
 - **Lore Chronoscope** — collapsible card on book detail

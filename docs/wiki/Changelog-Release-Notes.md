@@ -1,10 +1,27 @@
 # Changelog Release Notes
 
-Last updated: 2026-07-02
+Last updated: 2026-07-13
 
 This repository does not currently include a dedicated changelog file. Use this page as the starter convention for release documentation.
 
 ## Releases
+
+## 2026-07-13 - Unreleased (Session Resume, arc recaps, recap modal)
+
+### Added
+
+- **Session Resume ("Previously" dialog)**: tapping Start Session first shows a modal with a resume of the last captured page — up to 3 one-sentence bullets + 1 tension line — and the session timer only starts on "Begin reading" (dismissing aborts the start; `session_start_at` is written on confirm). Strictly resume-or-nothing, suppressed when the latest recap already covers the current position (`pageSnapshot >= currentPage`). New edge function `generate-page-resume` (stateless, Gemini 2.5 Flash); generation is fire-and-forget after capture save, persisted on `page_captures.resume` (at most one AI call per capture, with on-demand backfill for pre-feature captures). Resumes are purged with captures on book completion.
+- **Arc-shaped recaps**: `memory_jogger` now reads as an arc (where you left off → what changed → strongest moment) and `thematic_bridge` names the open thread; all fields stay label-free prose so the image prompt refiner keeps working. `concept_watchlist` capped at 5. Journal framing "pages X–Y · N days later" computed client-side from the previous recap row.
+- **Recap modal redesign**: Get Recap opens `RecapDialog` (replaces inline `RecapStream` and the dashboard hero's inline panel — both deleted): shimmer while streaming, then image-first story layout (illustration slot with "Illustrating this stretch…", corpus/days byline, arc prose, watchlist chips, open-thread quote), footer with View history + Done. History cards (`RecapCard`) restyled to the same layout; accordions removed. Dashboard dismiss still aborts in-flight streams.
+
+### Changed
+
+- `SessionStartButton` now gates session start behind the resume dialog on both Book Detail and Dashboard hero.
+- `generate-recap` repo sources synced with deployed v84 (arc prompt, watchlist ≤5, passport 90–100 words, square-frame image refiner guidance).
+
+### Migrations
+
+- `20260713_session_page_resume.sql` — `page_captures.resume` (jsonb) + `resume_generated_at`.
 
 ## 2026-07-04 - Unreleased (Codex, sessions, book detail, Trophy Room charts, review polish)
 

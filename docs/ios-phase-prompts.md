@@ -177,9 +177,21 @@ and docs/ios-native-migration-details.md Section 7 Phase 2.
 Prerequisite: Phase 1 (specs/100-ios-mvp/) shipped to TestFlight, all P1 stories met.
 
 Scope (in):
-- AI Recaps: invoke generate-recap Edge Function, render streaming response
-- Recap History page per book
+- AI Recaps: invoke generate-recap Edge Function, render streaming response in a
+  modal sheet (PWA 2026-07 redesign): shimmer while streaming, then image-first story
+  layout (illustration slot with "Illustrating this stretch…" while image_status =
+  'pending', corpus/days byline, arc prose, <=5 watchlist chips, open-thread quote;
+  footer = View history + Done). Journal header "pages X-Y · N days later" derives
+  from the previous recap row (page_snapshot / created_at) client-side.
+- Recap History page per book — same story-card layout as the modal (no accordions)
 - Recap lock mechanics (page + time gates) matching PWA behavior
+- Session Resume (PWA 2026-07): Start Session opens a pre-session "Previously" sheet
+  from page_captures.resume (bullets + tension line); session_start_at is written ONLY
+  on "Begin reading" — dismissing aborts the start. Suppressed when the latest recap
+  covers the current position (page_snapshot >= current_page) or no resume exists.
+  Generate the resume fire-and-forget after capture save via generate-page-resume
+  (once per capture — persisted on the row; backfill on demand at Start Session for
+  captures without one)
 - Codex (renamed Great Library): header stats, Lexicon/Insights tabs, All/Dictionary/Quotes
   chips, Newest<->A-Z sort; Word/Quote add sheet (quotes = keepsakes, excluded from review)
 - Leitner flashcard review: progress bar, undo-last-answer (reverses terminal mastery),
@@ -206,9 +218,10 @@ Stack additions:
 
 Backend rules:
 - Reuse existing Edge Functions (generate-recap, generate-lore, generate-reading-dna,
-  extract-vocabulary, ocr-page) without changes
+  extract-vocabulary, ocr-page, generate-page-resume) without changes
 - Reuse existing tables (recaps, recap_fragments, lexicon_entries, lore_cards,
-  reading_dna, book_passports, page_captures, vocabulary_extractions)
+  reading_dna, book_passports, page_captures [incl. resume jsonb + resume_generated_at],
+  vocabulary_extractions)
 - Image bytes for OCR are in-memory only — never persist to Storage
 
 P3 stretch stories (include if time permits):

@@ -1,6 +1,6 @@
 # Database Data Model
 
-Last updated: 2026-06-20
+Last updated: 2026-07-13
 
 > **Canonical source:** [`docs/backend-contract.md`](../backend-contract.md) is generated from a live introspection of the database and is authoritative. This page is a curated summary of the **core reading** domain and may lag. The live DB has **25 tables** total — this page historically omitted the **Community** (`community_profiles`, `community_profile_privacy`, `follows`, `blocks`, `community_follow_counts`) and **Reading Circles** (`reading_circles`, `circle_invitations`, `circle_members`, `circle_reactions`) domains and the `user_settings` table; see the contract for those.
 
@@ -18,7 +18,7 @@ BookHero uses Supabase PostgreSQL with row-level security. The frontend reads an
 | `lexicon_entries` | Vocabulary and lore terms collected per book. |
 | `up_next_order` | User-defined ordering for current/up-next books. |
 | `lore_cards` | Generated lore cards unlocked at reading milestones. |
-| `page_captures` | Reviewed OCR text snippets by book/page. |
+| `page_captures` | Reviewed OCR text snippets by book/page, plus the AI session resume derived from each capture. |
 | `reading_dna` | Generated reader identity profile. |
 | `vocabulary_extractions` | Ledger for capture-based vocabulary extraction. |
 | `reading_goals` | Yearly reading goal settings. |
@@ -63,7 +63,7 @@ erDiagram
 | `progress_history` | `book_id`, `user_id`, `page`, `recorded_at`, `session_start_at`, `session_note` |
 | `recaps` | `book_id`, `user_id`, `progress_snapshot`, `page_snapshot`, `memory_jogger`, `concept_watchlist`, `thematic_bridge`, `mode`, `image_path`, `image_status`, `image_generated_at` |
 | `book_passports` | `book_id`, `user_id`, `total_days`, `peak_day`, `peak_day_pages`, `vocabulary_count`, `ai_summary`, `generated_at` |
-| `page_captures` | `user_id`, `book_id`, `page`, `text`, `word_count`, `confidence`, `captured_at`, `source` |
+| `page_captures` | `user_id`, `book_id`, `page`, `text`, `word_count`, `confidence`, `captured_at`, `source`, `resume` (jsonb: `bullets[]` + `tension`), `resume_generated_at` |
 | `lore_cards` | `user_id`, `book_id`, `title`, `content`, `type`, `linked_entities`, `unlocked_at_page`, `unlocked_at_milestone`, `seen` |
 | `reading_goals` | `user_id`, `year`, `target_books`, `created_at`, `updated_at` |
 
@@ -94,6 +94,7 @@ Notable migrations:
 | `lexicon_quote_entry_type` (MCP, 2026-07-03; not mirrored locally) | Deleted legacy `entry_type='lore'` rows (user decision); `lexicon_entries` CHECK now `('dictionary','quote')` — quotes are keepsake passages, excluded from review client-side. |
 | `20260703_session_pause_resume.sql` | `reading_progress.session_paused_at` — pause stamps it; resume shifts `session_start_at` forward by the paused span so all duration math needs no RPC changes. |
 | `20260703_get_monthly_reading.sql` | `get_monthly_reading` RPC — pages read + books finished per month for a year (timezone-aware, auth-guarded, organic-only); Trophy Room "Your year" chart. |
+| `20260713_session_page_resume.sql` | `page_captures.resume` (jsonb) + `resume_generated_at` — pre-session "Previously" dialog content, generated once per capture by the `generate-page-resume` edge function and purged with the row by the completion-cleanup triggers. |
 
 > **034 stat exclusion:** Imported books carry `source <> 'manual'`. Period-based surfaces filter them out — `get_reading_quest_summary.progress_rows` (yearly goal + XP) and `get_reading_stats.current_progress` (`totalPagesRead`). All other `get_reading_stats` fields read `progress_history`, which the quiet import never writes, so they need no filter. Lifetime surfaces (`get_library_breakdown`, `get_library_with_progress`, Reading DNA) intentionally keep imported books.
 

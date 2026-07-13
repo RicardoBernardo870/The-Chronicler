@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-06-18
+Last updated: 2026-07-13
 
 BookHero is a client-heavy Vue PWA backed by Supabase. The browser app owns routing, UI state, caching, offline progress queueing, and most user workflows. Supabase provides authentication, persistence, storage, database RPCs, and edge functions for AI workflows.
 
@@ -79,6 +79,10 @@ sequenceDiagram
   Edge->>Storage: Upload generated image
   Edge->>DB: Update recap image status/path
 ```
+
+## Data Flow: Session Resume (2026-07)
+
+The pre-session "Previously" dialog follows the vocabulary-extraction pattern: the `generate-page-resume` edge function is a stateless transformer (capture text in, 3 bullets + tension line out) and the client owns the DB write. Generation is fire-and-forget at capture time (`saveCapture` → `usePageResume`), persisted onto the `page_captures` row itself, so Start Session is normally a pure read. `SessionStartButton` gates the server-side `session_start_at` write behind the dialog's "Begin reading" confirm — a fresh recap covering the current position suppresses the dialog entirely (`useSessionResume`).
 
 ## Key Design Decisions
 

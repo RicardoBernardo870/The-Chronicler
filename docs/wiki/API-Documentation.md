@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-20
 
-> **Canonical inventory:** [`docs/backend-contract.md`](../backend-contract.md) (generated from a live DB introspection) is authoritative for the full surface — 5 edge functions, **60+ functions**, and the Community/Reading-Circles RPCs not listed here. This page covers the AI edge functions and the core reading RPCs.
+> **Canonical inventory:** [`docs/backend-contract.md`](../backend-contract.md) (generated from a live DB introspection) is authoritative for the full surface — 6 edge functions, **60+ functions**, and the Community/Reading-Circles RPCs not listed here. This page covers the AI edge functions and the core reading RPCs.
 
 BookHero does not define a traditional REST backend server. The app talks directly to Supabase tables/RPCs through `supabase-js` and calls Supabase Edge Functions for AI/OCR workflows.
 
@@ -179,6 +179,35 @@ Notes:
 
 - The client filters duplicates and proper-noun-looking candidates before inserting lexicon rows.
 - If the Gemini key is missing, the function is designed to return an empty result rather than blocking capture save.
+
+### `POST /functions/v1/generate-page-resume`
+
+Generates the pre-session "Previously" resume from one captured page's text (2026-07). Stateless transformer — the client persists the result onto `page_captures.resume`.
+
+Request:
+
+```json
+{
+  "pageText": "The full reviewed OCR text of the last captured page...",
+  "recapContext": "Optional: latest recap memory jogger, used only for name continuity"
+}
+```
+
+Response:
+
+```json
+{
+  "resume": {
+    "bullets": ["One short sentence.", "Up to three of them."],
+    "tension": "One present-tense open question."
+  }
+}
+```
+
+Notes:
+
+- Fire-and-forget contract: soft failures (missing key, garbled/non-narrative text, parse errors) return HTTP 200 with `"resume": null` — the session simply starts without a dialog.
+- Called once per capture (after `saveCapture`) plus an on-demand backfill at Start Session for pre-feature captures; the persisted row makes regeneration unnecessary.
 
 ### `POST /functions/v1/generate-reading-dna`
 

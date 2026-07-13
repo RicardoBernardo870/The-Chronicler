@@ -73,7 +73,8 @@ All `id` are `uuid default gen_random_uuid()` unless noted; all timestamps are `
 
 **`page_captures`** (RLS: owner select/insert/update/delete) — ~13 rows
 - `book_id`, `user_id`, `page` (≥0; **sourced from `reading_progress.current_page`, never OCR**), `text` (1–10000, post-edit OCR), `word_count`, `confidence` (0–1; UI warns <0.7), `captured_at`, `source` (`ocr`|`manual`|`import`, always `ocr` in v1)
-- **Images are not persisted.** Captured text is deleted on book completion (trigger), but the extraction ledger + quest XP survive.
+- `resume` (jsonb, nullable — 2026-07): session-start warm-up derived from this capture's text only: `{ bullets: string[] (≤3, one sentence each), tension: string }`. Written by the **client** after calling `generate-page-resume` (owner UPDATE policy); at most one generation per capture. `resume_generated_at` (timestamptz, nullable) is informational.
+- **Images are not persisted.** Captured text (including `resume`) is deleted on book completion (trigger), but the extraction ledger + quest XP survive.
 
 **`vocabulary_extractions`** (RLS: owner select/insert/update) — ledger, ~78 rows; idempotent by `capture_id` (unique, nullable)
 - `book_id`, `page`, `words_added` (0–5), `status` (`pending|succeeded|failed|skipped`), `error_message`, `created_at`
@@ -164,10 +165,11 @@ All are `SECURITY DEFINER` and re-assert the caller's identity. **Reads that nee
 
 | Function | verify_jwt | Auth | Purpose |
 |----------|-----------|------|---------|
-| `generate-recap` | false | own (Bearer → `auth.ts`) | Three-tier recaps: pre-start blurb, mid-book recap (corpus or inferred), completion passport summary, **and recap images**. Largest function (multi-module: prompts/handlers/extraction/router). Uses Gemini 2.5 Flash + an image model. |
+| `generate-recap` | false | own (Bearer → `auth.ts`) | Three-tier recaps: pre-start blurb, mid-book recap (corpus or inferred), completion passport summary, **and recap images**. Largest function (multi-module: prompts/handlers/extraction/router). Uses Gemini 2.5 Flash + an image model. *2026-07 (v84): arc-shaped recap prompt (anchor → what changed → strongest moment; `thematic_bridge` = open thread; all fields label-free prose because `memory_jogger` feeds the image refiner verbatim), `concept_watchlist` ≤5 items, passport paragraph 90–100 words. Repo sources synced with deployed v84 on 2026-07-13.* |
 | `generate-lore` | false | own | Lore cards from the master recap, milestone-gated, spoiler-safe |
 | `ocr-page` | false | own | Camera page → OCR text + confidence (Gemini multimodal). Images never stored. |
 | `extract-vocabulary` | true | platform JWT | After a capture, extract ≤5 vocab terms → `lexicon_entries` (`source='auto'`); ledgered in `vocabulary_extractions` |
+| `generate-page-resume` | true | platform JWT | Stateless transformer (2026-07): capture text (+ optional prior recap jogger for name continuity) → `{ resume: { bullets ≤3, tension } | null }`. Client persists onto `page_captures.resume`. Fire-and-forget contract: soft failures return 200 with `resume: null`. Powers the pre-session "Previously" dialog. |
 | `generate-reading-dna` | true | platform JWT | Reader DNA (personality, mood, suggestions) → `reading_dna` |
 
 > For iOS: these are plain HTTPS POST endpoints (`{project}/functions/v1/{slug}`) with a `Bearer` access token. The `verify_jwt:false` ones validate the token themselves; send the user's access token regardless. **Secrets** (Gemini/OpenAI keys) live in Supabase function env, not the client — keep it that way. **Entitlement checks** (subscriptions) should be enforced *here*, server-side, before spending AI tokens.

@@ -1,6 +1,6 @@
 # API Quick Reference
 
-Last updated: 2026-07-02
+Last updated: 2026-07-13
 
 This page is optional support material for [[API Documentation]]. Full inventory: [`docs/backend-contract.md`](../backend-contract.md).
 
@@ -12,6 +12,7 @@ This page is optional support material for [[API Documentation]]. Full inventory
 | `generate-lore` | Milestone lore cards | Supabase JWT | `src/services/loreService.ts` |
 | `ocr-page` | Page OCR from camera image payload | Supabase JWT | `src/composables/useCapture.ts` |
 | `extract-vocabulary` | Vocabulary candidates from OCR text | Supabase JWT | `src/composables/useVocabularyExtraction.ts` |
+| `generate-page-resume` | Pre-session "Previously" resume from the last captured page | Supabase JWT | `src/composables/usePageResume.ts` |
 | `generate-reading-dna` | Reader identity profile | Supabase JWT | `src/stores/readingDna.ts` |
 
 ## RPC Summary
