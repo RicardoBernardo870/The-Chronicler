@@ -6,7 +6,7 @@ import { useProgressStore } from "@/stores/progress";
 import { useLastSession } from "@/composables/useLastSession";
 import { useReadingVelocity } from "@/composables/useReadingVelocity";
 import { addDays, format } from "date-fns";
-import RecapStream from "@/components/recap/RecapStream.vue";
+import RecapDialog from "@/components/recap/RecapDialog.vue";
 import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 import SessionStartButton from "@/components/session/SessionStartButton.vue";
 import PageSaveSheet from "@/components/session/PageSaveSheet.vue";
@@ -323,22 +323,13 @@ onMounted(() => fetchLastSession());
     />
   </article>
 
-  <!-- Inline Recap Panel -->
-  <Transition name="hero-card__panel">
-    <div v-if="recapTriggered" class="hero-card__inline-panel glass-surface">
-      <div class="hero-card__inline-panel-header">
-        <span class="hero-card__inline-panel-title">AI Recap</span>
-        <button
-          class="hero-card__inline-dismiss"
-          aria-label="Dismiss recap"
-          @click="emit('dismissRecap')"
-        >
-          <i class="pi pi-times" />
-        </button>
-      </div>
-      <RecapStream :bookId="book.id" />
-    </div>
-  </Transition>
+  <!-- Recap modal (closing it aborts an in-flight stream via the parent) -->
+  <RecapDialog
+    :book-id="book.id"
+    :visible="recapTriggered"
+    @update:visible="(v) => { if (!v) emit('dismissRecap'); }"
+    @retry="emit('getRecap')"
+  />
 </template>
 
 <style scoped>
@@ -822,55 +813,13 @@ onMounted(() => fetchLastSession());
   transform: scale(1.04);
 }
 
-.hero-card__new-lore-chip:focus-visible,
-.hero-card__inline-dismiss:focus-visible {
+.hero-card__new-lore-chip:focus-visible {
   outline: 2px solid var(--p-indigo-300);
   outline-offset: 2px;
 }
 
 .hero-card__new-lore-chip .pi {
   font-size: 0.65rem;
-}
-
-/* Inline recap panel */
-.hero-card__inline-panel {
-  border-radius: 14px;
-  padding: 1rem 1.1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.hero-card__inline-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.hero-card__inline-panel-title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  opacity: 0.8;
-}
-
-.hero-card__inline-dismiss {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: inherit;
-  opacity: 0.45;
-  padding: 0.2rem 0.35rem;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  transition: opacity 0.15s;
-}
-
-.hero-card__inline-dismiss:hover {
-  opacity: 0.9;
-}
-.hero-card__inline-dismiss .pi {
-  font-size: 0.8rem;
 }
 
 .hero-card__fade-enter-active,
@@ -886,8 +835,6 @@ onMounted(() => fetchLastSession());
   transform: translateY(-4px);
 }
 
-.hero-card__panel-enter-active,
-.hero-card__panel-leave-active,
 .hero-card__detail-enter-active,
 .hero-card__detail-leave-active {
   overflow: hidden;
@@ -897,8 +844,6 @@ onMounted(() => fetchLastSession());
     max-height 0.22s ease;
 }
 
-.hero-card__panel-enter-from,
-.hero-card__panel-leave-to,
 .hero-card__detail-enter-from,
 .hero-card__detail-leave-to {
   opacity: 0;
@@ -906,8 +851,6 @@ onMounted(() => fetchLastSession());
   transform: translateY(-8px);
 }
 
-.hero-card__panel-enter-to,
-.hero-card__panel-leave-from,
 .hero-card__detail-enter-to,
 .hero-card__detail-leave-from {
   opacity: 1;
@@ -919,11 +862,8 @@ onMounted(() => fetchLastSession());
   .hero-card,
   .hero-card__cover,
   .hero-card__new-lore-chip,
-  .hero-card__inline-dismiss,
   .hero-card__fade-enter-active,
   .hero-card__fade-leave-active,
-  .hero-card__panel-enter-active,
-  .hero-card__panel-leave-active,
   .hero-card__detail-enter-active,
   .hero-card__detail-leave-active {
     transition: none;
@@ -934,8 +874,6 @@ onMounted(() => fetchLastSession());
   .hero-card:hover .hero-card__cover,
   .hero-card__fade-enter-from,
   .hero-card__fade-leave-to,
-  .hero-card__panel-enter-from,
-  .hero-card__panel-leave-to,
   .hero-card__detail-enter-from,
   .hero-card__detail-leave-to {
     transform: none;

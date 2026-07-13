@@ -39,6 +39,6 @@ FORMAT RULES (all fields):
 OUTPUT JSON ONLY:
 {
   "memory_jogger": "<2-4 sentences, MAX 90 words>",
-  "concept_watchlist": "<comma-separated, MAX 10 items>",
+  "concept_watchlist": "<comma-separated, MAX 5 items>",
   "thematic_bridge": "<1-2 sentences>"
 }`

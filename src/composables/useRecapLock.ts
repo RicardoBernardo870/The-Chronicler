@@ -8,8 +8,8 @@ const RECAP_COOLDOWN_HOURS = 6
 const RECAP_IDLE_UNLOCK_HOURS = 72
 
 // ⚠️ TESTING ONLY — forces the recap button unlocked (no page threshold, no
-// cooldown). Set back to false before release.
-const DISABLE_RECAP_LOCK = true
+// cooldown). Must be false in production.
+const DISABLE_RECAP_LOCK = false
 
 /**
  * Shared recap lock composable (FR-013, 010-dashboard-ux-sync).
