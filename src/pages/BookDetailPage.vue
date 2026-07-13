@@ -12,7 +12,7 @@ import { useCapturesStore } from "@/stores/captures";
 import { searchBooks, getBookDetail } from "@/services/bookSearchService";
 import BookDetailHeader from "@/components/book/BookDetailHeader.vue";
 import BookProgressPanel from "@/components/book/BookProgressPanel.vue";
-import RecapStream from "@/components/recap/RecapStream.vue";
+import RecapDialog from "@/components/recap/RecapDialog.vue";
 import BookRecapCarousel from "@/components/book/BookRecapCarousel.vue";
 import LoreChronoscopeCard from "@/components/lore/LoreChronoscopeCard.vue";
 import AddWordDialog from "@/components/lexicon/AddWordDialog.vue";
@@ -118,7 +118,6 @@ watch(progress, (p) => {
 const percentage = computed(() => progress.value?.percentage ?? 0);
 const isComplete = computed(() => percentage.value >= 100);
 const canViewJourney = computed(() => book.value?.source === 'manual');
-const isGenerating = computed(() => recapsStore.generationStatus === "streaming");
 const recapCount = computed(() => recapsStore.recapHistoryForBook(bookId.value).length);
 const completedRecapImages = computed(() =>
   recapsStore.recapHistoryForBook(bookId.value)
@@ -208,6 +207,11 @@ const getRecap = async () => {
 
 const retryRecap = () => { recapsStore.resetStatus(); doGenerateRecap(); };
 
+const closeRecapDialog = () => {
+  recapTriggered.value = false;
+  recapsStore.resetStatus();
+};
+
 const viewJourney = async () => {
   await router.push({ name: "book-passport", params: { id: bookId.value } });
 };
@@ -269,9 +273,10 @@ const viewJourney = async () => {
           />
         </div>
 
-        <RecapStream
-          v-if="!isComplete && (isGenerating || recapTriggered)"
-          :bookId="bookId"
+        <RecapDialog
+          :book-id="bookId"
+          :visible="recapTriggered"
+          @update:visible="(v) => { if (!v) closeRecapDialog(); }"
           @retry="retryRecap"
         />
 

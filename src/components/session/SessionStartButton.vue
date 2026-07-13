@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useReadingSession } from '@/composables/useReadingSession'
+import { useSessionResume } from '@/composables/useSessionResume'
+import SessionResumeDialog from '@/components/session/SessionResumeDialog.vue'
 import Button from 'primevue/button'
 
 const props = defineProps<{
@@ -14,6 +16,14 @@ const emit = defineEmits<{
 }>()
 
 const { state, startSession, pauseSession, resumeSession } = useReadingSession(props.bookId)
+
+// Pre-session resume: loaded on Start click, shown as a modal BEFORE the
+// session is started server-side. The timer (session_start_at) only starts
+// when the reader confirms via "Begin reading"; dismissing the dialog aborts
+// the start. The resume is persisted per capture, so start → cancel → start
+// re-shows the same stored resume without regenerating.
+const sessionResume = useSessionResume(props.bookId)
+const resumeDialogVisible = ref(false)
 
 const pending = ref(false)
 const pausePending = ref(false)
@@ -29,14 +39,7 @@ const elapsedLabel = computed(() => {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 })
 
-const handleClick = async () => {
-  error.value = null
-
-  if (state.value.isActive && state.value.startedAt) {
-    emit('cancelSession')
-    return
-  }
-
+const beginSession = async () => {
   pending.value = true
   try {
     await startSession()
@@ -45,6 +48,37 @@ const handleClick = async () => {
   } finally {
     pending.value = false
   }
+}
+
+const handleClick = async () => {
+  error.value = null
+
+  if (state.value.isActive && state.value.startedAt) {
+    emit('cancelSession')
+    return
+  }
+
+  // Load (or one-time backfill) the resume first — usually instant because it
+  // is pre-generated at capture time. With a resume, the dialog gates the
+  // session start; without one, start immediately as before.
+  pending.value = true
+  try {
+    await sessionResume.load()
+  } finally {
+    pending.value = false
+  }
+
+  if (sessionResume.view.value) {
+    resumeDialogVisible.value = true
+    return
+  }
+
+  await beginSession()
+}
+
+const confirmResume = async () => {
+  resumeDialogVisible.value = false
+  await beginSession()
 }
 
 const togglePause = async () => {
@@ -135,6 +169,14 @@ const togglePause = async () => {
     <p v-if="error" class="session-start-btn__error">
       <i class="pi pi-exclamation-triangle" /> {{ error }}
     </p>
+
+    <!-- Pre-session resume: timer starts only on "Begin reading" -->
+    <SessionResumeDialog
+      v-if="sessionResume.view.value"
+      v-model:visible="resumeDialogVisible"
+      :view="sessionResume.view.value"
+      @confirm="confirmResume"
+    />
   </div>
 </template>
 

@@ -1,17 +1,44 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Recap } from '@/types'
-import Accordion from 'primevue/accordion'
-import AccordionPanel from 'primevue/accordionpanel'
-import AccordionHeader from 'primevue/accordionheader'
-import AccordionContent from 'primevue/accordioncontent'
 import { formatShortDate } from '@/utils/date'
 import RecapImagePanel from '@/components/recap/RecapImagePanel.vue'
 
+// History journal entry — same story layout as RecapDialog (image, byline,
+// arc prose, watchlist chips, open-thread quote), no accordions.
 const props = defineProps<{
   recap: Recap
+  // Journal framing (both derived from the chronologically previous recap;
+  // omitted for standalone usage — the chip falls back to a single page).
+  fromPage?: number | null
+  daysSinceLast?: number | null
 }>()
 
 const formatDate = (iso: string): string => formatShortDate(iso)
+
+// Delta ranges are (fromPage, toPage] — display starts at fromPage + 1.
+// A regenerated same-range recap degenerates to a single page label.
+const rangeLabel = computed(() => {
+  const to = props.recap.pageSnapshot
+  if (to == null) return 'page —'
+  const from = Math.max(0, props.fromPage ?? 0) + 1
+  return from >= to ? `page ${to}` : `pages ${from}–${to}`
+})
+
+const bylineText = computed(() => {
+  const parts: string[] = []
+  if (props.recap.mode === 'corpus') parts.push('From your captures')
+  const days = props.daysSinceLast
+  if (days != null && days >= 1) parts.push(days === 1 ? '1 day later' : `${days} days later`)
+  return parts.join(' · ')
+})
+
+const watchlistItems = computed(() =>
+  props.recap.conceptWatchlist
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+)
 </script>
 
 <template>
@@ -19,13 +46,7 @@ const formatDate = (iso: string): string => formatShortDate(iso)
     <header class="recap-card__header">
       <span class="recap-card__progress">
         <i class="pi pi-chart-bar" />
-        page {{ recap.pageSnapshot ?? '—' }} · {{ recap.progressSnapshot }}%
-      </span>
-      <span
-        v-if="recap.mode === 'corpus'"
-        class="recap-card__corpus-badge"
-      >
-        📸 From your captures
+        {{ rangeLabel }} · {{ recap.progressSnapshot }}%
       </span>
       <time class="recap-card__date" :datetime="recap.createdAt">
         {{ formatDate(recap.createdAt) }}
@@ -38,46 +59,25 @@ const formatDate = (iso: string): string => formatShortDate(iso)
       :image-path="recap.imagePath"
     />
 
-    <Accordion :value="['0']" multiple class="recap-accordion">
-      <AccordionPanel value="0">
-        <AccordionHeader>
-          <span class="recap-card__section-label recap-card__section-label--memory">
-            <i class="pi pi-book" /> Memory Jogger
-          </span>
-        </AccordionHeader>
-        <AccordionContent>
-          <p class="recap-card__section-body">{{ recap.memoryJogger }}</p>
-        </AccordionContent>
-      </AccordionPanel>
+    <p v-if="bylineText" class="recap-card__byline">
+      <i v-if="recap.mode === 'corpus'" class="pi pi-camera" aria-hidden="true" />
+      {{ bylineText }}
+    </p>
 
-      <AccordionPanel value="1">
-        <AccordionHeader>
-          <span class="recap-card__section-label recap-card__section-label--concepts">
-            <i class="pi pi-list" /> Concept Watchlist
-          </span>
-        </AccordionHeader>
-        <AccordionContent>
-          <div class="recap-card__chips">
-            <span
-              v-for="item in recap.conceptWatchlist.split(',').map((s: string) => s.trim()).filter(Boolean)"
-              :key="item"
-              class="recap-chip"
-            >{{ item }}</span>
-          </div>
-        </AccordionContent>
-      </AccordionPanel>
+    <p class="recap-card__prose">{{ recap.memoryJogger }}</p>
 
-      <AccordionPanel value="2">
-        <AccordionHeader>
-          <span class="recap-card__section-label recap-card__section-label--bridge">
-            <i class="pi pi-compass" /> Thematic Bridge
-          </span>
-        </AccordionHeader>
-        <AccordionContent>
-          <p class="recap-card__section-body">{{ recap.thematicBridge }}</p>
-        </AccordionContent>
-      </AccordionPanel>
-    </Accordion>
+    <template v-if="watchlistItems.length">
+      <p class="recap-card__chips-label">Keep an eye on</p>
+      <div class="recap-card__chips">
+        <span v-for="item in watchlistItems" :key="item" class="recap-card__chip">
+          {{ item }}
+        </span>
+      </div>
+    </template>
+
+    <p v-if="recap.thematicBridge" class="recap-card__thread">
+      {{ recap.thematicBridge }}
+    </p>
   </article>
 </template>
 
@@ -87,7 +87,7 @@ const formatDate = (iso: string): string => formatShortDate(iso)
   padding: 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
 .recap-card__header {
@@ -115,54 +115,37 @@ const formatDate = (iso: string): string => formatShortDate(iso)
   opacity: 0.55;
 }
 
-/* 015-corpus-recaps: visible signal that this recap was grounded in
-   the user's captured page text (not inferred from book metadata). */
-.recap-card__corpus-badge {
+/* Stretch the shared image panel edge-to-edge inside the card */
+.recap-card :deep(.recap-image-panel) {
+  max-width: none;
+}
+
+.recap-card__byline {
+  margin: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  font-size: 0.7rem;
+  gap: 0.4rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  padding: 0.18rem 0.55rem;
-  border-radius: 999px;
-  background: linear-gradient(135deg, rgba(52, 211, 153, 0.18), rgba(167, 139, 250, 0.18));
-  border: 1px solid rgba(167, 139, 250, 0.30);
   color: var(--p-emerald-300, #6ee7b7);
 }
 
-.recap-card__section-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  margin-bottom: 0.5rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 999px;
-}
+.recap-card__byline .pi { font-size: 0.75rem; }
 
-.recap-card__section-label--memory {
-  background: rgba(99, 102, 241, 0.15);
-  color: #818cf8;
-}
-
-.recap-card__section-label--concepts {
-  background: rgba(16, 185, 129, 0.12);
-  color: #34d399;
-}
-
-.recap-card__section-label--bridge {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
-}
-
-.recap-card__section-body {
+.recap-card__prose {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.6;
-  opacity: 0.90;
+  opacity: 0.9;
+}
+
+.recap-card__chips-label {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.5;
 }
 
 .recap-card__chips {
@@ -171,61 +154,31 @@ const formatDate = (iso: string): string => formatShortDate(iso)
   gap: 0.4rem;
 }
 
-.recap-chip {
+.recap-card__chip {
   display: inline-block;
   font-size: 0.78rem;
   font-weight: 500;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
   background: rgba(99, 102, 241, 0.12);
-  opacity: 0.90;
-  border: 1px solid rgba(99, 102, 241, 0.20);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  opacity: 0.9;
 }
 
-/* Accordion overrides */
-.recap-accordion {
-  display: flex;
-  flex-direction: column;
+.recap-card__thread {
+  margin: 0.15rem 0 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--p-indigo-300);
+  font-size: 0.85rem;
+  font-style: italic;
+  opacity: 0.8;
 }
 
-.recap-accordion :deep(.p-accordionpanel) {
-  overflow: hidden;
+[data-p-theme='light'] .recap-card__progress {
+  color: var(--p-primary-700, #4338ca);
 }
 
-.recap-accordion :deep(.p-accordionheader) {
-  background: none !important;
-  padding: 0.625rem 0.875rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Kill PrimeVue's ugly gray hover */
-.recap-accordion :deep(.p-accordionpanel:not(.p-accordionpanel-active):not(.p-disabled) > .p-accordionheader:hover) {
-  background: none !important;
-}
-
-/* Toggle chevron — locked to indigo in every state */
-.recap-accordion :deep(.p-accordionheader-toggle-icon),
-.recap-accordion :deep(.p-accordionheader:hover .p-accordionheader-toggle-icon),
-.recap-accordion :deep(.p-accordionheader:focus .p-accordionheader-toggle-icon),
-.recap-accordion :deep(.p-accordionheader:focus-visible .p-accordionheader-toggle-icon),
-.recap-accordion :deep(.p-accordionpanel-active > .p-accordionheader .p-accordionheader-toggle-icon),
-.recap-accordion :deep(.p-accordionpanel-active > .p-accordionheader:hover .p-accordionheader-toggle-icon),
-.recap-accordion :deep(.p-accordionpanel-active > .p-accordionheader:focus .p-accordionheader-toggle-icon) {
-  color: #818cf8 !important;
-  opacity: 0.85;
-}
-
-/* Content area — inherit text color, no background, generous padding */
-.recap-accordion :deep(.p-accordioncontent-content) {
-  padding: 0.5rem 1rem 1rem;
-  background: none !important;
-  color: inherit;
-}
-
-.recap-accordion :deep(.p-accordionpanel + .p-accordionpanel) {
-  border-top: none;
+[data-p-theme='light'] .recap-card__byline {
+  color: var(--p-emerald-600, #059669);
 }
 </style>

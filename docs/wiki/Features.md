@@ -113,6 +113,8 @@ Business rules:
 - Mid-book recaps are gated by page progress and cooldown logic in `src/composables/useRecapLock.ts`.
 - Corpus recaps use saved page captures when available.
 - Captures are filtered client-side to the relevant page range before recap generation.
+- **Arc-shaped recaps (2026-07):** the `memory_jogger` is written as an arc — one sentence anchoring where the reader left off, then what changed across the stretch, ending on the moment with the strongest dramatic/visual weight — and `thematic_bridge` names the thread left open. Output JSON shape and DB schema are unchanged; all fields stay plain label-free prose because `memory_jogger` feeds the image prompt refiner verbatim. Journal framing ("pages 61–104 · 9 days later") is computed client-side from the previous recap's `pageSnapshot` and `createdAt` — no schema changes. `concept_watchlist` is capped at 5 items.
+- **Recap modal (2026-07):** Get Recap opens `RecapDialog.vue` (replaces the inline `RecapStream`, deleted, and the dashboard hero's inline "AI Recap" panel). Shimmer skeleton while streaming, then an image-first story layout: illustration slot ("Illustrating this stretch…" while the image is pending), corpus/days byline, arc prose, "Keep an eye on" chips, and the open-thread quote styled like the session-resume tension line. Footer: View history link + Done. Closing on the dashboard aborts an in-flight stream (existing abort controller); on Book Detail it resets status. History cards (`RecapCard.vue`) use the same layout — accordions removed.
 
 ## Page Capture and OCR
 
@@ -131,6 +133,26 @@ Business rules:
 - Images are not persisted.
 - Saved capture text is user-reviewed before storage.
 - Completion cleanup deletes page captures when a book is completed.
+
+## Session Resume (pre-session "Previously" dialog)
+
+Tapping **Start Session** first shows a modal dialog with a resume of the **last captured page only**: up to 3 one-sentence bullets and 1 tension line (no characters, no image generation). **The session timer only starts when the reader clicks "Begin reading"** — `session_start_at` is written on confirm, so dismissing the dialog aborts the session start entirely and reading-the-resume time is never counted. Strictly resume-or-nothing: with no resume to show, the session starts immediately as before.
+
+**Fresh-recap suppression:** if the latest recap covers the reader's current position (`pageSnapshot >= currentPage` — i.e. the user generated a recap since they last read, e.g. right before starting the session), no resume dialog is shown: the recap was this session's warm-up. A recap from an earlier stretch does not suppress (the pages read since it are uncovered). An unlocked-but-unused recap button never suppresses — only an actually-generated recap does.
+
+Technical implementation:
+
+- Edge function: `supabase/functions/generate-page-resume/index.ts` (stateless transformer — recap edge functions untouched)
+- Composables: `src/composables/usePageResume.ts` (generate + persist), `src/composables/useSessionResume.ts` (dialog data + fresh-recap suppression)
+- Components: `src/components/session/SessionResumeDialog.vue`, orchestrated by `SessionStartButton.vue` (single session-start entry point for Book Detail + Dashboard hero)
+- Data: `page_captures.resume` (jsonb) + `resume_generated_at` — migration `20260713_session_page_resume.sql`
+
+Business rules:
+
+- Generated at **capture time**, unconditionally (fire-and-forget after `saveCapture`, like vocab extraction); showing vs. suppressing is decided at Start Session click. Pre-feature captures are backfilled at that moment — at most one AI call per capture ever, result persisted, so start → cancel → start re-shows the stored resume without regenerating.
+- Grounded ONLY in the capture's own text (+ latest recap memory jogger passed strictly for name continuity). Never inferred from book metadata.
+- Stored on the `page_captures` row, so completion cleanup purges it with the OCR text.
+- Fully independent of recaps: no writes to `recaps`, no effect on `useRecapLock` cooldowns.
 
 ## Codex (Lexicon and Review)
 

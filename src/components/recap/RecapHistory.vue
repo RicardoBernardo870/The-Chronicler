@@ -6,6 +6,19 @@ const props = defineProps<{
   recaps: Recap[]
   bookTitle?: string
 }>()
+
+// List is newest-first, so the chronologically previous recap is the next
+// item. First-ever recap gets fromPage 0 ("pages 1–X") and no day gap.
+const previousOf = (index: number): Recap | null => props.recaps[index + 1] ?? null
+
+const fromPageOf = (index: number): number => previousOf(index)?.pageSnapshot ?? 0
+
+const daysSinceLastOf = (index: number): number | null => {
+  const prev = previousOf(index)
+  if (!prev) return null
+  const gapMs = new Date(props.recaps[index].createdAt).getTime() - new Date(prev.createdAt).getTime()
+  return Math.floor(gapMs / 86_400_000)
+}
 </script>
 
 <template>
@@ -20,9 +33,11 @@ const props = defineProps<{
 
     <TransitionGroup v-else name="recap-list" tag="div" class="recap-history__list">
       <RecapCard
-        v-for="recap in recaps"
+        v-for="(recap, index) in recaps"
         :key="recap.id"
         :recap="recap"
+        :from-page="fromPageOf(index)"
+        :days-since-last="daysSinceLastOf(index)"
       />
     </TransitionGroup>
   </section>
