@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, reactive, computed } from 'vue'
 import { supabase } from '@/services/supabase'
 import { useAuthStore } from '@/stores/auth'
-import { mapPageCapture, type PageCapture, type PageCaptureRow } from '@/types'
+import { mapPageCapture, type PageCapture, type PageCaptureRow, type SessionResume } from '@/types'
 import { cacheKeys, invalidate } from '@/composables/useCache'
 
 /**
@@ -53,7 +53,7 @@ export const useCapturesStore = defineStore('captures', () => {
 
     const { data, error } = await supabase
       .from('page_captures')
-      .select('id, user_id, book_id, page, text, word_count, confidence, captured_at, source')
+      .select('id, user_id, book_id, page, text, word_count, confidence, captured_at, source, resume')
       .eq('book_id', bookId)
       .order('page', { ascending: true })
 
@@ -129,6 +129,16 @@ export const useCapturesStore = defineStore('captures', () => {
         console.warn('[captures] vocab trigger import failed', vocabErr)
       }
 
+      // Session-start resume — fire-and-forget, same contract as vocab:
+      // silent on failure, capture stays successful. Result is persisted on
+      // the capture row so session start is a pure read.
+      try {
+        const { usePageResume } = await import('@/composables/usePageResume')
+        usePageResume().triggerResumeGeneration(mapped)
+      } catch (resumeErr) {
+        console.warn('[captures] resume trigger import failed', resumeErr)
+      }
+
       return mapped
     } catch (e: unknown) {
       lastError.value = e instanceof Error ? e.message : 'Failed to save capture'
@@ -136,6 +146,14 @@ export const useCapturesStore = defineStore('captures', () => {
     } finally {
       saving.value = false
     }
+  }
+
+  /** Patch the locally-cached capture after a resume is persisted server-side. */
+  const applyResume = (bookId: string, page: number, resume: SessionResume): void => {
+    const list = capturesByBook[bookId]
+    if (!list) return
+    const entry = list.find((c) => c.page === page)
+    if (entry) entry.resume = resume
   }
 
   const clearCachedCaptures = (bookId?: string): void => {
@@ -159,6 +177,7 @@ export const useCapturesStore = defineStore('captures', () => {
     pageHasCapture,
     fetchCapturesForBook,
     saveCapture,
+    applyResume,
     clearCachedCaptures,
   }
 })

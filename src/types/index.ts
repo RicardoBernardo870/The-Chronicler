@@ -741,6 +741,14 @@ export const mapLoreCard = (row: LoreCardRow): LoreCard => ({
 
 export type PageCaptureSource = 'ocr' | 'manual' | 'import'
 
+// Session resume — one-page warm-up shown in a dialog before the session
+// timer starts. Grounded ONLY in the capture's own text (never inferred);
+// stored on the capture row so it is purged with the OCR text on completion.
+export interface SessionResume {
+  bullets: string[]     // up to 3, one sentence each
+  tension: string       // single sentence, present tense
+}
+
 export interface PageCapture {
   id: string
   userId: string
@@ -751,6 +759,7 @@ export interface PageCapture {
   confidence: number    // 0.0-1.0, self-rated by Gemini multimodal
   capturedAt: string
   source: PageCaptureSource
+  resume: SessionResume | null
 }
 
 export interface PageCaptureRow {
@@ -763,6 +772,7 @@ export interface PageCaptureRow {
   confidence: number
   captured_at: string
   source: PageCaptureSource
+  resume: SessionResume | null
 }
 
 export const mapPageCapture = (row: PageCaptureRow): PageCapture => ({
@@ -775,6 +785,7 @@ export const mapPageCapture = (row: PageCaptureRow): PageCapture => ({
   confidence: Number(row.confidence),
   capturedAt: row.captured_at,
   source: row.source,
+  resume: row.resume ?? null,
 })
 
 // ── Community profile (customization page) ────────────────────────────────────
