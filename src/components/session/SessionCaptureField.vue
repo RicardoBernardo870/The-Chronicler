@@ -64,7 +64,7 @@ const handleUploadChange = async (event: Event): Promise<void> => {
   input.value = ""; // allow re-picking the same file
   if (!file) return;
   lastMethod.value = "upload";
-  glassToast.showLoading("Reading the page…", "Analysing the text");
+  glassToast.showLoading("Reading the page…");
   await importImage(file);
   if (state.value === "error" && errorMessage.value) {
     glassToast.dismiss();
