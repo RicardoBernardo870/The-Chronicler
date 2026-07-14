@@ -215,7 +215,11 @@ const handleSkip = (): void => {
   />
 
   <!-- Capture flow -->
-  <div v-else class="session-capture">
+  <div
+    v-else
+    class="session-capture"
+    :class="{ 'session-capture--busy': state === 'ocr-running' || autoSaving }"
+  >
     <!-- Hidden upload input, triggered by the "Upload image" buttons -->
     <input
       ref="fileInput"
@@ -283,16 +287,8 @@ const handleSkip = (): void => {
     />
 
     <!-- State: OCR running (or auto-saving a high-confidence capture).
-         The glass toast carries the loading feedback; this is just a quiet
-         placeholder so the panel doesn't collapse. -->
-    <div
-      v-else-if="state === 'ocr-running' || autoSaving"
-      class="session-capture__loading"
-      aria-hidden="true"
-    >
-      <div class="glass-shimmer session-capture__shimmer session-capture__shimmer--wide" />
-      <div class="glass-shimmer session-capture__shimmer" />
-    </div>
+         No inline UI — the glass toast carries the loading feedback and the
+         whole panel is hidden via .session-capture--busy on the root. -->
 
     <!-- State: review captured image + OCR text -->
     <CaptureReviewViewport
@@ -512,20 +508,10 @@ const handleSkip = (): void => {
   opacity: 0.45;
 }
 
-.session-capture__loading {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  padding: 0.5rem 0;
-}
-
-.session-capture__shimmer {
-  height: 0.8rem;
-  width: 55%;
-}
-
-.session-capture__shimmer--wide {
-  width: 80%;
+/* While OCR/auto-save runs, the glass toast is the only loading indicator —
+   collapse the panel entirely so no empty chrome sits on the hero card. */
+.session-capture--busy {
+  display: none;
 }
 
 .session-capture__panel {
