@@ -4,6 +4,7 @@
   <ConfirmDialog :style="{ width: '90%' }" />
   <Toast position="bottom-center" :pt="{ root: { style: 'margin-bottom: var(--app-nav-bottom-clearance, 4rem); width: 280px' } }" />
   <LoreGenerationBanner />
+  <GlassToast />
 </template>
 
 <script setup lang="ts">
@@ -14,6 +15,7 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner.vue'
 import ConfirmDialog from 'primevue/confirmdialog'
 import Toast from 'primevue/toast'
 import LoreGenerationBanner from '@/components/lore/LoreGenerationBanner.vue'
+import GlassToast from '@/components/shared/GlassToast.vue'
 
 const authStore = useAuthStore()
 const progressStore = useProgressStore()

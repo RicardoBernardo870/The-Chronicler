@@ -3,6 +3,7 @@ import { ref, computed, defineAsyncComponent } from "vue";
 import { useProgressStore } from "@/stores/progress";
 import { useCapturesStore } from "@/stores/captures";
 import { useCapture } from "@/composables/useCapture";
+import { useGlassToast } from "@/composables/useGlassToast";
 import Button from "primevue/button";
 import { useToast } from "primevue/usetoast";
 
@@ -32,6 +33,7 @@ const emit = defineEmits<{
 const progressStore = useProgressStore();
 const capturesStore = useCapturesStore();
 const toast = useToast();
+const glassToast = useGlassToast();
 
 const {
   state,
@@ -62,19 +64,33 @@ const handleUploadChange = async (event: Event): Promise<void> => {
   input.value = ""; // allow re-picking the same file
   if (!file) return;
   lastMethod.value = "upload";
+  glassToast.showLoading("Reading the page…");
   await importImage(file);
   if (state.value === "error" && errorMessage.value) {
+    glassToast.dismiss();
     toast.add({
       severity: "error",
       summary: "Couldn't read that image",
       detail: errorMessage.value,
       life: 4000,
     });
+    return;
   }
+  await finishCapture();
 };
 
 // 'note' = user chose "Add note instead"; rendered SessionNoteField fallback
 const mode = ref<"capture" | "note">("capture");
+
+// Captures at or above this confidence save without the manual review step.
+const AUTO_SAVE_CONFIDENCE = 0.9;
+// Mirrors CaptureVerifyView's textarea limit so auto-saved text obeys the
+// same cap as manually reviewed text.
+const MAX_CHARS = 10_000;
+
+// True while a high-confidence capture is being saved automatically; keeps
+// the loading state on screen instead of flashing the review UI.
+const autoSaving = ref(false);
 
 const currentPage = computed(
   () => progressStore.progressForBook(props.bookId)?.currentPage ?? 0,
@@ -87,19 +103,23 @@ const handleStartCapture = (): void => {
 };
 
 const handleSnap = async (): Promise<void> => {
+  glassToast.showLoading("Reading the page…", "Analysing the text");
   await snap();
   if (state.value === "error" && errorMessage.value) {
+    glassToast.dismiss();
     toast.add({
       severity: "error",
       summary: "OCR failed",
       detail: errorMessage.value,
       life: 4000,
     });
+    return;
   }
+  await finishCapture();
 };
 
-const handleSave = async (text: string): Promise<void> => {
-  if (!ocrResult.value) return;
+const handleSave = async (text: string): Promise<boolean> => {
+  if (!ocrResult.value) return false;
   try {
     const wordCount = text.split(/\s+/).filter(Boolean).length;
     await capturesStore.saveCapture({
@@ -110,6 +130,7 @@ const handleSave = async (text: string): Promise<void> => {
       wordCount,
     });
     emit("saved");
+    return true;
   } catch (e) {
     toast.add({
       severity: "error",
@@ -117,7 +138,43 @@ const handleSave = async (text: string): Promise<void> => {
       detail: e instanceof Error ? e.message : "Unknown error",
       life: 4000,
     });
+    return false;
   }
+};
+
+// Runs after OCR completes, while the loading glass toast is still up.
+// High confidence → save immediately and swap the toast to success. Low
+// confidence (or empty text) → the review UI appears; swap the toast to a
+// warning so the user knows why they're being asked to check the text. On
+// save failure the error toast has already fired and state stays 'verify',
+// so the review UI is the fallback.
+const finishCapture = async (): Promise<void> => {
+  if (state.value !== "verify" || !ocrResult.value) {
+    // denied / offline / preview-missing paths — the inline panels take over
+    glassToast.dismiss();
+    return;
+  }
+
+  const text = ocrResult.value.text.slice(0, MAX_CHARS).trim();
+  if (ocrResult.value.confidence >= AUTO_SAVE_CONFIDENCE && text) {
+    autoSaving.value = true;
+    try {
+      const saved = await handleSave(text);
+      if (saved) {
+        glassToast.show("Page captured", "Text analysed successfully.");
+      } else {
+        glassToast.dismiss();
+      }
+    } finally {
+      autoSaving.value = false;
+    }
+    return;
+  }
+
+  glassToast.showWarn(
+    "Check the captured text",
+    "The scan wasn't clear — review the text or retake the photo.",
+  );
 };
 
 const handleCancelRetake = (): void => {
@@ -158,7 +215,11 @@ const handleSkip = (): void => {
   />
 
   <!-- Capture flow -->
-  <div v-else class="session-capture">
+  <div
+    v-else
+    class="session-capture"
+    :class="{ 'session-capture--busy': state === 'ocr-running' || autoSaving }"
+  >
     <!-- Hidden upload input, triggered by the "Upload image" buttons -->
     <input
       ref="fileInput"
@@ -225,10 +286,9 @@ const handleSkip = (): void => {
       @cancel="handleSkip"
     />
 
-    <!-- State: OCR running -->
-    <div v-else-if="state === 'ocr-running'" class="session-capture__loading">
-      <i class="pi pi-spin pi-spinner" /> Reading the page...
-    </div>
+    <!-- State: OCR running (or auto-saving a high-confidence capture).
+         No inline UI — the glass toast carries the loading feedback and the
+         whole panel is hidden via .session-capture--busy on the root. -->
 
     <!-- State: review captured image + OCR text -->
     <CaptureReviewViewport
@@ -448,13 +508,10 @@ const handleSkip = (): void => {
   opacity: 0.45;
 }
 
-.session-capture__loading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  opacity: 0.75;
-  padding: 0.5rem 0;
+/* While OCR/auto-save runs, the glass toast is the only loading indicator —
+   collapse the panel entirely so no empty chrome sits on the hero card. */
+.session-capture--busy {
+  display: none;
 }
 
 .session-capture__panel {

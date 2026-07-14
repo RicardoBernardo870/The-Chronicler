@@ -131,7 +131,7 @@ Technical implementation:
 Business rules:
 
 - Images are not persisted.
-- Saved capture text is user-reviewed before storage.
+- Captures with OCR confidence ≥ 0.90 save automatically with a success toast; below that, the user reviews/edits the text before saving (with an extra low-confidence warning under 0.70).
 - Completion cleanup deletes page captures when a book is completed.
 
 ## Session Resume (pre-session "Previously" dialog)
