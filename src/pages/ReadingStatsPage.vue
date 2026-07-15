@@ -14,6 +14,7 @@ import { useLibraryBreakdown } from '@/composables/useLibraryBreakdown'
 import MonthlyReadingChart from '@/components/profile/MonthlyReadingChart.vue'
 import ReadingCalendarCard from '@/components/profile/ReadingCalendarCard.vue'
 import LifetimeStatsGrid from '@/components/profile/LifetimeStatsGrid.vue'
+import RecordsCard from '@/components/profile/RecordsCard.vue'
 import BookLengthCard from '@/components/profile/BookLengthCard.vue'
 import LibraryBreakdownCard from '@/components/profile/LibraryBreakdownCard.vue'
 
@@ -72,6 +73,7 @@ onMounted(async () => {
       <MonthlyReadingChart />
       <ReadingCalendarCard />
       <LifetimeStatsGrid />
+      <RecordsCard />
       <BookLengthCard />
       <LibraryBreakdownCard />
     </div>

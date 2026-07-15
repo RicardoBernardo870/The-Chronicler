@@ -10,6 +10,7 @@ import RecapDialog from "@/components/recap/RecapDialog.vue";
 import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 import SessionStartButton from "@/components/session/SessionStartButton.vue";
 import PageSaveSheet from "@/components/session/PageSaveSheet.vue";
+import FocusModeOverlay from "@/components/session/FocusModeOverlay.vue";
 import { useReadingSession } from "@/composables/useReadingSession";
 import Button from "primevue/button";
 import Chip from "primevue/chip";
@@ -55,6 +56,7 @@ const sessionActive = computed(() => sessionState.value.isActive);
 // Page-save sheet — single entry point for typing a page number
 const sheetVisible = ref(false);
 const sheetMode = ref<"end" | "edit">("edit");
+const focusVisible = ref(false);
 
 const openEndSheet = () => {
   sheetMode.value = "end";
@@ -290,6 +292,24 @@ onMounted(() => fetchLastSession());
         @click="emit('getRecap')"
       />
     </div>
+
+    <!-- Focus mode: full-screen timer + Screen Wake Lock while reading -->
+    <button
+      v-if="sessionActive"
+      type="button"
+      class="hero-card__focus"
+      @click="focusVisible = true"
+    >
+      <i class="pi pi-expand" aria-hidden="true" />
+      <span>Focus mode</span>
+    </button>
+
+    <FocusModeOverlay
+      v-if="focusVisible && sessionActive"
+      :book="book"
+      @close="focusVisible = false"
+      @end-session="() => { focusVisible = false; openEndSheet() }"
+    />
 
     <Transition name="hero-card__detail" mode="out-in">
       <div
@@ -736,6 +756,37 @@ onMounted(() => fetchLastSession());
   border: none !important;
   background: var(--p-primary-color) !important;
   color: #fff !important;
+}
+
+.hero-card__focus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.55rem 0.5rem;
+  border: 1px dashed rgba(99, 102, 241, 0.4);
+  border-radius: var(--p-border-radius-lg, 12px);
+  background: transparent;
+  color: var(--p-indigo-300);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.hero-card__focus:hover {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.hero-card__focus .pi {
+  font-size: 0.75rem;
+}
+
+[data-p-theme='light'] .hero-card__focus {
+  color: var(--p-primary-700, #4338ca);
 }
 
 .hero-card__recap-btn--locked {

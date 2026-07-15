@@ -1,18 +1,21 @@
 <script setup lang="ts">
 // Trophy Room — the goals half of the profile, one tap deep: yearly quest
-// ring with pace metrics and the reader level/XP strip. The analytical
-// charts and records live on ReadingStatsPage. Orchestration only
-// (Constitution VI).
+// ring with pace metrics, the reader level/XP strip, and the achievements
+// wall. The analytical charts and records live on ReadingStatsPage.
+// Orchestration only (Constitution VI).
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button, Skeleton } from 'primevue'
 import { useReadingQuestStore } from '@/stores/readingQuest'
+import { useAchievements } from '@/composables/useAchievements'
 
 import QuestGoalHero from '@/components/profile/QuestGoalHero.vue'
 import ReaderLevelStrip from '@/components/profile/ReaderLevelStrip.vue'
+import AchievementsGrid from '@/components/profile/AchievementsGrid.vue'
 
 const router = useRouter()
 const readingQuestStore = useReadingQuestStore()
+const achievements = useAchievements()
 
 const pageReady = ref(false)
 const level = computed(() => readingQuestStore.summary?.level ?? null)
@@ -24,9 +27,10 @@ const goBack = () => {
 
 onMounted(async () => {
   try {
-    // Deep-link safe; SWR-cached, so arriving from the profile costs zero
-    // extra network.
-    await readingQuestStore.fetchQuestSummary().catch(() => {})
+    // Deep-link safe; sync() loads quest summary, lifetime stats, records,
+    // and the earned ledger (all SWR-cached), then persists newly-earned
+    // achievement keys.
+    await achievements.sync()
   } finally {
     pageReady.value = true
   }
@@ -57,6 +61,7 @@ onMounted(async () => {
     <div v-else class="trophy-room__sections">
       <QuestGoalHero />
       <ReaderLevelStrip v-if="level" :level="level" />
+      <AchievementsGrid />
     </div>
   </section>
 </template>

@@ -200,6 +200,8 @@ export const cacheKeys = {
   readingQuest:    (uid: string)                  => `readingQuest:${uid}`,
   // 019 — reading-velocity RPC: cached until a session ends or the page reloads
   velocity:        (uid: string)                  => `velocity:${uid}`,
+  // Personal records RPC (Stats page + achievement conditions)
+  readingRecords:  (uid: string)                  => `readingRecords:${uid}`,
 } as const
 
 // ── Dev-only observability (T004 / data-model.md § Observability) ─────────────
