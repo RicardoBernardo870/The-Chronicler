@@ -127,7 +127,7 @@ const endSession = async (): Promise<void> => {
           {{ elapsedLabel }}
         </p>
         <p class="focus-mode__status">
-          {{ state.isPaused ? 'Paused' : wakeLock.active.value ? 'Screen stays awake' : 'Reading' }}
+          {{ state.isPaused ? 'Paused' : 'Reading...' }}
         </p>
       </div>
 
@@ -305,7 +305,7 @@ const endSession = async (): Promise<void> => {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  color: rgba(165, 170, 246, 0.3);
+  color: rgba(178, 183, 250, 0.6);
 }
 
 .focus-mode__dim-hint {
