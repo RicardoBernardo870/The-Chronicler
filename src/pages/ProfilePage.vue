@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Reader Profile — identity-first layout: avatar + goal ring header, compact
-// Reading DNA strip, DNA recommendation scroller, and stat pills. The
-// analytical cards (quest / lifetime stats / breakdown) live one tap deep on
-// ProfileStatsPage. Orchestrates state and layout only; substantive UI is
+// Reading DNA strip, DNA recommendation scroller, and stat pills. The detail
+// pages live one tap deep: goals on TrophyRoomPage, analytics on
+// ReadingStatsPage. Orchestrates state and layout only; substantive UI is
 // delegated to components under src/components/profile/. (Constitution VI.)
 import { onMounted, ref } from "vue";
 import { Skeleton } from "primevue";
