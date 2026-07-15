@@ -835,6 +835,29 @@ export const mapBookQuiz = (row: BookQuizRow): BookQuiz => ({
   generatedAt: row.generated_at,
 })
 
+// ─────────────────────────────────────────────────────────────
+// Personal records + Achievements (Trophy Room / Stats split)
+// ─────────────────────────────────────────────────────────────
+
+// get_reading_records RPC result. All fields null/false until the reader has
+// the matching history (organic reads only — imports never write history).
+export interface ReadingRecords {
+  bestDay: { pages: number; date: string } | null
+  longestSession: { minutes: number; date: string } | null
+  fastestFinish: { days: number; title: string } | null
+  nightOwl: boolean
+}
+
+// A definition merged with its (possibly persisted) earned state.
+export interface AchievementView {
+  key: string
+  title: string
+  description: string
+  icon: string
+  earned: boolean
+  earnedAt: string | null
+}
+
 // ── Community profile (customization page) ────────────────────────────────────
 
 export type ProfileVisibility = 'everyone' | 'followers' | 'nobody'
