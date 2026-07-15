@@ -16,6 +16,7 @@ import RecapDialog from "@/components/recap/RecapDialog.vue";
 import BookRecapCarousel from "@/components/book/BookRecapCarousel.vue";
 import LoreChronoscopeCard from "@/components/lore/LoreChronoscopeCard.vue";
 import AddWordDialog from "@/components/lexicon/AddWordDialog.vue";
+import MemoryCheckDialog from "@/components/session/MemoryCheckDialog.vue";
 import SessionCaptureField from "@/components/session/SessionCaptureField.vue";
 import Button from "primevue/button";
 import Skeleton from "primevue/skeleton";
@@ -42,6 +43,7 @@ const progressLoading = ref(false);
 const progressError = ref<string | null>(null);
 const recapTriggered = ref(false);
 const addWordVisible = ref(false);
+const memoryCheckVisible = ref(false);
 
 // ── Post-session capture prompt ──────────────────────────────────────────
 // Shown inline on this page right after a session ends — so the user sees
@@ -244,6 +246,14 @@ const viewJourney = async () => {
         @view-journey="viewJourney"
         @open-add-word="addWordVisible = true"
         @view-lexicon="router.push({ name: 'lexicon', query: { bookId } })"
+        @open-memory-check="memoryCheckVisible = true"
+      />
+
+      <!-- On-demand Memory Check (035) — quiz built from this book's captures -->
+      <MemoryCheckDialog
+        :book-id="bookId"
+        v-model:visible="memoryCheckVisible"
+        mode="ondemand"
       />
 
       <!-- Post-session page capture prompt (appears immediately after saving progress with an active session) -->

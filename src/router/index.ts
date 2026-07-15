@@ -59,9 +59,14 @@ const router = createRouter({
           component: () => import("@/pages/ProfilePage.vue"),
         },
         {
+          path: "profile/trophy-room",
+          name: "trophy-room",
+          component: () => import("@/pages/TrophyRoomPage.vue"),
+        },
+        {
           path: "profile/stats",
           name: "profile-stats",
-          component: () => import("@/pages/ProfileStatsPage.vue"),
+          component: () => import("@/pages/ReadingStatsPage.vue"),
         },
         {
           path: "profile/edit",

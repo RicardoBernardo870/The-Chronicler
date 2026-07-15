@@ -27,6 +27,7 @@ const emit = defineEmits<{
   viewJourney: []
   openAddWord: []
   viewLexicon: []
+  openMemoryCheck: []
 }>()
 
 // Session state drives the panel's two modes (same pattern as the hero card)
@@ -125,6 +126,15 @@ const onSheetSave = (page: number) => {
       >
         <i class="pi pi-book" aria-hidden="true" />
         <span>Words {{ lexiconCount }}</span>
+      </button>
+      <button
+        v-if="!isComplete"
+        type="button"
+        class="progress-panel__chip"
+        @click="emit('openMemoryCheck')"
+      >
+        <i class="pi pi-bolt" aria-hidden="true" />
+        <span>Memory check</span>
       </button>
     </div>
   </section>

@@ -2,7 +2,9 @@
 import { computed, ref } from 'vue'
 import { useReadingSession } from '@/composables/useReadingSession'
 import { useSessionResume } from '@/composables/useSessionResume'
+import { useBookQuiz } from '@/composables/useBookQuiz'
 import SessionResumeDialog from '@/components/session/SessionResumeDialog.vue'
+import MemoryCheckDialog from '@/components/session/MemoryCheckDialog.vue'
 import Button from 'primevue/button'
 
 const props = defineProps<{
@@ -24,6 +26,13 @@ const { state, startSession, pauseSession, resumeSession } = useReadingSession(p
 // re-shows the same stored resume without regenerating.
 const sessionResume = useSessionResume(props.bookId)
 const resumeDialogVisible = ref(false)
+
+// Memory Check (035): when the reader has been away from this book for 2+
+// days (and quiz material exists), the "Previously" slot offers a short
+// recall quiz INSTEAD of the passive resume bullets. Same timer contract —
+// the session only starts on "Begin reading" / "Skip to reading".
+const bookQuiz = useBookQuiz(props.bookId)
+const quizDialogVisible = ref(false)
 
 const pending = ref(false)
 const pausePending = ref(false)
@@ -58,7 +67,22 @@ const handleClick = async () => {
     return
   }
 
-  // Load (or one-time backfill) the resume first — usually instant because it
+  // Memory Check first: cheap cached reads decide eligibility (away 2+ days
+  // + capture material + no fresh recap). The AI call, if any, only happens
+  // after the reader taps "Quiz me" inside the dialog.
+  pending.value = true
+  try {
+    await bookQuiz.prepare()
+  } finally {
+    pending.value = false
+  }
+
+  if (bookQuiz.sessionPromptEligible.value) {
+    quizDialogVisible.value = true
+    return
+  }
+
+  // Load (or one-time backfill) the resume — usually instant because it
   // is pre-generated at capture time. With a resume, the dialog gates the
   // session start; without one, start immediately as before.
   pending.value = true
@@ -176,6 +200,14 @@ const togglePause = async () => {
       v-model:visible="resumeDialogVisible"
       :view="sessionResume.view.value"
       @confirm="confirmResume"
+    />
+
+    <!-- Memory Check (2+ days away): timer starts only on begin/skip -->
+    <MemoryCheckDialog
+      :book-id="bookId"
+      v-model:visible="quizDialogVisible"
+      mode="session"
+      @begin="beginSession"
     />
   </div>
 </template>

@@ -154,6 +154,28 @@ Business rules:
 - Stored on the `page_captures` row, so completion cleanup purges it with the OCR text.
 - Fully independent of recaps: no writes to `recaps`, no effect on `useRecapLock` cooldowns.
 
+## Memory Check (pre-session recall quiz)
+
+A short multiple-choice quiz (up to 3 questions, exactly 3 options each) grounded **only** in the reader's own page captures (+ latest recap memory jogger for name continuity) — spoiler-safe by construction. Exactly two entry points, never a random popup:
+
+1. **Session start, away 2+ days:** when the last `progress_history` save for the book is 2+ days old and capture material exists, the "Previously" slot offers the quiz instead of the passive resume bullets (intro step: "Quiz me" / "Skip to reading" — the AI call is only spent on opt-in). Same timer contract as the resume dialog: `session_start_at` is written only on begin/skip.
+2. **On demand:** a "Memory check" chip on the Book Detail progress panel (hidden for completed books).
+
+Technical implementation:
+
+- Edge function: `supabase/functions/generate-book-quiz/index.ts` (stateless transformer, server-side option shuffle; returns `{ quiz: null }` on soft failure)
+- Composable: `src/composables/useBookQuiz.ts` (module-singleton cache, eligibility, generate/upsert, score save)
+- Components: `src/components/session/MemoryCheckDialog.vue` (intro → questions → summary state machine), orchestrated by `SessionStartButton.vue`; chip in `BookProgressPanel.vue`
+- Data: `book_quizzes` (one row per user+book, `unique (user_id, book_id)`) — migration `20260715_book_quizzes.sql`
+
+Business rules:
+
+- Answering shows instant feedback with the source note ("From your capture · page N"); the summary shows the score and, on a miss, a "Read the full recap" link into recap history.
+- **Caching:** the quiz row is reused while `page_snapshot >= current_page` (start → cancel → start never re-bills); a fresh quiz is generated (upserted) only after the reader reads past the snapshot. Retakes are allowed and update `score`/`answered_at`.
+- **Suppression:** the session-start prompt is skipped when a fresh recap covers the reader's position (same rule as the resume dialog) or when the covering quiz was already answered — recall is proven, don't nag. The Book Detail chip is exempt from both.
+- Strictly capture-or-nothing: no captures → no quiz (the on-demand dialog shows an empty state inviting a capture).
+- Completion cleanup deletes the quiz with the captures (`book_quizzes_delete_on_completion` trigger); no XP, no quiz history in v1.
+
 ## Codex (Lexicon and Review)
 
 The Great Library was renamed **Codex** (nav label, page title; header shows "N words · M mastered"). Tabs: **Lexicon / Insights**. Readers collect **words** (dictionary lookup) and **quotes** (multiline passage + optional note — `entry_type = 'quote'`, replacing the old manual `lore` type, whose entries were deleted by user decision). One "Add to Codex" modal serves both via a type switch that reshapes the form. The lexicon list has a **Newest ↔ A–Z** sort toggle (server-side) and type filter chips (All / Dictionary / Quotes). Quotes are **keepsakes**: excluded from Word of the Day, Anki review, due counts, and mastery.
@@ -204,13 +226,13 @@ Business rules:
 
 ## Reader Profile and Reading Quest
 
-The profile is **identity-first** and fits roughly one screen: an identity header (avatar wrapped in the yearly-goal progress ring, reader-level badge, name — tap opens profile customization), a compact Reading DNA signature strip (tap opens the full analysis in a bottom sheet), a one-row strip of DNA book-recommendation covers (tap → add-book flow), stat pills (books / pages / hours / streak), a Trophy Room entry, and a **Recap memories** carousel of the reader's generated recap images (one near-full-width image per snap; empty state invites the reader to generate recaps).
+The profile is **identity-first** and fits roughly one screen: an identity header (avatar wrapped in the yearly-goal progress ring, reader-level badge, name — tap opens profile customization), a compact Reading DNA signature strip (tap opens the full analysis in a bottom sheet), a one-row strip of DNA book-recommendation covers (tap → add-book flow), stat pills (books / pages / hours / streak — tap → Reading Stats), side-by-side **Trophy Room** and **Stats** entry cards, and a **Recap memories** carousel of the reader's generated recap images (one near-full-width image per snap; empty state invites the reader to generate recaps).
 
-The analytical detail lives one tap deep in the **Trophy Room** (`/profile/stats`): yearly quest as a large progress ring with pace metrics (needed / current / forecast), reader level/XP strip, the **reading calendar**, lifetime stats grid, and library breakdown.
+The detail lives one tap deep on two pages (split 2026-07): the **Trophy Room** (`/profile/trophy-room`) holds the goals — yearly quest as a large progress ring with pace metrics (needed / current / forecast) and the reader level/XP strip; **Reading Stats** (`/profile/stats`) holds the analytics — the "Your year" monthly chart, the **reading calendar**, lifetime stats grid, book lengths, and library breakdown.
 
 Technical implementation:
 
-- Pages: `src/pages/ProfilePage.vue`, `src/pages/ProfileStatsPage.vue` (Trophy Room), `src/pages/ProfileEditPage.vue` (customization)
+- Pages: `src/pages/ProfilePage.vue`, `src/pages/TrophyRoomPage.vue` (goals), `src/pages/ReadingStatsPage.vue` (analytics), `src/pages/ProfileEditPage.vue` (customization)
 - Components: `src/components/profile/*` — `ProfileIdentityHeader`, `DnaSignatureStrip`, `DnaRecommendationsScroller`, `ProfileStatsNav`, `RecapImagesCarousel`, `QuestGoalHero`, `ReaderLevelStrip`, `ReadingCalendarCard`, `LifetimeStatsGrid`, `LibraryBreakdownCard`
 - Stores: `src/stores/readingDna.ts`, `src/stores/readingQuest.ts`
 - Composables: `useReadingProfile`, `useLibraryBreakdown`, `useReadingVelocity`, `useCommunityIdentity`, `useDnaRecommendations`, `useRecapGallery`, `useReadingCalendar`
@@ -223,7 +245,7 @@ Business rules:
 - **Reading calendar** — `get_reading_calendar(p_user_id, p_month_start, p_timezone)` buckets `progress_history` rows by day **in the reader's IANA timezone**; each active day shows the cover of the book read (a "+n" badge for multiple), and tapping a day lists the books with the furthest page reached. Months are cached per session; forward navigation stops at the current month.
 - **DNA recommendation covers** resolve sequentially via Google Books (gives the add-book-details volume key), with Open Library search as the cover fallback; a suggestion that resolves without a Google key still taps through to the normal add-book search flow with the query pre-seeded. Partially failed sets re-resolve on the next profile visit.
 - **Recap memories** exchanges private `recap-images` paths for batch signed URLs (1 h TTL); only recaps with `image_status = 'succeeded'` appear; tapping an image opens that book's recap history.
-- **Trophy Room charts (2026-07):** "Your year" — 12 hand-rolled bars of pages/month with year selector and tap-a-bar detail (`get_monthly_reading` RPC: page deltas + first-finish months from `progress_history`, timezone-aware, organic reads only since imports write no history); segmented **genre bar** in the Library Breakdown card (top 4 + Other, from the existing `genreDistribution`); **Book Lengths** card (average/longest/shortest finished, client-side). Page order: quest ring → XP → Your year → calendar → stats tiles → lengths → breakdown.
+- **Reading Stats charts (2026-07):** "Your year" — 12 hand-rolled bars of pages/month with year selector and tap-a-bar detail (`get_monthly_reading` RPC: page deltas + first-finish months from `progress_history`, timezone-aware, organic reads only since imports write no history); segmented **genre bar** in the Library Breakdown card (top 4 + Other, from the existing `genreDistribution`); **Book Lengths** card (average/longest/shortest finished, client-side). Stats page order: Your year → calendar → stats tiles → lengths → breakdown. Trophy Room order: quest ring → XP.
 
 ### Profile customization (`/profile/edit`)
 

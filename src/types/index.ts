@@ -788,6 +788,53 @@ export const mapPageCapture = (row: PageCaptureRow): PageCapture => ({
   resume: row.resume ?? null,
 })
 
+// ─────────────────────────────────────────────────────────────
+// Memory Check (035) — pre-session recall quiz
+// ─────────────────────────────────────────────────────────────
+
+// One multiple-choice question grounded in the reader's own captures.
+export interface QuizQuestion {
+  question: string
+  options: string[]        // exactly 3
+  correctIndex: number     // 0-2
+  sourcePage: number | null
+}
+
+// One row per (user, book) — regenerated (upserted) once the reader moves
+// past pageSnapshot. Purged on book completion together with the captures.
+export interface BookQuiz {
+  id: string
+  userId: string
+  bookId: string
+  pageSnapshot: number
+  questions: QuizQuestion[]
+  score: number | null       // correct answers on the most recent take
+  answeredAt: string | null
+  generatedAt: string
+}
+
+export interface BookQuizRow {
+  id: string
+  user_id: string
+  book_id: string
+  page_snapshot: number
+  questions: QuizQuestion[]
+  score: number | null
+  answered_at: string | null
+  generated_at: string
+}
+
+export const mapBookQuiz = (row: BookQuizRow): BookQuiz => ({
+  id: row.id,
+  userId: row.user_id,
+  bookId: row.book_id,
+  pageSnapshot: row.page_snapshot,
+  questions: row.questions ?? [],
+  score: row.score,
+  answeredAt: row.answered_at,
+  generatedAt: row.generated_at,
+})
+
 // ── Community profile (customization page) ────────────────────────────────────
 
 export type ProfileVisibility = 'everyone' | 'followers' | 'nobody'
