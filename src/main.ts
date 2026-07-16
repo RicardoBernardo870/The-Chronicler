@@ -14,6 +14,20 @@ import ChroniclerPreset from '@/assets/styles/preset'
 // Defaults to 'dark' (low-light reading environments — constitution §UX).
 import '@/composables/useAppTheme'
 
+// The SW calls skipWaiting()/clients.claim(), so an updated worker takes over
+// while the (stale, cache-served) page is still running — reload once so the
+// user lands on the new build. `hadController` skips the very first install,
+// where a reload would be pointless and jarring.
+if ('serviceWorker' in navigator) {
+  const hadController = Boolean(navigator.serviceWorker.controller)
+  let reloaded = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return
+    reloaded = true
+    window.location.reload()
+  })
+}
+
 const app = createApp(App)
 
 app.use(createPinia())

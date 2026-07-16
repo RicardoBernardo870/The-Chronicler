@@ -1,14 +1,32 @@
 /// <reference lib="webworker" />
-import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
-import { registerRoute } from 'workbox-routing'
+import {
+  cleanupOutdatedCaches,
+  createHandlerBoundToURL,
+  precacheAndRoute,
+} from 'workbox-precaching'
+import { NavigationRoute, registerRoute } from 'workbox-routing'
 import { CacheFirst, NetworkFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 
 declare const self: ServiceWorkerGlobalScope
 
+// Activate a freshly-installed SW immediately instead of leaving it in the
+// "waiting" state until every client closes — otherwise a deploy only shows
+// up after fully closing and reopening the app (sometimes several times).
+// main.ts listens for the resulting controllerchange and reloads once.
+void self.skipWaiting()
+self.addEventListener('activate', () => {
+  void self.clients.claim()
+})
+
 // Precache all assets injected by vite-plugin-pwa
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
+
+// SPA navigation fallback: serve the precached shell for every in-app
+// navigation (deep links, manifest shortcuts like /books/add, restored tabs).
+// Without this, only URLs literally present in the precache resolve offline.
+registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')))
 
 // Runtime cache: book cover images
 registerRoute(
