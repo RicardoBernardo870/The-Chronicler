@@ -64,6 +64,7 @@ const handleUploadChange = async (event: Event): Promise<void> => {
   input.value = ""; // allow re-picking the same file
   if (!file) return;
   lastMethod.value = "upload";
+  showReview.value = false;
   glassToast.showLoading("Reading the page…");
   await importImage(file);
   if (state.value === "error" && errorMessage.value) {
@@ -92,6 +93,11 @@ const MAX_CHARS = 10_000;
 // the loading state on screen instead of flashing the review UI.
 const autoSaving = ref(false);
 
+// The review viewport teleports a full-screen overlay to <body>, so hiding
+// this panel via CSS can't suppress it. It must stay unmounted until
+// finishCapture decides the capture actually needs manual review.
+const showReview = ref(false);
+
 const currentPage = computed(
   () => progressStore.progressForBook(props.bookId)?.currentPage ?? 0,
 );
@@ -103,6 +109,7 @@ const handleStartCapture = (): void => {
 };
 
 const handleSnap = async (): Promise<void> => {
+  showReview.value = false;
   glassToast.showLoading("Reading the page…", "Analysing the text");
   await snap();
   if (state.value === "error" && errorMessage.value) {
@@ -150,8 +157,10 @@ const handleSave = async (text: string): Promise<boolean> => {
 // so the review UI is the fallback.
 const finishCapture = async (): Promise<void> => {
   if (state.value !== "verify" || !ocrResult.value) {
-    // denied / offline / preview-missing paths — the inline panels take over
+    // denied / offline / error paths — the inline panels take over; a verify
+    // state without an OCR result falls back to the preview-missing panel
     glassToast.dismiss();
+    showReview.value = state.value === "verify";
     return;
   }
 
@@ -164,6 +173,7 @@ const finishCapture = async (): Promise<void> => {
         glassToast.show("Page captured", "Text analysed successfully.");
       } else {
         glassToast.dismiss();
+        showReview.value = true;
       }
     } finally {
       autoSaving.value = false;
@@ -171,6 +181,7 @@ const finishCapture = async (): Promise<void> => {
     return;
   }
 
+  showReview.value = true;
   glassToast.showWarn(
     "Check the captured text",
     "The scan wasn't clear — review the text or retake the photo.",
@@ -290,9 +301,11 @@ const handleSkip = (): void => {
          No inline UI — the glass toast carries the loading feedback and the
          whole panel is hidden via .session-capture--busy on the root. -->
 
-    <!-- State: review captured image + OCR text -->
+    <!-- State: review captured image + OCR text. Gated on showReview so the
+         teleported full-screen overlay never mounts while a high-confidence
+         capture is auto-saving. -->
     <CaptureReviewViewport
-      v-else-if="state === 'verify' && ocrResult && previewImage"
+      v-else-if="state === 'verify' && showReview && ocrResult && previewImage"
       :image-src="previewImage.dataUrl"
       :initial-text="ocrResult.text"
       :confidence="ocrResult.confidence"
@@ -302,7 +315,7 @@ const handleSkip = (): void => {
       @close="handleReviewClose"
     />
 
-    <div v-else-if="state === 'verify'" class="session-capture__panel">
+    <div v-else-if="state === 'verify' && showReview" class="session-capture__panel">
       <p class="session-capture__panel-text">
         We could not prepare the capture preview. Try taking the photo again.
       </p>

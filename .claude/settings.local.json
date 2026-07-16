@@ -180,7 +180,8 @@
       "mcp__supabase__get_advisors",
       "PowerShell(npx vue-tsc --noEmit -p tsconfig.app.json)",
       "mcp__visualize__show_widget",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "PowerShell(npm test)"
     ]
   }
 }
