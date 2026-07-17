@@ -8,7 +8,7 @@
 // without a touch we simulate it — a near-black layer fades in (timer stays
 // faintly visible, kind to OLED batteries) and any tap wakes the screen.
 // The wake lock stays held the whole time; only the pixels go dark.
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import Button from 'primevue/button'
 import { useReadingSession } from '@/composables/useReadingSession'
 import { useWakeLock } from '@/composables/useWakeLock'
@@ -35,7 +35,8 @@ let dimTimer: ReturnType<typeof setTimeout> | null = null
 
 const scheduleDim = (): void => {
   if (dimTimer !== null) clearTimeout(dimTimer)
-  dimTimer = setTimeout(() => { dimmed.value = true }, DIM_AFTER_MS)
+  // Once the goal timer has fired, stay lit — the reader is about to wrap up.
+  dimTimer = setTimeout(() => { if (!timeUp.value) dimmed.value = true }, DIM_AFTER_MS)
 }
 
 // Any touch while lit restarts the countdown. While dimmed, the dim layer
@@ -57,15 +58,101 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (dimTimer !== null) clearTimeout(dimTimer)
+  void audioCtx?.close().catch(() => {})
 })
 
-const elapsedLabel = computed(() => {
-  const s = state.value.elapsedSeconds
+const fmtClock = (s: number): string => {
   const hours = Math.floor(s / 3600)
   const mins = Math.floor((s % 3600) / 60)
   const secs = s % 60
   if (hours > 0) return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+const elapsedLabel = computed(() => fmtClock(state.value.elapsedSeconds))
+
+// ── Reading goal (display-only countdown — the session is untouched) ─────
+// The goal counts from the moment it is set ("30 more minutes from now"),
+// and freezes with the session while paused because it derives from
+// elapsedSeconds. Past zero it counts overtime as +M:SS.
+const GOAL_PRESETS = [15, 30, 45, 60]
+const goalMinutes = ref<number | null>(null)
+const goalStartElapsed = ref(0)
+const timeUp = ref(false)
+
+const goalRemaining = computed((): number | null => {
+  if (goalMinutes.value === null) return null
+  return goalMinutes.value * 60 - (state.value.elapsedSeconds - goalStartElapsed.value)
+})
+
+const displayLabel = computed(() => {
+  const remaining = goalRemaining.value
+  if (remaining === null) return elapsedLabel.value
+  if (remaining >= 0) return fmtClock(remaining)
+  return `+${fmtClock(-remaining)}`
+})
+
+// Soft two-ding chime, synthesized — no audio asset. The AudioContext is
+// created/resumed inside the goal-chip tap (user gesture) so the browser
+// allows playback when the timer later fires on its own.
+let audioCtx: AudioContext | null = null
+
+const primeAudio = (): void => {
+  try {
+    if (!audioCtx) audioCtx = new AudioContext()
+    if (audioCtx.state === 'suspended') void audioCtx.resume()
+  } catch { /* no audio — the visual time's-up state still lands */ }
+}
+
+const ding = (ctx: AudioContext, at: number): void => {
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  osc.type = 'sine'
+  osc.frequency.value = 880
+  gain.gain.setValueAtTime(0, at)
+  gain.gain.linearRampToValueAtTime(0.28, at + 0.02)
+  gain.gain.exponentialRampToValueAtTime(0.001, at + 1.1)
+  osc.connect(gain)
+  gain.connect(ctx.destination)
+  osc.start(at)
+  osc.stop(at + 1.2)
+}
+
+const chime = (): void => {
+  if (!audioCtx) return
+  try {
+    if (audioCtx.state === 'suspended') void audioCtx.resume()
+    const t = audioCtx.currentTime
+    // Three double-dings over ~5 s — reads as a classic timer alarm.
+    for (const offset of [0, 0.65, 1.9, 2.55, 3.8, 4.45]) {
+      ding(audioCtx, t + offset)
+    }
+  } catch { /* best-effort */ }
+}
+
+const setGoal = (minutes: number): void => {
+  if (goalMinutes.value === minutes) {
+    goalMinutes.value = null
+    timeUp.value = false
+    return
+  }
+  primeAudio()
+  goalMinutes.value = minutes
+  goalStartElapsed.value = state.value.elapsedSeconds
+  timeUp.value = false
+}
+
+watch(goalRemaining, (remaining, prev) => {
+  if (remaining === null) {
+    timeUp.value = false
+    return
+  }
+  if (remaining <= 0 && (prev === null || prev > 0) && !timeUp.value) {
+    timeUp.value = true
+    wake()
+    chime()
+    if ('vibrate' in navigator) navigator.vibrate([200, 100, 200])
+  }
 })
 
 const togglePause = async (): Promise<void> => {
@@ -124,11 +211,27 @@ const endSession = async (): Promise<void> => {
         <p class="focus-mode__author">{{ book.author }}</p>
 
         <p class="focus-mode__timer" :class="{ 'focus-mode__timer--paused': state.isPaused }">
-          {{ elapsedLabel }}
+          {{ displayLabel }}
         </p>
-        <p class="focus-mode__status">
-          {{ state.isPaused ? 'Paused' : 'Reading...' }}
+        <p v-if="goalMinutes !== null" class="focus-mode__elapsed-sub">
+          {{ elapsedLabel }} elapsed
         </p>
+        <p class="focus-mode__status" :class="{ 'focus-mode__status--up': timeUp }">
+          {{ state.isPaused ? 'Paused' : timeUp ? "Time's up" : 'Reading...' }}
+        </p>
+
+        <div class="focus-mode__goals" role="group" aria-label="Reading goal">
+          <button
+            v-for="minutes in GOAL_PRESETS"
+            :key="minutes"
+            type="button"
+            class="focus-mode__goal-chip"
+            :class="{ 'focus-mode__goal-chip--active': goalMinutes === minutes }"
+            @click="setGoal(minutes)"
+          >
+            {{ minutes }}m
+          </button>
+        </div>
       </div>
 
       <div class="focus-mode__actions">
@@ -144,6 +247,7 @@ const endSession = async (): Promise<void> => {
         <Button
           label="End Session"
           class="focus-mode__end"
+          :class="{ 'focus-mode__end--pulse': timeUp }"
           @click="endSession"
         />
       </div>
@@ -157,7 +261,7 @@ const endSession = async (): Promise<void> => {
           aria-label="Wake screen"
           @click="wake"
         >
-          <span class="focus-mode__dim-timer">{{ elapsedLabel }}</span>
+          <span class="focus-mode__dim-timer">{{ displayLabel }}</span>
           <span class="focus-mode__dim-hint">tap to wake</span>
         </button>
       </Transition>
@@ -250,6 +354,13 @@ const endSession = async (): Promise<void> => {
   opacity: 0.55;
 }
 
+.focus-mode__elapsed-sub {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.45;
+}
+
 .focus-mode__status {
   margin: 0.4rem 0 0;
   font-size: 0.72rem;
@@ -257,6 +368,50 @@ const endSession = async (): Promise<void> => {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   opacity: 0.5;
+}
+
+.focus-mode__status--up {
+  opacity: 1;
+  color: var(--p-indigo-300);
+}
+
+.focus-mode__goals {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
+}
+
+.focus-mode__goal-chip {
+  padding: 0.4rem 0.75rem;
+  border: 1px dashed rgba(99, 102, 241, 0.4);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--p-indigo-300);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.focus-mode__goal-chip:hover {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.focus-mode__goal-chip--active {
+  border-style: solid;
+  border-color: rgba(99, 102, 241, 0.7);
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.focus-mode__end--pulse {
+  animation: focus-end-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes focus-end-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  50%      { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.35); }
 }
 
 .focus-mode__actions {
@@ -337,7 +492,9 @@ const endSession = async (): Promise<void> => {
 }
 
 [data-p-theme='light'] .focus-mode__timer,
-[data-p-theme='light'] .focus-mode__cover--empty .pi {
+[data-p-theme='light'] .focus-mode__cover--empty .pi,
+[data-p-theme='light'] .focus-mode__goal-chip,
+[data-p-theme='light'] .focus-mode__status--up {
   color: var(--p-primary-700, #4338ca);
 }
 </style>
