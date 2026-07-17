@@ -217,7 +217,9 @@ watch(
 
 const upNextBooks = computed(() => {
   const zeroBooks = booksStore.books.filter(
-    (b) => progressStore.percentageForBook(b.id) === 0,
+    (b) =>
+      progressStore.percentageForBook(b.id) === 0 &&
+      !progressStore.progressForBook(b.id)?.dnfAt,
   );
   const orderedIds = upNextStore.sortedBookIds();
   return [

@@ -104,25 +104,22 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
         <span class="pill-tabs__label">Completed</span>
         <span class="pill-tabs__count">{{ archivedBooks.length }}</span>
       </button>
+      <button
+        type="button"
+        class="pill-tabs__reorder"
+        :class="{ 'pill-tabs__reorder--active': reorderMode }"
+        :disabled="activeTab !== 'queue' || queuedBooks.length < 2"
+        :aria-pressed="reorderMode"
+        :aria-label="reorderMode ? 'Finish reordering' : 'Reorder queue'"
+        :title="reorderMode ? 'Finish reordering' : 'Reorder queue'"
+        @click="reorderMode = !reorderMode"
+      >
+        <i :class="`pi ${reorderMode ? 'pi-check' : 'pi-sort-alt'}`" aria-hidden="true" />
+      </button>
     </div>
 
     <!-- Tab content -->
     <div key="tab-content" class="pill-tabs__content" role="tabpanel">
-      <div
-        v-if="activeTab === 'queue' && queuedBooks.length > 1"
-        class="library-list-view__reorder-row"
-      >
-        <button
-          type="button"
-          class="library-list-view__reorder-toggle"
-          :aria-pressed="reorderMode"
-          @click="reorderMode = !reorderMode"
-        >
-          <i :class="`pi ${reorderMode ? 'pi-check' : 'pi-sort-alt'}`" aria-hidden="true" />
-          {{ reorderMode ? 'Done' : 'Reorder' }}
-        </button>
-      </div>
-
       <Transition name="library-list-view__tab" mode="out-in" appear>
         <QueueReorderList
           v-if="activeTab === 'queue' && reorderMode"
@@ -363,46 +360,42 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
   margin-top: 0.75rem;
 }
 
-.library-list-view__reorder-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 0.6rem;
-}
-
-.library-list-view__reorder-toggle {
+.pill-tabs__reorder {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  margin: 0;
-  padding: 0.25rem 0.6rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  color: inherit;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.7;
+  justify-content: center;
+  width: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  color: rgba(226, 228, 240, 0.45);
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
 
-.library-list-view__reorder-toggle .pi {
-  font-size: 0.65rem;
+.pill-tabs__reorder .pi {
+  font-size: 0.8rem;
 }
 
-.library-list-view__reorder-toggle:hover {
-  opacity: 1;
+.pill-tabs__reorder:hover:not(:disabled) {
+  color: rgba(226, 228, 240, 0.85);
 }
 
-.library-list-view__reorder-toggle:focus-visible {
+.pill-tabs__reorder:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pill-tabs__reorder--active {
+  background: rgba(99, 102, 241, 0.22);
+  color: var(--p-indigo-300);
+}
+
+.pill-tabs__reorder:focus-visible {
   outline: 2px solid var(--p-indigo-300);
   outline-offset: 2px;
-}
-
-:root[data-p-theme="light"] .library-list-view__reorder-toggle {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.08);
 }
 
 .library-list-view__section-enter-active,
@@ -445,6 +438,19 @@ const bookFromEntry = (entry: LibraryBookEntry): Book =>
 
 :root[data-p-theme="light"] .pill-tabs__tab--active .pill-tabs__label {
   color: rgba(0, 0, 0, 0.85);
+}
+
+:root[data-p-theme="light"] .pill-tabs__reorder {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+:root[data-p-theme="light"] .pill-tabs__reorder:hover:not(:disabled) {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+:root[data-p-theme="light"] .pill-tabs__reorder--active {
+  background: rgba(99, 102, 241, 0.14);
+  color: var(--p-indigo-600);
 }
 
 :root[data-p-theme="light"] .now-reading-panel__badge {

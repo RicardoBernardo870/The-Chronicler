@@ -119,6 +119,7 @@ watch(progress, (p) => {
 
 const percentage = computed(() => progress.value?.percentage ?? 0);
 const isComplete = computed(() => percentage.value >= 100);
+const isDnf = computed(() => Boolean(progress.value?.dnfAt));
 const canViewJourney = computed(() => book.value?.source === 'manual');
 const recapCount = computed(() => recapsStore.recapHistoryForBook(bookId.value).length);
 const completedRecapImages = computed(() =>
@@ -217,6 +218,34 @@ const closeRecapDialog = () => {
 const viewJourney = async () => {
   await router.push({ name: "book-passport", params: { id: bookId.value } });
 };
+
+// ── DNF (Did Not Finish) ─────────────────────────────────────────────────
+const handleMarkDnf = () => {
+  if (!book.value) return;
+  confirm.require({
+    message:
+      "Shelve this book as Did Not Finish? Your progress and words are kept, but sessions, recaps and insights are paused until you resume.",
+    header: "Didn't finish?",
+    icon: "pi pi-ban",
+    acceptLabel: "Shelve it",
+    rejectLabel: "Keep reading",
+    accept: async () => {
+      try {
+        await progressStore.markDnf(bookId.value);
+      } catch {
+        progressError.value = "Could not shelve the book. Try again.";
+      }
+    },
+  });
+};
+
+const handleResumeDnf = async () => {
+  try {
+    await progressStore.resumeDnf(bookId.value);
+  } catch {
+    progressError.value = "Could not resume the book. Try again.";
+  }
+};
 </script>
 
 <template>
@@ -238,6 +267,7 @@ const viewJourney = async () => {
         :progress-error="progressError"
         :percentage="percentage"
         :is-complete="isComplete"
+        :is-dnf="isDnf"
         :can-view-journey="canViewJourney"
         :lexicon-count="lexiconCount"
         @update:current-page-input="(v) => (currentPageInput = v)"
@@ -247,10 +277,13 @@ const viewJourney = async () => {
         @open-add-word="addWordVisible = true"
         @view-lexicon="router.push({ name: 'lexicon', query: { bookId } })"
         @open-memory-check="memoryCheckVisible = true"
+        @mark-dnf="handleMarkDnf"
+        @resume-dnf="handleResumeDnf"
       />
 
       <!-- On-demand Memory Check (035) — quiz built from this book's captures -->
       <MemoryCheckDialog
+        v-if="!isDnf"
         :book-id="bookId"
         v-model:visible="memoryCheckVisible"
         mode="ondemand"
@@ -258,17 +291,17 @@ const viewJourney = async () => {
 
       <!-- Post-session page capture prompt (appears immediately after saving progress with an active session) -->
       <SessionCaptureField
-        v-if="showCaptureField && captureHistoryRowId && captureBookId"
+        v-if="!isDnf && showCaptureField && captureHistoryRowId && captureBookId"
         :history-row-id="captureHistoryRowId"
         :book-id="captureBookId"
         @saved="handleCaptureComplete"
         @skipped="handleCaptureComplete"
       />
 
-      <LoreChronoscopeCard :book-id="bookId" :collapsible="true" :initial-collapsed="true" />
+      <LoreChronoscopeCard v-if="!isDnf" :book-id="bookId" :collapsible="true" :initial-collapsed="true" />
 
       <!-- Recap memories — images carousel + recap generation, both states -->
-      <section class="book-detail__recap glass-surface">
+      <section v-if="!isDnf" class="book-detail__recap glass-surface">
         <div class="book-detail__recap-header">
           <h2 class="book-detail__section-title">Recap memories</h2>
           <Button

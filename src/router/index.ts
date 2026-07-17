@@ -21,6 +21,11 @@ const router = createRouter({
           component: () => import("@/pages/LibraryPage.vue"),
         },
         {
+          path: "library/dnf",
+          name: "library-dnf",
+          component: () => import("@/pages/DnfListPage.vue"),
+        },
+        {
           path: "books/add",
           name: "add-book",
           component: () => import("@/pages/AddBookPage.vue"),

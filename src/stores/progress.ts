@@ -60,7 +60,7 @@ export const useProgressStore = defineStore('progress', () => {
         { book_id: bookId, user_id: authStore.user.id, current_page: currentPage },
         { onConflict: 'book_id,user_id' }
       )
-      .select('id, book_id, user_id, current_page, updated_at, session_start_at')
+      .select('id, book_id, user_id, current_page, updated_at, session_start_at, dnf_at')
       .single()
     if (error) throw error
 
@@ -114,6 +114,7 @@ export const useProgressStore = defineStore('progress', () => {
           percentage: entry.percentage,
           updatedAt: entry.lastReadAt ?? new Date().toISOString(),
           sessionStartAt: entry.sessionStartAt,
+          dnfAt: entry.dnfAt ?? null,
         }
         const existingProgress = progress.value[entry.id]
         const derivedTime = new Date(derivedProgress.updatedAt).getTime()
@@ -135,7 +136,7 @@ export const useProgressStore = defineStore('progress', () => {
     // T008 (013): select session_start_at so active sessions survive fetch
     const { data, error } = await supabase
       .from('reading_progress')
-      .select('id, book_id, user_id, current_page, updated_at, session_start_at')
+      .select('id, book_id, user_id, current_page, updated_at, session_start_at, dnf_at')
     if (error) throw error
 
     const map: Record<string, ReadingProgress> = {}
@@ -276,6 +277,9 @@ export const useProgressStore = defineStore('progress', () => {
     if ((existingProgress?.percentage ?? 0) >= 100) {
       throw new Error('This book is already complete.')
     }
+    if (existingProgress?.dnfAt) {
+      throw new Error('This book is shelved as Did Not Finish. Resume it first.')
+    }
 
     const now = new Date().toISOString()
     const currentPage = existingProgress?.currentPage ?? 0
@@ -292,7 +296,7 @@ export const useProgressStore = defineStore('progress', () => {
         },
         { onConflict: 'book_id,user_id' },
       )
-      .select('id, book_id, user_id, current_page, updated_at, session_start_at')
+      .select('id, book_id, user_id, current_page, updated_at, session_start_at, dnf_at')
       .single()
     if (error) throw error
 
@@ -339,6 +343,79 @@ export const useProgressStore = defineStore('progress', () => {
     invalidate(cacheKeys.library(authStore.user.id))
   }
 
+  // ── DNF (Did Not Finish) ──────────────────────────────────────────────────
+  // Shelving stamps dnf_at and kills any active session; resuming clears the
+  // stamp, restoring the previous percentage-derived status. progress_history
+  // is untouched — pages read before shelving keep counting where they do today.
+
+  const markDnf = async (bookId: string): Promise<void> => {
+    const authStore = useAuthStore()
+    const booksStore = useBooksStore()
+    if (!authStore.user) throw new Error('Not authenticated')
+    const book = booksStore.bookById(bookId)
+    if (!book) throw new Error('Book not found')
+
+    const { data, error } = await supabase
+      .from('reading_progress')
+      .upsert(
+        {
+          book_id: bookId,
+          user_id: authStore.user.id,
+          current_page: progress.value[bookId]?.currentPage ?? 0,
+          dnf_at: new Date().toISOString(),
+          session_start_at: null,
+          session_paused_at: null,
+        },
+        { onConflict: 'book_id,user_id' },
+      )
+      .select('id, book_id, user_id, current_page, updated_at, session_start_at, dnf_at')
+      .single()
+    if (error) throw error
+
+    sessionPausedAt.value[bookId] = null
+    const confirmedProgress = mapReadingProgress(data as ReadingProgressRow, book.totalPages)
+    progress.value[bookId] = confirmedProgress
+    booksStore.applyProgressSnapshot(bookId, {
+      currentPage: confirmedProgress.currentPage,
+      percentage: confirmedProgress.percentage,
+      updatedAt: confirmedProgress.updatedAt,
+      sessionStartAt: null,
+      dnfAt: confirmedProgress.dnfAt,
+      progressId: confirmedProgress.id,
+    })
+    swrTouch(cacheKeys.progress(authStore.user.id))
+    invalidate(cacheKeys.library(authStore.user.id))
+  }
+
+  const resumeDnf = async (bookId: string): Promise<void> => {
+    const authStore = useAuthStore()
+    const booksStore = useBooksStore()
+    if (!authStore.user) throw new Error('Not authenticated')
+    const book = booksStore.bookById(bookId)
+    if (!book) throw new Error('Book not found')
+
+    const { data, error } = await supabase
+      .from('reading_progress')
+      .update({ dnf_at: null })
+      .match({ book_id: bookId, user_id: authStore.user.id })
+      .select('id, book_id, user_id, current_page, updated_at, session_start_at, dnf_at')
+      .single()
+    if (error) throw error
+
+    const confirmedProgress = mapReadingProgress(data as ReadingProgressRow, book.totalPages)
+    progress.value[bookId] = confirmedProgress
+    booksStore.applyProgressSnapshot(bookId, {
+      currentPage: confirmedProgress.currentPage,
+      percentage: confirmedProgress.percentage,
+      updatedAt: confirmedProgress.updatedAt,
+      sessionStartAt: confirmedProgress.sessionStartAt,
+      dnfAt: null,
+      progressId: confirmedProgress.id,
+    })
+    swrTouch(cacheKeys.progress(authStore.user.id))
+    invalidate(cacheKeys.library(authStore.user.id))
+  }
+
   /**
    * Confirmed progress write for add-book initial status only.
    * This intentionally bypasses updateProgress so imports do not create
@@ -364,7 +441,7 @@ export const useProgressStore = defineStore('progress', () => {
         },
         { onConflict: 'book_id,user_id' },
       )
-      .select('id, book_id, user_id, current_page, updated_at, session_start_at')
+      .select('id, book_id, user_id, current_page, updated_at, session_start_at, dnf_at')
       .single()
     if (error) throw error
 
@@ -460,6 +537,7 @@ export const useProgressStore = defineStore('progress', () => {
       percentage: newPct,
       updatedAt: optimisticUpdatedAt,
       sessionStartAt: progress.value[bookId]?.sessionStartAt ?? null,
+      dnfAt: progress.value[bookId]?.dnfAt ?? null,
     }
     booksStore.applyProgressSnapshot(bookId, {
       currentPage,
@@ -601,7 +679,7 @@ export const useProgressStore = defineStore('progress', () => {
   const inProgressBooks = computed(() => {
     const booksStore = useBooksStore()
     return Object.values(progress.value)
-      .filter(p => p.percentage > 0 && p.percentage < 100)
+      .filter(p => p.percentage > 0 && p.percentage < 100 && !p.dnfAt)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .map(p => ({ book: booksStore.bookById(p.bookId) ?? null, progress: p }))
       .filter((item): item is { book: NonNullable<typeof item.book>; progress: ReadingProgress } =>
@@ -636,6 +714,8 @@ export const useProgressStore = defineStore('progress', () => {
     fetchLastPageSavedAt,
     updateProgress,
     setInitialProgress,
+    markDnf,
+    resumeDnf,
     startSession,
     clearSession,
     sessionPausedAt,

@@ -68,6 +68,13 @@ const groups = computed<ResultGroup[]>(() =>
         badgeClass: 'section-badge--archive',
         entries: props.results.filter((e) => e.status === 'finished'),
       },
+      {
+        key: 'dnf',
+        label: 'Did Not Finish',
+        accentClass: 'section-accent--archive',
+        badgeClass: 'section-badge--archive',
+        entries: props.results.filter((e) => e.status === 'dnf'),
+      },
     ] as ResultGroup[]
   ).filter((g) => g.entries.length > 0),
 )

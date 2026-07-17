@@ -18,6 +18,7 @@
 > - **Ebook capture (033) shipped:** the capture flow accepts an uploaded image, not just camera — Phase 3 should offer a `PhotosPicker`/Files import alongside the VisionKit scanner.
 > - **Session Resume shipped on the PWA (2026-07-13):** a 6th edge function `generate-page-resume` exists (stateless: capture text → ≤3 one-sentence bullets + 1 tension line; client persists onto `page_captures.resume` jsonb). Start Session opens a pre-session "Previously" dialog and **only writes `session_start_at` when the reader confirms "Begin reading"** — dismissing aborts the start. Suppressed when the latest recap covers the current position (`pageSnapshot >= currentPage`). Resume generation is fire-and-forget at capture time; at most one AI call per capture (persisted). iOS must mirror this timer-gating flow (see §7/§8 notes below).
 > - **Recap presentation redesigned (2026-07-13):** Get Recap opens a modal (image-first: illustration slot → corpus/days byline → arc prose → ≤5 watchlist chips → open-thread quote); history cards use the same layout (accordions removed). Recap prompt is arc-shaped (v84 deployed; repo synced); journal header "pages X–Y · N days later" is computed client-side from the previous recap's `page_snapshot`/`created_at`.
+> - **DNF shipped on the PWA (2026-07-17):** `reading_progress.dnf_at timestamptz` (null = not shelved); `get_library_with_progress` now returns `dnfAt` and a `'dnf'` status that **overrides** the percentage-derived one. Shelving clears any active session; resuming just nulls the stamp (page/percentage untouched). While shelved, ALL per-book features are paused (sessions, recaps, quizzes, captures, insights) and the book leaves the hero rotation / In Progress / Up Next / main library sections — the iOS client must mirror these exclusions and the `/library/dnf`-equivalent list. `progress_history` and stat RPCs are intentionally untouched. CSV import maps `did-not-finish` (and `dnf` custom-shelf spellings) to this shelf with `current_page = 0` + `dnf_at`.
 > - **Subscriptions still do not exist** server-side (no `entitlements`/`subscriptions` table yet) — that part of Phase 4 is accurate.
 > - **iOS v1 scope steer:** Library/reading + AI memory + capture/vocab + goals + **library import**. **Defer Community + Circles** despite the backend being ready — they're a large client surface.
 > - Local `supabase/migrations` has drifted from prod; a one-time baseline squash from the live schema is recommended before native work begins.
@@ -232,7 +233,7 @@ BookHero-iOS/
 ### Reused Resources
 
 - **All tables** — `books` (incl. `description`, `source`, `page_count_estimated`), `reading_progress`, `progress_history`, `lexicon_entries`, `lore_cards`, `recaps`, `book_passports`, `reading_dna`, `vocabulary_extractions`, `page_captures`, `up_next_order` *(plus `reading_goals`, `reading_quest_events`, `anki_review_sessions`, `user_settings` — see contract)*
-- **All RPC functions** — `get_library_with_progress` (returns `source` + `pageCountEstimated`), `get_reading_stats`, `get_last_session`, `get_library_breakdown`, `get_reading_velocity`, `get_reading_quest_summary` *(the period-stat RPCs already exclude imported books — the iOS client gets correct numbers for free)*
+- **All RPC functions** — `get_library_with_progress` (returns `source` + `pageCountEstimated` + `dnfAt`; status can be `'dnf'`), `get_reading_stats`, `get_last_session`, `get_library_breakdown`, `get_reading_velocity`, `get_reading_quest_summary` *(the period-stat RPCs already exclude imported books — the iOS client gets correct numbers for free)*
 - **All Edge Functions** — `generate-recap`, `generate-lore`, `generate-reading-dna`, `extract-vocabulary`, `ocr-page`, `generate-page-resume`
 - **No backend work for library import** — it's pure client logic (CSV parse + bulk insert + best-effort enrichment) writing to existing tables; the iOS client re-implements `useLibraryImport.ts`/`booksStore.importBooks` natively.
 - **All RLS policies** — already enforce per-user isolation
@@ -276,12 +277,13 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 - Manual book entry (title, author, total pages, cover URL)
 - ISBN scan → autofill (VisionKit barcode scanner)
 - **Library import (034)** — Goodreads/StoryGraph CSV via `.fileImporter` / document picker. Strong activation win for a brand-new iOS user with an empty library. Parse CSV natively (no `papaparse` equivalent needed — Swift `String` splitting with RFC-4180 quoting, or a tiny CSV helper), map status, dedupe (ISBN-first), bulk-insert quietly, enrich in a background `Task`. Honor `source = 'goodreads'|'storygraph'` + `page_count_estimated` on insert.
-- Library page (Now Reading + sticky Queue/Completed tabs; grid variant with sticky collapsible sections)
-- Library search (accent-insensitive title/author filter, grouped results)
+- Library page (Now Reading + sticky Queue/Completed tabs; grid variant with sticky collapsible sections; **DNF list** one tap away via a header icon shown only when shelved books exist)
+- Library search (accent-insensitive title/author filter, grouped results incl. a Did Not Finish group)
 - Drag-to-reorder Queue (native `List.onMove`, reorder mode on both views)
 - Swipe-left actions (Edit / Delete) — native `.swipeActions`
 - Book detail page — centered-cover hero + clamped description (Google Books backfill); session-first progress: Start Session → **pre-session "Previously" resume sheet** (last capture's stored `resume`; timer starts only on "Begin reading"; skipped when no resume or when a fresh recap covers the current position) ⇄ live timer (pause/resume, `session_paused_at`) ⇄ End Session → page sheet ("Where did you stop?"); pencil page-edit outside sessions
 - "Page X of Y" + percentage
+- **DNF shelve/resume** — quiet "Didn't finish it?" action on the book page (confirm → stamp `dnf_at`, clear session); shelved state replaces the whole session/AI surface with a "Start reading again" button; shelved books leave hero/In Progress/Up Next/main library sections
 - Save progress via the page sheet (optimistic + offline queue; unchanged-page inline block with cancel-session escape)
 - Sign out
 
@@ -299,7 +301,7 @@ Each phase ends with a buildable, App Store-submittable artifact. Internal TestF
 ### Import parity notes (034)
 
 - **ISBN-prioritized enrichment** — mirror the PWA: look up by ISBN first (Google Books → Open Library), fall back to title+author search only when no ISBN. Also mirror the **ISBN-aware search fix** in any search bar (use Google Books `isbn:` operator and drop language restriction for ISBN-shaped queries).
-- **Quiet insert** — completed ("read") rows write `reading_progress.current_page = total_pages` directly; do **not** route them through the normal progress-save path (no history rows, no recap/lore/quest side effects).
+- **Quiet insert** — completed ("read") rows write `reading_progress.current_page = total_pages` directly; `did-not-finish` rows (StoryGraph native, or Goodreads custom shelves `did-not-finish` / `did not finish` / `dnf`) write `current_page = 0` + `dnf_at = now()`; do **not** route either through the normal progress-save path (no history rows, no recap/lore/quest side effects).
 - **Stats are correct for free** — because imported books carry `source <> 'manual'` and the server RPCs already exclude them, the iOS Profile/Quest screens need no special-casing; just badge imported books in the UI using the `source` field.
 
 ### Out of scope for MVP

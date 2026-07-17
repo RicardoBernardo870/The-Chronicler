@@ -18,6 +18,26 @@ Technical implementation:
 - Data: `books` (incl. `description`, `source`, `page_count_estimated`), `reading_progress`, `get_library_with_progress`
 - ISBN tooling: `src/composables/useIsbn.ts`, `src/composables/useScanner.ts`
 
+### DNF — Did Not Finish (2026-07)
+
+Readers can **shelve a book they stopped reading** from the book detail page (a quiet "Didn't finish it? Shelve this book" link under the progress panel, with confirmation). While shelved, **every feature for that book is paused**: no sessions, page edits, recaps, Memory Check, Insights, or capture prompts; the book leaves the dashboard hero rotation, In Progress, Up Next, and the library's main sections. A single **"Start reading again"** button restores the book to exactly its previous state — page, percentage, and queue position are never touched.
+
+The Library header shows a DNF icon (only when at least one book is shelved) leading to the **DNF list** (`/library/dnf`): cover, "stopped at p. X · Y% · shelved N days ago", per-row Resume, tap-through to the book page. Library search shows shelved books under their own "Did Not Finish" group so they stay findable.
+
+Technical implementation:
+
+- Data: `reading_progress.dnf_at timestamptz` (null = not shelved) — migration `20260717_dnf_status.sql`; `get_library_with_progress` returns `dnfAt` and a `'dnf'` status that overrides the percentage-derived one
+- Store actions: `progressStore.markDnf` (stamps `dnf_at`, clears any active session) / `resumeDnf` (clears the stamp); `startSession` hard-guards against shelved books
+- Exclusions: `inProgressBooks`, `useActiveBook` (incl. explicit-hero revalidation), Dashboard Up Next, `useDashboardOnboardingState.queuedBooks`, library list tabs + grid tiers
+- UI: `BookProgressPanel.vue` (shelved notice + resume), `DnfListPage.vue` (route `library-dnf`), `LibraryPage.vue` header icon, `LibrarySearchResults.vue` DNF group
+
+Business rules:
+
+- Marking DNF is **fully reversible** and touches nothing but `dnf_at` (plus clearing an in-flight session).
+- `progress_history` and stats are untouched — pages read before shelving still count wherever history counts (lifetime stats, XP); a shelved book simply can't generate new activity.
+- Collected vocabulary/quotes stay in the Codex and review queues — words belong to the reader, not the book's status.
+- CSV import maps `did-not-finish` rows to this shelf (see Library Import above); imported DNF rows write `current_page = 0` + `dnf_at`, no history.
+
 ### Search & Add (030)
 
 The Add Book screen leads with "Scan ISBN" and "Add Manually" buttons plus a search bar. Search uses **Google Books as the primary source** with **Open Library gap-filling** missing cover/pages/genre; selecting a result opens a refresh-safe, pre-filled, editable details page (with cleaned description, duplicate notice, and best-effort "similar books" recommendations). Scan and Manual flows are unchanged.
@@ -29,7 +49,7 @@ The Add Book screen leads with "Scan ISBN" and "Add Manually" buttons plus a sea
 
 ### Library Import (034)
 
-Readers can populate BookHero in one step by uploading a **Goodreads or StoryGraph CSV export**. The app auto-detects the format by its header signature, maps read-status (`read` → completed at 100%; `to-read` / `currently-reading` / `did-not-finish` / unknown → "Want to read"), de-duplicates against the existing library (ISBN-first, else case-insensitive title+author) and within the file, and **bulk-creates the books quietly** — no recaps, lore, vocabulary, quest XP, or completion passports. Missing cover/genre/page metadata is filled in afterward in the background by reusing the book-search service (ISBN-prioritized). Books with no discoverable page count import with a flagged placeholder (`page_count_estimated`) the reader can correct. Entry points: the Add Book screen and the empty-library/onboarding state.
+Readers can populate BookHero in one step by uploading a **Goodreads or StoryGraph CSV export**. The app auto-detects the format by its header signature, maps read-status (`read` → completed at 100%; `did-not-finish` — StoryGraph native or a Goodreads custom shelf spelled `did-not-finish` / `did not finish` / `dnf` — → the **DNF shelf** with `dnf_at` stamped; `to-read` / `currently-reading` / unknown → "Want to read"), de-duplicates against the existing library (ISBN-first, else case-insensitive title+author) and within the file, and **bulk-creates the books quietly** — no recaps, lore, vocabulary, quest XP, or completion passports. Missing cover/genre/page metadata is filled in afterward in the background by reusing the book-search service (ISBN-prioritized). Books with no discoverable page count import with a flagged placeholder (`page_count_estimated`) the reader can correct. Entry points: the Add Book screen and the empty-library/onboarding state.
 
 - Parsers/utils: `src/utils/import/csvFormat.ts`, `goodreadsParser.ts`, `storygraphParser.ts`, `shared.ts`
 - Orchestration: `src/composables/useLibraryImport.ts` (offline-guarded parse → dedupe → bulk insert → throttled enrichment)

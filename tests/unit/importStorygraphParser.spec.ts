@@ -15,12 +15,12 @@ describe('parseStorygraphRow', () => {
     if (res.ok) expect(res.row.author).toBe('Andy Weir')
   })
 
-  it('maps read → completed; to-read / currently-reading / did-not-finish → queued', () => {
-    const cases: [string, 'completed' | 'queued'][] = [
+  it('maps read → completed; did-not-finish → dnf; to-read / currently-reading → queued', () => {
+    const cases: [string, 'completed' | 'queued' | 'dnf'][] = [
       ['read', 'completed'],
       ['to-read', 'queued'],
       ['currently-reading', 'queued'],
-      ['did-not-finish', 'queued'],
+      ['did-not-finish', 'dnf'],
       ['', 'queued'],
     ]
     for (const [status, expected] of cases) {

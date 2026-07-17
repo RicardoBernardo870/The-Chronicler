@@ -19,7 +19,10 @@ export const useDashboardOnboardingState = () => {
   const inProgressBooks = computed(() => progressStore.inProgressBooks.map(item => item.book))
   const completedBooks = computed(() => progressStore.completedBooks.map(item => item.book))
   const queuedBooks = computed(() =>
-    booksStore.books.filter(book => deriveReadingState(book, progressStore.percentageForBook(book.id)) === 'unread'),
+    booksStore.books.filter(book =>
+      !progressStore.progressForBook(book.id)?.dnfAt &&
+      deriveReadingState(book, progressStore.percentageForBook(book.id)) === 'unread',
+    ),
   )
 
   const state = computed<DashboardFirstRunState>(() => {

@@ -31,11 +31,14 @@ describe('import dedupe helpers', () => {
     expect(parsePages(null)).toBeNull()
   })
 
-  it('mapStatusToInitial only completes "read"', () => {
+  it('mapStatusToInitial completes "read", shelves DNF spellings, queues the rest', () => {
     expect(mapStatusToInitial('read')).toBe('completed')
     expect(mapStatusToInitial('READ')).toBe('completed')
     expect(mapStatusToInitial('to-read')).toBe('queued')
     expect(mapStatusToInitial(undefined)).toBe('queued')
+    expect(mapStatusToInitial('did-not-finish')).toBe('dnf')
+    expect(mapStatusToInitial('Did Not Finish')).toBe('dnf')
+    expect(mapStatusToInitial('dnf')).toBe('dnf')
   })
 
   it('firstAuthor extracts the first of a list', () => {

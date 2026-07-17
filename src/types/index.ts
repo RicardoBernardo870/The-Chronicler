@@ -25,6 +25,7 @@ export interface ReadingProgress {
   percentage: number // computed: (currentPage / book.totalPages) * 100
   updatedAt: string
   sessionStartAt: string | null  // 013 — non-null = active session in progress
+  dnfAt: string | null           // non-null = shelved as Did Not Finish
 }
 
 export type RecapMode = 'corpus' | 'inferred'
@@ -82,7 +83,7 @@ export interface ImportRow {
   author: string
   isbn: string | null
   totalPages: number | null            // null → placeholder + page_count_estimated on insert
-  initialStatus: 'completed' | 'queued'
+  initialStatus: 'completed' | 'queued' | 'dnf'
   source: ImportSource
   dedupeKey: string                    // ISBN digits if present, else `lower(title) lower(author)`
 }
@@ -178,7 +179,7 @@ export interface BookRow {
 // RPC Aggregate Response Types (017-supabase-rpc-aggregations)
 // ─────────────────────────────────────────────────────────────
 
-export type BookStatus = 'unread' | 'reading' | 'finished'
+export type BookStatus = 'unread' | 'reading' | 'finished' | 'dnf'
 
 /** Returned as an array by get_library_with_progress RPC. */
 export interface LibraryBookEntry {
@@ -192,6 +193,7 @@ export interface LibraryBookEntry {
   status: BookStatus
   lastReadAt: string | null      // ISO timestamp; null if never started
   sessionStartAt: string | null  // non-null = active session in progress
+  dnfAt: string | null           // non-null = shelved as Did Not Finish
   progressId: string | null      // reading_progress.id; null if no progress row
   genre: string | null           // 019 — pulled from books.genre via RPC
   isbn: string | null            // 019 — pulled from books.isbn via RPC (needed for edit pre-fill)
@@ -308,6 +310,7 @@ export interface ReadingProgressRow {
   current_page: number
   updated_at: string
   session_start_at: string | null  // 013
+  dnf_at?: string | null           // non-null = shelved as Did Not Finish
 }
 
 export interface RecapRow {
@@ -437,6 +440,7 @@ export const mapReadingProgress = (row: ReadingProgressRow, totalPages: number):
   percentage: totalPages > 0 ? Math.round((row.current_page / totalPages) * 10000) / 100 : 0,
   updatedAt: row.updated_at,
   sessionStartAt: row.session_start_at ?? null,  // 013
+  dnfAt: row.dnf_at ?? null,
 })
 
 export const mapRecap = (row: RecapRow): Recap => ({

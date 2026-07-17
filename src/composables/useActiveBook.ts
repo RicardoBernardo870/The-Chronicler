@@ -45,6 +45,7 @@ export const useActiveBook = () => {
     const readableBooks = Object.values(progressStore.progress)
       .filter(progress =>
         progress.percentage < 100 &&
+        !progress.dnfAt &&
         (progress.percentage > 0 || progress.sessionStartAt !== null),
       )
       .map(progress => ({ book: booksStore.bookById(progress.bookId) ?? null, progress }))
@@ -98,6 +99,7 @@ export const useActiveBook = () => {
     const activeProgress = activeBookId.value ? progressStore.progressForBook(activeBookId.value) : null
     const activeStillReadable = activeBookId.value
       ? booksStore.bookById(activeBookId.value) !== undefined
+        && !activeProgress?.dnfAt
         && (selectionSource.value === 'explicit'
           ? (activeProgress?.percentage ?? 0) < 100
           : progressStore.inProgressBooks.some(item => item.book.id === activeBookId.value))

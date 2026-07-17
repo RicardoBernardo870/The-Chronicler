@@ -143,17 +143,24 @@ export const useBooksStore = defineStore('books', () => {
       percentage: number
       updatedAt: string
       sessionStartAt: string | null
+      dnfAt?: string | null   // omitted = keep the entry's current DNF state
       progressId?: string | null
     },
   ) => {
     const idx = libraryEntries.value.findIndex(entry => entry.id === bookId)
     if (idx === -1) return
 
-    const status: BookStatus = snapshot.percentage >= 100
-      ? 'finished'
-      : snapshot.currentPage > 0
-        ? 'reading'
-        : 'unread'
+    const dnfAt = snapshot.dnfAt !== undefined
+      ? snapshot.dnfAt
+      : libraryEntries.value[idx].dnfAt
+
+    const status: BookStatus = dnfAt
+      ? 'dnf'
+      : snapshot.percentage >= 100
+        ? 'finished'
+        : snapshot.currentPage > 0
+          ? 'reading'
+          : 'unread'
 
     libraryEntries.value[idx] = {
       ...libraryEntries.value[idx],
@@ -162,6 +169,7 @@ export const useBooksStore = defineStore('books', () => {
       status,
       lastReadAt: snapshot.updatedAt,
       sessionStartAt: snapshot.sessionStartAt,
+      dnfAt,
       progressId: snapshot.progressId ?? libraryEntries.value[idx].progressId,
     }
   }
@@ -272,11 +280,16 @@ export const useBooksStore = defineStore('books', () => {
     }
 
     const insertedIds: string[] = []
-    const completedProgress: {
+    // Quiet reading_progress rows for imported "read" (completed) and
+    // "did-not-finish" (shelved) books. Uniform shape so the batched upsert
+    // sends the same columns for every row.
+    const importedAt = new Date().toISOString()
+    const statusProgress: {
       book_id: string
       user_id: string
       current_page: number
       session_start_at: null
+      dnf_at: string | null
     }[] = []
     let estimatedPageCounts = 0
 
@@ -310,19 +323,28 @@ export const useBooksStore = defineStore('books', () => {
       inserted.forEach((row, idx) => {
         insertedIds.push(row.id)
         if (chunk[idx].initialStatus === 'completed') {
-          completedProgress.push({
+          statusProgress.push({
             book_id: row.id,
             user_id: uid,
             current_page: row.total_pages,
             session_start_at: null,
+            dnf_at: null,
+          })
+        } else if (chunk[idx].initialStatus === 'dnf') {
+          statusProgress.push({
+            book_id: row.id,
+            user_id: uid,
+            current_page: 0,
+            session_start_at: null,
+            dnf_at: importedAt,
           })
         }
       })
     }
 
-    // Quiet completed-status write — batched, no progress_history.
-    for (let i = 0; i < completedProgress.length; i += IMPORT_CHUNK) {
-      const slice = completedProgress.slice(i, i + IMPORT_CHUNK)
+    // Quiet status write (completed + DNF) — batched, no progress_history.
+    for (let i = 0; i < statusProgress.length; i += IMPORT_CHUNK) {
+      const slice = statusProgress.slice(i, i + IMPORT_CHUNK)
       const { error: err } = await supabase
         .from('reading_progress')
         .upsert(slice, { onConflict: 'book_id,user_id' })

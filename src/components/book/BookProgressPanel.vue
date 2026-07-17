@@ -5,6 +5,7 @@ import SessionStartButton from '@/components/session/SessionStartButton.vue'
 import PageSaveSheet from '@/components/session/PageSaveSheet.vue'
 import FocusModeOverlay from '@/components/session/FocusModeOverlay.vue'
 import { useReadingSession } from '@/composables/useReadingSession'
+import { formatRelativeToNow } from '@/utils/date'
 import Button from 'primevue/button'
 import ProgressBar from 'primevue/progressbar'
 
@@ -16,6 +17,7 @@ const props = defineProps<{
   progressError: string | null
   percentage: number
   isComplete: boolean
+  isDnf: boolean
   canViewJourney: boolean
   lexiconCount: number
 }>()
@@ -29,6 +31,8 @@ const emit = defineEmits<{
   openAddWord: []
   viewLexicon: []
   openMemoryCheck: []
+  markDnf: []
+  resumeDnf: []
 }>()
 
 // Session state drives the panel's two modes (same pattern as the hero card)
@@ -69,7 +73,7 @@ const onSheetSave = (page: number) => {
     <p class="progress-panel__hint">
       Page {{ progress?.currentPage ?? 0 }} of {{ book.totalPages }}
       <button
-        v-if="!isComplete && !sessionActive"
+        v-if="!isComplete && !sessionActive && !isDnf"
         type="button"
         class="progress-panel__page-edit"
         aria-label="Update your page"
@@ -79,8 +83,23 @@ const onSheetSave = (page: number) => {
       </button>
     </p>
 
+    <!-- Shelved (Did Not Finish) state — everything else is on hold -->
+    <div v-if="isDnf" class="progress-panel__dnf">
+      <p class="progress-panel__dnf-note">
+        <i class="pi pi-ban" aria-hidden="true" />
+        Shelved as Did Not Finish<template v-if="progress?.dnfAt">
+          · {{ formatRelativeToNow(progress.dnfAt) }}</template>
+      </p>
+      <Button
+        label="Start reading again"
+        icon="pi pi-play"
+        class="progress-panel__dnf-resume"
+        @click="emit('resumeDnf')"
+      />
+    </div>
+
     <!-- Primary action: session state machine (start ⇄ save/cancel) -->
-    <div v-if="!isComplete" class="progress-panel__session-action">
+    <div v-if="!isComplete && !isDnf" class="progress-panel__session-action">
       <SessionStartButton
         :book-id="book.id"
         :icon-only="false"
@@ -133,7 +152,7 @@ const onSheetSave = (page: number) => {
     />
 
     <!-- Secondary action chips -->
-    <div class="progress-panel__chips">
+    <div v-if="!isDnf" class="progress-panel__chips">
       <button type="button" class="progress-panel__chip" @click="emit('openAddWord')">
         <i class="pi pi-plus" aria-hidden="true" />
         <span>Codex</span>
@@ -157,6 +176,16 @@ const onSheetSave = (page: number) => {
         <span>Memory check</span>
       </button>
     </div>
+
+    <!-- Quiet escape hatch: shelve the book without deleting anything -->
+    <button
+      v-if="!isComplete && !isDnf"
+      type="button"
+      class="progress-panel__dnf-link"
+      @click="emit('markDnf')"
+    >
+      Didn't finish it? Shelve this book
+    </button>
   </section>
 </template>
 
@@ -389,6 +418,62 @@ const onSheetSave = (page: number) => {
 [data-p-theme='light'] .progress-panel__save-btn:not(:disabled),
 [data-p-theme='light'] .progress-panel__recap-btn:not(:disabled) {
   color: var(--p-primary-700, #4338ca) !important;
+}
+
+.progress-panel__dnf {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.progress-panel__dnf-note {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.progress-panel__dnf-note .pi {
+  font-size: 0.8rem;
+  color: var(--p-indigo-300);
+}
+
+.progress-panel__dnf-resume {
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.75rem 1rem !important;
+  border-radius: var(--p-border-radius-lg, 12px) !important;
+  border: none !important;
+  background: var(--p-primary-color) !important;
+  color: #fff !important;
+}
+
+.progress-panel__dnf-link {
+  align-self: center;
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  opacity: 0.45;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.progress-panel__dnf-link:hover {
+  opacity: 0.8;
+}
+
+.progress-panel__dnf-link:focus-visible {
+  outline: 2px solid var(--p-indigo-300);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 .progress-panel__passport-btn {

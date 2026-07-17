@@ -16,11 +16,17 @@ export const parsePages = (raw: string | null | undefined): number | null => {
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
-/** Read-status → BookHero initial status. Only "read" completes; everything else queues. */
+/** Read-status → BookHero initial status. "read" completes, DNF shelves; everything else queues. */
 export const mapStatusToInitial = (
   raw: string | null | undefined,
-): 'completed' | 'queued' =>
-  (raw ?? '').trim().toLowerCase() === 'read' ? 'completed' : 'queued'
+): 'completed' | 'queued' | 'dnf' => {
+  const status = (raw ?? '').trim().toLowerCase()
+  if (status === 'read') return 'completed'
+  // StoryGraph native "did-not-finish"; Goodreads has no native DNF shelf, so
+  // also match the common custom-shelf spellings.
+  if (status === 'did-not-finish' || status === 'did not finish' || status === 'dnf') return 'dnf'
+  return 'queued'
+}
 
 /** Stable dedupe key: ISBN digits when present, else `lower(title) lower(author)`. */
 export const makeDedupeKey = (

@@ -59,7 +59,7 @@ erDiagram
 | --- | --- |
 | `books` | `id`, `user_id`, `title`, `author`, `isbn`, `cover_url`, `total_pages`, `genre`, `description`, `source` (034), `page_count_estimated` (034), `created_at` |
 | `lexicon_entries` | `id`, `user_id`, `book_id`, `term`, `definition`, `entry_type`, `context_sentence`, `page_found`, `leitner_box`, `next_review_at`, `source`, `mastered` (031), `last_reviewed_at` (032), `created_at` |
-| `reading_progress` | `book_id`, `user_id`, `current_page`, `updated_at`, `session_start_at` |
+| `reading_progress` | `book_id`, `user_id`, `current_page`, `updated_at`, `session_start_at`, `session_paused_at`, `dnf_at` (DNF shelf; null = not shelved) |
 | `progress_history` | `book_id`, `user_id`, `page`, `recorded_at`, `session_start_at`, `session_note` |
 | `recaps` | `book_id`, `user_id`, `progress_snapshot`, `page_snapshot`, `memory_jogger`, `concept_watchlist`, `thematic_bridge`, `mode`, `image_path`, `image_status`, `image_generated_at` |
 | `book_passports` | `book_id`, `user_id`, `total_days`, `peak_day`, `peak_day_pages`, `vocabulary_count`, `ai_summary`, `generated_at` |
@@ -95,6 +95,7 @@ Notable migrations:
 | `20260703_session_pause_resume.sql` | `reading_progress.session_paused_at` — pause stamps it; resume shifts `session_start_at` forward by the paused span so all duration math needs no RPC changes. |
 | `20260703_get_monthly_reading.sql` | `get_monthly_reading` RPC — pages read + books finished per month for a year (timezone-aware, auth-guarded, organic-only); Trophy Room "Your year" chart. |
 | `20260713_session_page_resume.sql` | `page_captures.resume` (jsonb) + `resume_generated_at` — pre-session "Previously" dialog content, generated once per capture by the `generate-page-resume` edge function and purged with the row by the completion-cleanup triggers. |
+| `20260717_dnf_status.sql` | `reading_progress.dnf_at` (DNF shelf) — `get_library_with_progress` returns `dnfAt` + a `'dnf'` status overriding the percentage-derived one; resuming clears the stamp. Stats/history untouched. CSV import maps `did-not-finish` rows here. |
 
 > **034 stat exclusion:** Imported books carry `source <> 'manual'`. Period-based surfaces filter them out — `get_reading_quest_summary.progress_rows` (yearly goal + XP) and `get_reading_stats.current_progress` (`totalPagesRead`). All other `get_reading_stats` fields read `progress_history`, which the quiet import never writes, so they need no filter. Lifetime surfaces (`get_library_breakdown`, `get_library_with_progress`, Reading DNA) intentionally keep imported books.
 

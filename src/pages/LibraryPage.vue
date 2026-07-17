@@ -73,10 +73,17 @@ const archivedBooks = computed(() =>
   booksStore.libraryEntries.filter((e) => e.status === 'finished'),
 )
 
+const dnfCount = computed(
+  () => booksStore.libraryEntries.filter((e) => e.status === 'dnf').length,
+)
+
 // ── Sorted full set (grid view) ────────────────────────────────────────────
 
 const sortedBooks = computed(() => {
-  const books     = [...booksStore.books]
+  // DNF books live on their own page (/library/dnf), not in the grid tiers.
+  const books     = booksStore.books.filter(
+    (b) => !progressStore.progressForBook(b.id)?.dnfAt,
+  )
   const upNextIds = upNextStore.sortedBookIds()
   return books.sort((a, b) => {
     const pA   = progressStore.percentageForBook(a.id)
@@ -177,6 +184,16 @@ onMounted(async () => {
     <header class="library__header">
       <h1 class="library__title">Library</h1>
       <div class="library__header-actions">
+        <Button
+          v-if="dnfCount > 0"
+          icon="pi pi-ban"
+          text
+          size="small"
+          rounded
+          aria-label="Did Not Finish list"
+          title="Did Not Finish"
+          @click="router.push({ name: 'library-dnf' })"
+        />
         <div class="library__view-toggle">
           <Button
             icon="pi pi-list"
