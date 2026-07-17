@@ -46,6 +46,17 @@ registerRoute(
   }),
 )
 
+// Background Sync API — Chromium-only, so TypeScript's webworker lib ships
+// neither SyncEvent nor the 'sync' entry in the SW event map; declare both.
+declare global {
+  interface SyncEvent extends ExtendableEvent {
+    readonly tag: string
+  }
+  interface ServiceWorkerGlobalScopeEventMap {
+    sync: SyncEvent
+  }
+}
+
 // Background Sync: when connectivity restores the browser fires this event.
 // We can't call Supabase directly here (no auth token in SW context), so we
 // post a message to all open clients to flush the IndexedDB queue themselves.
