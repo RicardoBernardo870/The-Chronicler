@@ -2,6 +2,7 @@
 import { ref, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAppTheme } from "@/composables/useAppTheme";
+import { ACTIVITY_LOG_ADMIN_ID } from "@/composables/useActivityLog";
 import { useAuthStore } from "@/stores/auth";
 
 const route = useRoute();
@@ -17,6 +18,11 @@ const isLibrary = computed(
 );
 const isLexicon = computed(() => route.path.startsWith("/lexicon"));
 const isProfile = computed(() => route.path.startsWith("/profile"));
+
+// UI-only gate — the /logging route guard and RLS enforce the real access.
+const isLogAdmin = computed(
+  () => authStore.user?.id === ACTIVITY_LOG_ADMIN_ID,
+);
 
 const closeMore = () => {
   moreVisible.value = false;
@@ -36,6 +42,11 @@ const handleSignOut = async () => {
 const handleAddBook = () => {
   closeMore();
   router.push("/books/add");
+};
+
+const handleLogging = () => {
+  closeMore();
+  router.push("/logging");
 };
 </script>
 
@@ -59,6 +70,14 @@ const handleAddBook = () => {
       <button class="app-bottom-nav__sheet-item" @click="handleToggleTheme">
         <i :class="`pi ${isDark ? 'pi-sun' : 'pi-moon'}`" />
         <span>{{ isDark ? "Light mode" : "Dark mode" }}</span>
+      </button>
+      <button
+        v-if="isLogAdmin"
+        class="app-bottom-nav__sheet-item"
+        @click="handleLogging"
+      >
+        <i class="pi pi-eye" />
+        <span>Logging</span>
       </button>
       <button class="app-bottom-nav__sheet-item" @click="handleSignOut">
         <i class="pi pi-sign-out" />

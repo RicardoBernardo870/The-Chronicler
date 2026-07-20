@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import { ACTIVITY_LOG_ADMIN_ID } from "@/composables/useActivityLog";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -83,6 +84,12 @@ const router = createRouter({
           name: "anki-review",
           component: () => import("@/pages/AnkiReviewPage.vue"),
         },
+        {
+          path: "logging",
+          name: "logging",
+          component: () => import("@/pages/LoggingPage.vue"),
+          meta: { requiresAdmin: true },
+        },
       ],
     },
     {
@@ -105,6 +112,11 @@ router.beforeEach(async (to) => {
   if (!authStore.ready) await authStore.initialize();
   if (to.meta.requiresAuth && !authStore.user) {
     return { name: "login" };
+  }
+  // Admin-only pages: anyone else lands back on the dashboard. This is a UX
+  // guard — the data itself is protected by RLS on activity_logs.
+  if (to.meta.requiresAdmin && authStore.user?.id !== ACTIVITY_LOG_ADMIN_ID) {
+    return { name: "dashboard" };
   }
   if (to.name === "login" && authStore.user) {
     return { name: "dashboard" };

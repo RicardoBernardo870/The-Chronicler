@@ -11,6 +11,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStore } from '@/stores/progress'
+import { setupActivityLogging } from '@/composables/useActivityLog'
 import LoadingSpinner from '@/components/shared/LoadingSpinner.vue'
 import ConfirmDialog from 'primevue/confirmdialog'
 import Toast from 'primevue/toast'
@@ -20,6 +21,9 @@ import GlassToast from '@/components/shared/GlassToast.vue'
 const authStore = useAuthStore()
 const progressStore = useProgressStore()
 const initializing = ref(true)
+
+// Records app opens for tracked accounts (see useActivityLog.ts)
+setupActivityLogging()
 
 // Flush offline queue when the service worker signals reconnect
 function handleSwMessage(event: MessageEvent) {
