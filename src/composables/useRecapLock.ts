@@ -89,8 +89,14 @@ export const useRecapLock = (bookId: Ref<string> | string) => {
     Math.min(hoursSinceLastRecap.value, hoursSinceLastPageSave.value),
   )
 
+  // The idle grant is one-shot: it opens the button after a long gap, but the
+  // recap it produces consumes it. Without the cooldown clause the grant never
+  // expires (generating a recap does not touch reading_progress.updated_at), so
+  // the button stayed unlocked until an unrelated progress write moved the clock.
   const recapUnlockedByIdleTime = computed(
-    () => hoursSinceLastSession.value >= RECAP_IDLE_UNLOCK_HOURS,
+    () =>
+      hoursSinceLastSession.value >= RECAP_IDLE_UNLOCK_HOURS &&
+      hoursSinceLastRecap.value >= RECAP_COOLDOWN_HOURS,
   )
 
   const recapLockedByCooldown = computed(
