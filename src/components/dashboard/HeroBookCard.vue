@@ -18,7 +18,6 @@ import Tag from "primevue/tag";
 import ProgressBar from "primevue/progressbar";
 import { coverFallback } from "@/utils/coverFallback";
 import { pagesToNextInsight } from "@/utils/milestoneDetect";
-import { Message } from "primevue";
 
 const props = defineProps<{
   book: Book;
@@ -27,7 +26,6 @@ const props = defineProps<{
   justSaved: boolean;
   saveError: string | null;
   pageInput: number;
-  heroWarning: boolean;
   pendingSync: boolean;
   recapTriggered: boolean;
   recapLocked: boolean;
@@ -147,10 +145,7 @@ onMounted(() => fetchLastSession());
 </script>
 
 <template>
-  <article
-    class="hero-card glass-surface"
-    :class="{ 'hero-card--warning': heroWarning }"
-  >
+  <article class="hero-card glass-surface">
     <!-- New Lore chip -->
     <button
       v-if="loreStore.hasUnseenLore(book.id)"
@@ -240,16 +235,6 @@ onMounted(() => fetchLastSession());
       <p v-if="saveError" class="hero-card__error">
         <i class="pi pi-exclamation-triangle" /> {{ saveError }}
       </p>
-    </Transition>
-
-    <Transition name="hero-card__fade">
-      <Message
-        v-if="heroWarning"
-        severity="warn"
-        class="hero-card__continuity-warning"
-      >
-        It's been a while — time for a Memory Jogger?
-      </Message>
     </Transition>
 
     <Transition name="hero-card__fade">
@@ -369,28 +354,6 @@ onMounted(() => fetchLastSession());
 
 .hero-card:hover {
   transform: translateY(-1px);
-}
-
-.hero-card--warning {
-  background:
-    linear-gradient(
-      135deg,
-      rgba(251, 191, 36, 0.12) 0%,
-      rgba(245, 158, 11, 0.06) 100%
-    ),
-    var(--glass-surface-bg, rgba(255, 255, 255, 0.04));
-  border-color: rgba(251, 191, 36, 0.35) !important;
-  animation: pulse-amber 2.5s ease-in-out infinite;
-}
-
-@keyframes pulse-amber {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
-  }
-  50% {
-    box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.15);
-  }
 }
 
 .hero-card__hero {
@@ -608,20 +571,6 @@ onMounted(() => fetchLastSession());
   margin: 0;
   font-size: 0.85rem;
   color: var(--p-red-400);
-}
-
-.hero-card__continuity-warning {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #fbbf24;
-  padding: 0.3rem 0.75rem;
-  border-radius: 999px;
-  background: rgba(251, 191, 36, 0.12);
-  border: 1px solid rgba(251, 191, 36, 0.25);
-  align-self: flex-start;
 }
 
 .hero-card__offline-badge {

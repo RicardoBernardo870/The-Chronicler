@@ -6,7 +6,6 @@ import { useProgressStore } from "@/stores/progress";
 import { useUpNextStore } from "@/stores/upNext";
 import { useLexiconStore } from "@/stores/lexicon";
 import { useAuthStore } from "@/stores/auth";
-import { useReadingPulse } from "@/composables/useReadingPulse";
 import { useActiveBook } from "@/composables/useActiveBook";
 import { useDashboardOnboardingState } from "@/composables/useDashboardOnboardingState";
 import { useLoreCardsStore } from "@/stores/loreCards";
@@ -144,7 +143,6 @@ watch(activeBookId, (newId, _oldId, onCleanup) => {
       recapTriggered.value = false;
       recapsStore.resetStatus();
     }
-    nextHeroPulse(newId);
     recapsStore.fetchRecapsForBook(newId).catch(() => {});
   } else {
     pageInput.value = 0;
@@ -154,30 +152,6 @@ watch(activeBookId, (newId, _oldId, onCleanup) => {
     }
   }
 });
-
-let _pulseBookId: string | null = null;
-let _pulse: ReturnType<typeof useReadingPulse> | null = null;
-
-const nextHeroPulse = (bookId: string) => {
-  if (_pulseBookId !== bookId) {
-    _pulseBookId = bookId;
-    _pulse = useReadingPulse(bookId);
-  }
-  _pulse?.fetchHistory();
-};
-
-const heroPulse = computed(() => {
-  if (!activeBookId.value) return null;
-  if (_pulseBookId !== activeBookId.value) {
-    _pulseBookId = activeBookId.value;
-    _pulse = useReadingPulse(activeBookId.value);
-  }
-  return _pulse;
-});
-
-const heroWarning = computed(
-  () => (heroPulse.value?.continuityScore.value ?? 100) < 40,
-);
 
 onMounted(async () => {
   try {
@@ -197,7 +171,6 @@ onMounted(async () => {
     const id = activeBookId.value;
     if (id) {
       recapsStore.fetchRecapsForBook(id).catch(() => {});
-      nextHeroPulse(id);
       pageInput.value = progressStore.progressForBook(id)?.currentPage ?? 0;
     }
   } finally {
@@ -395,7 +368,6 @@ const handleCancelSession = () => {
             :just-saved="justSaved"
             :save-error="saveError"
             :page-input="pageInput"
-            :hero-warning="heroWarning"
             :pending-sync="pendingSync"
             :recap-triggered="recapTriggered"
             :recap-locked="recapLocked"
