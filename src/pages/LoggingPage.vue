@@ -65,8 +65,27 @@ const deviceSummary = (ua: string | null): string => {
   return `${os} · ${browser}`
 }
 
-const eventLabel = (event: string): string =>
-  event === 'app_open' ? 'Opened the app' : event.replaceAll('_', ' ')
+const routeName = (entry: ActivityLogEntry): string | null => {
+  const name = entry.metadata?.name
+  return typeof name === 'string' ? name : null
+}
+
+const eventLabel = (entry: ActivityLogEntry): string => {
+  if (entry.event === 'app_open') return 'Opened the app'
+  if (entry.event === 'route_view') return `Viewed ${routeName(entry) ?? 'a page'}`
+  return entry.event.replaceAll('_', ' ')
+}
+
+const formatDuration = (seconds: number | null): string | null => {
+  if (seconds == null || seconds <= 0) return null
+  if (seconds < 60) return `${seconds}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  if (mins < 60) return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`
+  const hrs = Math.floor(mins / 60)
+  const remMins = mins % 60
+  return remMins > 0 ? `${hrs}h ${remMins}m` : `${hrs}h`
+}
 
 const confirmClear = () => {
   confirm.require({
@@ -167,10 +186,12 @@ onMounted(fetchEntries)
           <article v-for="entry in group.items" :key="entry.id" class="glass-surface logging-entry">
             <span class="logging-entry__time">{{ timeOf(entry.createdAt) }}</span>
             <div class="logging-entry__meta">
-              <p class="logging-entry__event">{{ eventLabel(entry.event) }}</p>
+              <p class="logging-entry__event">{{ eventLabel(entry) }}</p>
               <p class="logging-entry__detail">
                 {{ deviceSummary(entry.userAgent) }}
                 <template v-if="entry.path"> · {{ entry.path }}</template>
+                <template v-if="formatDuration(entry.durationSeconds)">
+                  · active {{ formatDuration(entry.durationSeconds) }}</template>
               </p>
             </div>
             <span class="logging-entry__relative">{{ formatRelativeToNow(entry.createdAt) }}</span>

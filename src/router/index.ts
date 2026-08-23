@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
-import { ACTIVITY_LOG_ADMIN_ID } from "@/composables/useActivityLog";
+import { ACTIVITY_LOG_ADMIN_ID, logRouteView } from "@/composables/useActivityLog";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -121,6 +121,12 @@ router.beforeEach(async (to) => {
   if (to.name === "login" && authStore.user) {
     return { name: "dashboard" };
   }
+});
+
+// Records a route_view for the tracked account on every completed navigation.
+// No-op for everyone else; gating + best-effort insert live in logRouteView.
+router.afterEach((to) => {
+  logRouteView(to.fullPath, typeof to.name === "string" ? to.name : undefined);
 });
 
 export default router;
