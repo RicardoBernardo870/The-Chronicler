@@ -70,6 +70,20 @@ const routeName = (entry: ActivityLogEntry): string | null => {
   return typeof name === 'string' ? name : null
 }
 
+interface GeoMeta {
+  city?: string
+  region?: string
+  countryCode?: string
+  country?: string
+}
+
+const geoLabel = (entry: ActivityLogEntry): string | null => {
+  const geo = entry.metadata?.geo as GeoMeta | undefined
+  if (!geo) return null
+  const parts = [geo.city, geo.region, geo.countryCode ?? geo.country].filter(Boolean)
+  return parts.length > 0 ? parts.join(', ') : null
+}
+
 const eventLabel = (entry: ActivityLogEntry): string => {
   if (entry.event === 'app_open') return 'Opened the app'
   if (entry.event === 'route_view') return `Viewed ${routeName(entry) ?? 'a page'}`
@@ -192,6 +206,7 @@ onMounted(fetchEntries)
                 <template v-if="entry.path"> · {{ entry.path }}</template>
                 <template v-if="formatDuration(entry.durationSeconds)">
                   · active {{ formatDuration(entry.durationSeconds) }}</template>
+                <template v-if="geoLabel(entry)"> · 📍 {{ geoLabel(entry) }}</template>
               </p>
             </div>
             <span class="logging-entry__relative">{{ formatRelativeToNow(entry.createdAt) }}</span>

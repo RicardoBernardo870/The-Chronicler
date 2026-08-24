@@ -128,6 +128,17 @@ const handleVisibility = (): void => {
   }
 }
 
+// Fire-and-forget coarse geolocation of the app_open row via the log-geo edge
+// function. The IP is read server-side, so nothing is prompted here.
+const enrichGeo = (rowId: string): void => {
+  void supabase.functions
+    .invoke('log-geo', { body: { rowId } })
+    .then(
+      () => {},
+      () => {}, // best-effort — never let telemetry break the app
+    )
+}
+
 const trackSessionDuration = (rowId: string): void => {
   openRowId = rowId
   activeMs = 0
@@ -163,7 +174,10 @@ export const setupActivityLogging = (): void => {
       if (loggedThisPageLoad.has(id)) return
       loggedThisPageLoad.add(id)
       const rowId = await recordActivity(id, 'app_open')
-      if (rowId) trackSessionDuration(rowId)
+      if (rowId) {
+        trackSessionDuration(rowId)
+        enrichGeo(rowId)
+      }
     },
     { immediate: true },
   )
