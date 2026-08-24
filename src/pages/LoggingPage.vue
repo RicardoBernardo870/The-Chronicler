@@ -201,13 +201,14 @@ onMounted(fetchEntries)
             <span class="logging-entry__time">{{ timeOf(entry.createdAt) }}</span>
             <div class="logging-entry__meta">
               <p class="logging-entry__event">{{ eventLabel(entry) }}</p>
-              <p class="logging-entry__detail">
-                {{ deviceSummary(entry.userAgent) }}
-                <template v-if="entry.path"> · {{ entry.path }}</template>
-                <template v-if="formatDuration(entry.durationSeconds)">
-                  · active {{ formatDuration(entry.durationSeconds) }}</template>
-                <template v-if="geoLabel(entry)"> · 📍 {{ geoLabel(entry) }}</template>
-              </p>
+              <div class="logging-entry__detail">
+                <span class="logging-entry__tag">{{ deviceSummary(entry.userAgent) }}</span>
+                <span v-if="entry.path" class="logging-entry__tag logging-entry__tag--path">{{ entry.path }}</span>
+                <span v-if="formatDuration(entry.durationSeconds)" class="logging-entry__tag">
+                  active {{ formatDuration(entry.durationSeconds) }}
+                </span>
+                <span v-if="geoLabel(entry)" class="logging-entry__tag">📍 {{ geoLabel(entry) }}</span>
+              </div>
             </div>
             <span class="logging-entry__relative">{{ formatRelativeToNow(entry.createdAt) }}</span>
           </article>
@@ -284,7 +285,7 @@ onMounted(fetchEntries)
 
 .logging-entry {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.85rem;
   padding: 0.8rem 0.95rem;
   border-radius: var(--p-border-radius-xl, 16px);
@@ -293,6 +294,7 @@ onMounted(fetchEntries)
 .logging-entry__time {
   font-size: 0.82rem;
   font-weight: 700;
+  line-height: 1.45;
   font-variant-numeric: tabular-nums;
   color: var(--p-indigo-300);
   flex-shrink: 0;
@@ -310,19 +312,41 @@ onMounted(fetchEntries)
   margin: 0;
   font-size: 0.9rem;
   font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .logging-entry__detail {
   margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.5rem;
   font-size: 0.75rem;
   opacity: 0.65;
+}
+
+/* Each fact stays intact as a unit; the row wraps between them. */
+.logging-entry__tag {
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+/* Middot separators between tags, drawn by CSS so wrapping stays clean. */
+.logging-entry__tag:not(:first-child)::before {
+  content: '·';
+  margin-right: 0.5rem;
+  opacity: 0.6;
+}
+
+/* Long UUID paths are the one thing allowed to break mid-token. */
+.logging-entry__tag--path {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .logging-entry__relative {
   font-size: 0.72rem;
+  line-height: 1.45;
   opacity: 0.55;
   flex-shrink: 0;
 }
