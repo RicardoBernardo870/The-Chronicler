@@ -41,10 +41,21 @@ const SAVE_ERROR_MESSAGES: Record<string, string> = {
   visibility_invalid: 'One of the privacy options is invalid.',
 }
 
+// A failed fetch must never be recorded as "fetched": the refs below are
+// module-level singletons, so marking failure as done blanked the profile for
+// the rest of the session — every later mount early-returned on
+// _fetchedForUserId and only a full reload recovered it. That turned a single
+// transient 401 (see the retry note in services/supabase.ts) into a persistently
+// empty greeting. Failures now leave the entry unfetched so the next mount
+// retries, capped so a genuinely broken RPC isn't hammered on every mount.
+const MAX_FETCH_ATTEMPTS = 3
+
 // Module-level singleton refs — survive component remounts (same pattern as
 // useReadingProfile).
 const _myProfile = ref<MyCommunityProfile | null>(null)
 const _fetchedForUserId = ref<string | null>(null)
+const _attemptedForUserId = ref<string | null>(null)
+const _failedAttempts = ref(0)
 const _loaded = ref(false)
 
 export const useCommunityIdentity = () => {
@@ -54,22 +65,29 @@ export const useCommunityIdentity = () => {
     if (!authStore.user) return
     const userId = authStore.user.id
     if (!options.force && _fetchedForUserId.value === userId) return
-    if (_fetchedForUserId.value !== userId) {
+    // Tracked separately from _fetchedForUserId so a failed attempt doesn't
+    // reset its own retry budget on the next mount.
+    if (_attemptedForUserId.value !== userId) {
       _myProfile.value = null
       _loaded.value = false
+      _failedAttempts.value = 0
+      _attemptedForUserId.value = userId
     }
+    if (!options.force && _failedAttempts.value >= MAX_FETCH_ATTEMPTS) return
 
     try {
       const { data, error } = await supabase.rpc('get_my_community_profile')
       if (error) throw error
+      // null is a legitimate result — the row exists only once the reader has
+      // saved the customization page, so it must stay distinct from a failure.
       _myProfile.value = (data as MyCommunityProfile | null) ?? null
+      _fetchedForUserId.value = userId
+      _loaded.value = true
+      _failedAttempts.value = 0
     } catch (err) {
       console.warn('[communityIdentity] fetch failed', err)
-      _myProfile.value = null
+      _failedAttempts.value += 1
     }
-    // Mark as fetched even on failure so a broken RPC isn't retried per mount.
-    _fetchedForUserId.value = userId
-    _loaded.value = true
   }
 
   const saveProfile = async (payload: SaveProfilePayload): Promise<void> => {

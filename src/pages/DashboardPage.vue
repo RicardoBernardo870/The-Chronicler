@@ -14,6 +14,7 @@ import { useRecapLock } from "@/composables/useRecapLock";
 import { useAnkiSessionStore } from "@/stores/ankiSession";
 import { useCapturesStore } from "@/stores/captures";
 import { createCompletionPromptTarget } from "@/utils/completionPrompt";
+import { notifyLoadFailure } from "@/composables/useLoadFailureNotice";
 
 import HeroBookCard from "@/components/dashboard/HeroBookCard.vue";
 import DashboardGreeting from "@/components/dashboard/DashboardGreeting.vue";
@@ -157,6 +158,11 @@ onMounted(async () => {
   try {
     // 017 — single RPC replaces sequential fetchLibrary + fetchProgress pair
     await booksStore.fetchLibraryWithProgress();
+    // fetchLibraryWithProgress records its failure in the store instead of
+    // throwing, so it never reaches the catch below — and nothing in the
+    // template renders booksStore.error. Without this the dashboard just came
+    // up empty with no explanation.
+    if (booksStore.error) notifyLoadFailure();
     await Promise.all([
       progressStore.fetchProgress(),
       upNextStore.fetchOrder(),
@@ -173,6 +179,11 @@ onMounted(async () => {
       recapsStore.fetchRecapsForBook(id).catch(() => {});
       pageInput.value = progressStore.progressForBook(id)?.currentPage ?? 0;
     }
+  } catch (err) {
+    // A throw here (progress, up-next or lexicon) also abandons every step
+    // after it, so the page can be missing far more than the failing section.
+    console.warn("[dashboard] load failed", err);
+    notifyLoadFailure();
   } finally {
     loading.value = false;
   }
