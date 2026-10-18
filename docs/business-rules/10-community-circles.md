@@ -1,7 +1,7 @@
 # 10 · Community & Reading Circles (backend dormant) — Business Rules
 > **Prefix:** COM · **Verified against:** web master @ 8d8701c + live Supabase, 2026-10-18 · **Legend & glossary:** [README](README.md)
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19 (BC-01 and BC-02 shipped)
 
 ## Overview
 
@@ -103,7 +103,7 @@ Returns `null` when the caller is unauthenticated, or when **either** the profil
 - **Enforced:** `server:rpc` (`get_my_community_profile`).
 - **Source:** live function.
 - **Note:**
-  - A profile inserted directly without a privacy row (COM-108) reads as "no profile", so the PWA shows the first-run Create form ⚠ COM-D03.
+  - A profile without a privacy row reads as "no profile", so the PWA shows the first-run Create form. Since BC-01 (2026-10-19) clients can no longer insert profiles directly (COM-108, COM-D03 fixed).
   - The unauthenticated branch is unreachable over the API (COM-102).
 
 #### COM-03 · Username normalisation
@@ -121,7 +121,7 @@ After normalisation the username must match `^[a-z0-9_-]{3,30}$` (lowercase lett
 The names `admin, api, auth, bookhero, login, profile, u` are reserved.
 - `upsert_my_community_profile` rejects them as `username_invalid`.
 - `is_username_available` reports `available:false`.
-- The list lives **only** inside those two RPCs. No table constraint holds it, so a direct table write can claim a reserved name ⚠ COM-D03.
+- The list lives **only** inside those two RPCs. No table constraint holds it; since BC-01 (2026-10-19) clients cannot write `community_profiles` directly, so the RPC is the only write path (COM-D03, fixed).
 - The PWA has no copy of the list: a reserved name shows "taken" while typing and the format error on save ⚠ COM-D35.
 - **Enforced:** `server:rpc` only.
 - **Source:** live `upsert_my_community_profile`, `is_username_available`.
@@ -396,7 +396,7 @@ When a new `blocks` row is inserted, by RPC or directly (COM-108), AFTER INSERT 
 The blocker is never evicted.
 - **Enforced:** `server:db` (triggers).
 - **Source:** live `circle_block_cleanup_memberships`, `community_block_cleanup_follows`.
-- **Note:** `community_remove_pair_follows` is also directly callable by `anon` ⚠ COM-D01. Owner-eviction policy is COM-Q11.
+- **Note:** since BC-01 (2026-10-19) `community_remove_pair_follows` is not executable by `anon` or `authenticated` (COM-D01, fixed). Owner-eviction policy is COM-Q11.
 
 #### COM-40 · Unblock restores nothing
 Unblock deletes only the viewer's own block row; `changed` = a row was deleted. Follows, memberships and invitations are **not** restored. A block placed by the other party is untouched.
@@ -416,10 +416,10 @@ A profile-less follower's `following_count` is never tracked. When that user lat
 - **Note:** live drift on 2026-10-18 is 0 rows.
 
 #### COM-42 · Reconciliation exists but never runs
-`community_reconcile_follow_counts()` recomputes every count from `follows` for users with profiles. It is never scheduled (no `pg_cron`), no client calls it, and today any authenticated user can execute it ⚠ COM-D02, COM-D20.
+`community_reconcile_follow_counts()` recomputes every count from `follows` for users with profiles. It is never scheduled (no `pg_cron`), no client calls it, and since BC-01 (2026-10-19) only the service role can execute it ⚠ COM-D20.
 - **Enforced:** none (manual only).
-- **Source:** live function and grants.
-- **Target:** service-role only (BC-01). Scheduling it belongs to the Community phase.
+- **Source:** live function; migration `20261018120000_bc01_security_hardening.sql`.
+- **Target:** Scheduling it belongs to the Community phase.
 
 #### COM-43 · Counts are broader than lists
 Counts include follows from and to profile-less and private users. They are shown only when the reason is `allowed` or `self` (COM-26), while lists exclude those users (COM-49), so a displayed count can exceed the list length ⚠ COM-D30.
@@ -722,7 +722,7 @@ Populated only for the owner (otherwise `[]`): pending invitations only, newest 
 - **Source:** live function.
 
 #### COM-82 · Detail `viewer` and the circle's book id
-`viewer {role, currentPage, totalPages, normalizedLocation}` comes from `circle_progress_location(circle, viewer)` (COM-88). All of it is null when the viewer has no matching progress. No RPC exposes other members' progress — but the helper itself can be called directly with any user id ⚠ COM-D02.
+`viewer {role, currentPage, totalPages, normalizedLocation}` comes from `circle_progress_location(circle, viewer)` (COM-88). All of it is null when the viewer has no matching progress. No RPC exposes other members' progress, and since BC-01 (2026-10-19) clients cannot call the helper directly (COM-D02, fixed).
 
 `circle_progress_location` returns the viewer's matched `book_id`, but the detail payload **drops it**. `book.bookId` in the detail and the list is the **creator's** book (`reading_circles.book_id`), which no other member owns.
 
@@ -917,23 +917,10 @@ The PWA uploads to `{userId}/avatar-{Date.now()}.jpg` with `contentType: 'image/
 #### COM-102 · Who can call what
 EXECUTE on every community and circle RPC is granted to `authenticated` (plus `service_role` / `postgres`) only, **not `anon`**. A signed-out client (anon key, no user JWT) therefore gets PostgREST `42501 permission denied for function …` (HTTP 401), never the in-function soft paths. The `v_viewer is null` branches (`null` profile, `available:false`, empty search and lists, `not_authenticated`) are unreachable over the API, because an `authenticated` JWT always carries `sub`.
 
-Exceptions — anon / PUBLIC-executable:
-
-| Function | Kind | Risk |
-|---|---|---|
-| `community_remove_pair_follows` | SECURITY DEFINER | Destructive ⚠ COM-D01 |
-| `community_ensure_follow_count` | SECURITY DEFINER | Benign |
-| `community_cursor_payload`, `community_encode_cursor` | Invoker | Pure |
-| `community_block_cleanup_follows`, `community_ensure_count_on_profile_insert`, `community_follow_counts_after_follow`, `community_profiles_touch_updated_at` | Trigger functions | Cannot be called directly |
-
-All other helpers are executable by any `authenticated` user ⚠ COM-D02.
+Since 2026-10-19 (BC-01) there are no exceptions: no `public` function is executable by `anon` or PUBLIC, and the `community_*`, `circle_*` and cursor helpers are not executable by `authenticated` either (COM-D01, COM-D02 fixed). The helpers stay in schema `public`, because the community RPCs call them schema-qualified; they are reached only through those SECURITY DEFINER RPCs. The circle RLS policies call `private.is_circle_member` / `private.is_circle_owner`, which take the user from `auth.uid()`. `community_reconcile_follow_counts` is service-role only.
 - **Enforced:** `server:db` (grants).
-- **Source:** live `has_function_privilege` scan (2026-10-18).
-- **Target:**
-  - Revoke `anon` / PUBLIC EXECUTE and fix `pg_default_acl`.
-  - Move every `community_*`, `circle_*` and cursor helper into the non-exposed schema `private`, repointing the two RLS policies. `normalize_isbn` stays in `public`.
-  - Make `community_reconcile_follow_counts` service-role only.
-  - Keep the dormant community and circle RPCs on the `authenticated` allowlist (BC-01). Whether to keep them callable before the Community phase is COM-Q20.
+- **Source:** migration `20261018120000_bc01_security_hardening.sql` (§4, §5); before it, live `has_function_privilege` scan (2026-10-18).
+- **Note:** The dormant community and circle RPCs stay on the `authenticated` allowlist (BC-01). Whether to keep them callable before the Community phase is COM-Q20.
 
 #### COM-103 · Statement timeout
 Role `authenticated` has `statement_timeout = 8s` and `anon` 3 s (`pg_db_role_setting`). A community RPC that exceeds it fails with `57014 canceling statement due to statement timeout`; clients treat this as retryable.
@@ -970,25 +957,25 @@ Role `authenticated` has `statement_timeout = 8s` and `anon` 3 s (`pg_db_role_se
 `community_has_block_between(a, b)` returns **true** when either argument is NULL. Callers guard nulls first, so this matters only to direct callers of the helper.
 - **Enforced:** `server:rpc` (helper).
 - **Source:** live function.
-- **Target:** the helper moves to the non-exposed `private` schema (BC-01).
+- **Note:** since BC-01 (2026-10-19) the helper is not client-executable; it stays in schema `public`.
 
 #### COM-108 · Direct-table write surface
 RLS lets a signed-in user write some community tables directly through PostgREST, bypassing the RPC rules:
 
 | Table | Direct writes RLS allows | RPC rules bypassed |
 |---|---|---|
-| `community_profiles` | INSERT / UPDATE / DELETE own row (`community_profiles_owner_*`, role `public`) | Reserved names (COM-05), trimming (COM-10), defaults, `avatar_url` hygiene (COM-13); `created_at` can be set, and it drives search order and cursors (COM-47); a profile without a privacy row is possible (COM-02) |
+| `community_profiles` | DELETE own row only (`community_profiles_owner_delete`); BC-01 dropped the INSERT / UPDATE policies on 2026-10-19 | — |
 | `community_profile_privacy` | INSERT / UPDATE own row | None beyond the enum |
-| `follows` | INSERT / DELETE as follower | Follow eligibility (COM-34): a user can follow private profiles, users who blocked them, or users with no profile, inflating counts. A direct DELETE equals an unfollow |
+| `follows` | DELETE as follower (BC-01 dropped `follows_follower_insert` on 2026-10-19) | None: a direct DELETE equals an unfollow |
 | `blocks` | INSERT / DELETE as blocker | None: the same triggers fire (COM-39). A direct DELETE equals an unblock |
 | `community_follow_counts` | SELECT own row only | — triggers only |
 | `reading_circles`, `circle_invitations`, `circle_members`, `circle_reactions` | SELECT only (role `authenticated`) | — every write goes through the `SECURITY DEFINER` RPCs |
 
-Table grants give `anon` and `authenticated` full DML. For `anon`, `auth.uid()` is NULL, so the policies match no rows.
+Table grants give `authenticated` full DML; since BC-01 (2026-10-19) `anon` has no table privileges.
 
 A profile without a privacy row is **not** invisible everywhere:
 - `get_public_profile_by_username`, `get_my_community_profile` and also-reading inner-join privacy, so they return null or exclude it;
-- search, follower / following lists, `follow_community_user` and the circle surfaces read only `community_profiles`, so they still show or accept it ⚠ COM-D03.
+- search, follower / following lists, `follow_community_user` and the circle surfaces read only `community_profiles`, so they still show or accept it. Since BC-01 clients can no longer create such a profile directly (COM-D03, fixed).
 - **Enforced:** `server:db` (RLS).
 - **Source:** live `pg_policies` (2026-10-18).
 - **Target:** drop `follows_follower_insert` and the `community_profiles` owner INSERT / UPDATE policies, so follows and profiles are written only through RPCs. Revoking `anon` table privileges is recommended (BC-01).
@@ -1245,9 +1232,9 @@ Every client must implement the rules below today. "Moves to" names the work pac
 
 | ID | Defect | Impact | Fix |
 |---|---|---|---|
-| COM-D01 | `community_remove_pair_follows(a, b)` is `SECURITY DEFINER` and EXECUTE-able by `anon` / `PUBLIC` (COM-39, COM-102) | Anyone with the anon key can delete arbitrary follow edges between any two users | **BC-01** (revoke anon / PUBLIC; move to `private`) |
-| COM-D02 | Helpers callable by any `authenticated` user with arbitrary ids: `circle_progress_location` returns any user's page / total for a circle book; `community_relationship_payload`, `community_has_block_between`, `community_interaction_reason` and `community_can_view_profile` reveal follow / block edges; `circle_user_is_member/owner`, `circle_member_count`, `circle_members_have_block`, `circle_book_matches` and `circle_users_can_share` are oracles; `community_reconcile_follow_counts` runs a global recompute (COM-42, COM-82, COM-102) | Cross-user data leaks that bypass `progress_visibility`; load abuse | **BC-01** (move to `private`; service-role-only reconcile) |
-| COM-D03 | Direct-table RLS bypasses the RPC rules: `follows` INSERT ignores eligibility; `community_profiles` INSERT / UPDATE ignore reserved names, trimming and URL hygiene, can set `created_at`, and can create a profile without a privacy row (COM-02, COM-05, COM-108) | Following private or blocking users; inflated counts; reserved names; manipulated search order; half-visible profiles | **BC-01** (drop `follows_follower_insert` and the profile INSERT / UPDATE policies) |
+| COM-D01 | `community_remove_pair_follows(a, b)` is `SECURITY DEFINER` and EXECUTE-able by `anon` / `PUBLIC` (COM-39, COM-102) | Anyone with the anon key can delete arbitrary follow edges between any two users | **BC-01** (revoke anon / PUBLIC; move to `private`) **Fixed 2026-10-19 (BC-01):** `EXECUTE` revoked from `anon`, PUBLIC and `authenticated`; the helper stays in `public`. |
+| COM-D02 | Helpers callable by any `authenticated` user with arbitrary ids: `circle_progress_location` returns any user's page / total for a circle book; `community_relationship_payload`, `community_has_block_between`, `community_interaction_reason` and `community_can_view_profile` reveal follow / block edges; `circle_user_is_member/owner`, `circle_member_count`, `circle_members_have_block`, `circle_book_matches` and `circle_users_can_share` are oracles; `community_reconcile_follow_counts` runs a global recompute (COM-42, COM-82, COM-102) | Cross-user data leaks that bypass `progress_visibility`; load abuse | **BC-01** (move to `private`; service-role-only reconcile) **Fixed 2026-10-19 (BC-01):** `EXECUTE` revoked from `anon` and `authenticated` (helpers stay in `public`); circle RLS uses `private.is_circle_member` / `private.is_circle_owner`; reconcile is service-role only. |
+| COM-D03 | Direct-table RLS bypasses the RPC rules: `follows` INSERT ignores eligibility; `community_profiles` INSERT / UPDATE ignore reserved names, trimming and URL hygiene, can set `created_at`, and can create a profile without a privacy row (COM-02, COM-05, COM-108) | Following private or blocking users; inflated counts; reserved names; manipulated search order; half-visible profiles | **BC-01** (drop `follows_follower_insert` and the profile INSERT / UPDATE policies) **Fixed 2026-10-19 (BC-01):** `follows_follower_insert` and the profile INSERT / UPDATE policies dropped. |
 | COM-D04 | `avatar_url` is unvalidated free text (COM-13); live, 1 of 5 profiles points outside the bucket | Tracking pixels, IP leaks, unmoderated images for every viewer | **BC-01** recommended bucket-prefix check in the upsert; it also applies to the **BC-11** partial writes |
 | COM-D05 | Also-reading accepts a caller-controlled `p_isbn` (COM-57) | A viewer can enumerate every in-progress book of the readers they follow | Ignore `p_isbn`, or require it to equal the viewer's own book ISBN (Community phase) |
 | COM-D06 | Cross-surface privacy leaks: `currentlyReading` returns page / % when `progress` = `nobody`; `lexiconHighlights.bookTitle` reveals books when `currentlyReading` = `nobody`; also-reading always returns `updatedAt`; `hasBlockedViewer` and `blocks_participant_select` tell a blocked user who blocked them (COM-26, COM-29, COM-30, COM-49, COM-64) | Settings do not mean what the UI says | Gate each field by every surface it reveals (COM-Q02, COM-Q04) — Community phase |

@@ -1,7 +1,7 @@
 # 03 · Recaps — Business Rules
 > **Prefix:** REC · **Verified against:** web master @ 8d8701c + live Supabase, 2026-10-18 · **Legend & glossary:** [README](README.md)
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19 (BC-01 and BC-02 shipped)
 
 ## Overview
 
@@ -248,36 +248,32 @@ Mode selection, `fromPage` and the lock all require the book's recap list to be 
 - `Access-Control-Allow-Headers: authorization, x-client-info, apikey, content-type`
 - `Access-Control-Allow-Methods: POST, OPTIONS`
 
-No `Access-Control-Expose-Headers` is set. There is no method check: any other method is processed as a POST, so there is no 405.
+No `Access-Control-Expose-Headers` is set. Since 2026-10-19 (BC-02) any other method than `OPTIONS` and `POST` gets `405 {"error":"Method not allowed"}`.
 - **Enforced:** `server:edge`
-- **Source:** `supabase/functions/generate-recap/cors.ts:1-11`, `index.ts:16-18`
+- **Source:** `supabase/functions/generate-recap/cors.ts:1-11`, `index.ts`
 
 #### REC-21 · Authentication
 - A missing `Authorization` header → `401 {"error":"No authorization header"}`.
-- The JWT payload is **base64-decoded without signature verification**, and the function trusts `sub`. A missing or invalid `sub` → `401 {"error":"Unauthorized"}`.
-- Platform `verify_jwt` is `false` on the live project. The repo has **no `supabase/config.toml`**, so a fresh deploy from the repo would silently flip it to `true`.
+- Since 2026-10-19 (BC-02, v86) the token is verified by Supabase Auth (`supabase.auth.getUser` in the shared `supabase/functions/_shared/auth.ts`): signature, expiry and that the user exists. A forged, expired or anon-key token → `401 {"error":"Unauthorized"}`.
+- Platform `verify_jwt` is `true` on the live project, and `supabase/config.toml` commits it.
 
-**Base64url defect:** `atob(parts[1])` runs on the raw base64url segment without mapping `-`→`+` and `_`→`/`. WHATWG `atob` rejects `-` and `_` (reproduced with Node's `atob` on 2026-10-18). Any token whose payload encodes to one of those characters therefore gets a spurious 401. That happens with non-ASCII UTF-8 (e.g. accented `user_metadata` names), or with `>`, `?` or `~` at byte offsets ≡ 2 mod 3. It is intermittent because `iat`/`exp` shift the alignment. Not reproduced against a live token. ⚠ REC-D01, REC-D03
-- **Enforced:** `server:edge` (decode only)
-- **Source:** `supabase/functions/generate-recap/index.ts:22-30`, `auth.ts:5-16`; `generate-lore` does the base64url mapping (`supabase/functions/generate-lore/index.ts:12-18`)
-- **Target:**
-  - `verify_jwt = true`, or real `supabase.auth.getUser` verification. Drop the hand-rolled decode, which also removes the base64url defect.
-  - Commit `supabase/config.toml` with per-function settings.
-  - (D-06 · BC-02)
+The hand-rolled base64url decode is gone, and with it the spurious-401 defect for tokens whose payload encodes to `-` or `_` (REC-D01 and REC-D03, both fixed).
+- **Enforced:** `server:edge` (gateway `verify_jwt` + `supabase.auth.getUser`)
+- **Source:** `supabase/functions/generate-recap/index.ts`, `supabase/functions/_shared/auth.ts`; `supabase/config.toml`
 
 #### REC-22 · Body validation
 | Mode | Requirement | Failure |
 |---|---|---|
 | `recap_image` | Truthy `recapId`, `title`, `memoryJogger` | `400 {"error":"Missing required image fields"}` |
 | All other modes, including `passport_summary` | Truthy `title`, `author`, `totalPages`, and `percentage !== undefined` | `400 {"error":"Missing required fields"}` |
-| Any | Body is valid JSON | Invalid JSON is caught → `500 {"error":"Internal server error","detail":"<String(err)>"}` |
+| Any | Body is a valid JSON object | `400 {"error":"invalid_input"}` (since BC-02) |
 
-The check order is: auth header → decode → `req.json()` → field validation → `GEMINI_API_KEY` → `OPENAI_API_KEY` (image only).
+The check order is: method → auth header → `getUser` → `req.json()` → field validation → `GEMINI_API_KEY` → `OPENAI_API_KEY` (image only).
 
 From the PWA the text-mode 400 is unreachable, because the live CHECKs `books_title_check` (1–500 chars), `books_author_check` (1–200 chars) and `books_total_pages_check` (≥ 1) guarantee truthy values. A native client must still send a non-empty `author` and `totalPages ≥ 1`.
 - **Enforced:** `server:edge`; `server:db` (`books_*_check`)
-- **Source:** `supabase/functions/generate-recap/index.ts:33-40,61-64`
-- **Target:** no internal error text in 500 responses (the `detail: String(err)` field goes) (D-06 · BC-02). ⚠ REC-D19
+- **Source:** `supabase/functions/generate-recap/index.ts`
+- **Note:** since 2026-10-19 (BC-02) a 500 body is `{"error":"Internal server error","requestId"}`, with no internal error text.
 
 #### REC-23 · Provider configuration errors
 | Missing | Response | Applies to |
@@ -584,7 +580,8 @@ The job uses the service-role client, filtered `id = recapId AND user_id = <deco
 | Failure | `image_status 'failed_safety'` or `'failed_transient'`, `image_path null` |
 
 - **`skipped`:** never written by anyone. Legacy `NULL` rows are mapped to `skipped` client-side.
-- **0-row updates:** silent no-ops. The job still calls Gemini and OpenAI and still uploads, even when the recap does not exist or belongs to another user (REC-D02).
+- **Ownership check:** since 2026-10-19 (BC-02) a `recapId` that does not exist or belongs to another user gets `404 {"error":"recap_not_found"}` before any AI call.
+- **0-row updates:** silent no-ops. A recap deleted after that check still costs Gemini and OpenAI calls and an upload (REC-D02).
 - **No catch:** `handleImageGeneration` has `try/finally` but no `catch`. An upload or update exception, or a runtime kill, leaves the row `pending`, while the function log reports `final_image_status: failed_transient` (REC-D15).
 - **Enforced:** `server:edge`; `server:db` (`recaps_image_status_check`)
 - **Source:** `supabase/functions/generate-recap/handlers/image.ts:23-35,89-160`, `src/types/index.ts:446-460`
@@ -1144,9 +1141,9 @@ Every client must implement the rules below today. "Moves to" names the work pac
 
 | ID | Defect | Impact | Fix |
 |---|---|---|---|
-| REC-D01 | `generate-recap` trusts an unverified, base64-decoded JWT `sub`, and `verify_jwt = false` (REC-21) | Anyone can spend Gemini 2.5 Pro + Search and OpenAI credits. In `recap_image` mode the service-role client updates `recaps` and uploads to `recap-images/{sub}/{recapId}.png` for any chosen `sub` | **BC-02**: `verify_jwt = true` or `auth.getUser`; commit `config.toml` |
-| REC-D02 | The `recap_image` job runs the paid pipeline and uploads even when the recap row is missing (deleted book) or belongs to someone else. 0-row updates are silent (REC-42, REC-73) | Wasted cost; orphaned or overwritten objects | **BC-02 + BC-13**: verify row ownership and existence before calling providers; bail out if the row is gone |
-| REC-D03 | Base64url payload decoded with plain `atob` (REC-21). Mechanism reproduced in Node; not reproduced against a live token | Intermittent spurious `401 Unauthorized` for valid sessions (accented names, `>?~` bytes) | **BC-02** (drop the manual decode) |
+| REC-D01 | `generate-recap` trusts an unverified, base64-decoded JWT `sub`, and `verify_jwt = false` (REC-21) | Anyone can spend Gemini 2.5 Pro + Search and OpenAI credits. In `recap_image` mode the service-role client updates `recaps` and uploads to `recap-images/{sub}/{recapId}.png` for any chosen `sub` | **BC-02**: `verify_jwt = true` or `auth.getUser`; commit `config.toml` **Fixed 2026-10-19 (BC-02):** v86 runs with `verify_jwt = true` and verifies the caller with `supabase.auth.getUser`; `config.toml` committed. |
+| REC-D02 | The `recap_image` job runs the paid pipeline and uploads even when the recap row is missing (deleted book) or belongs to someone else. 0-row updates are silent (REC-42, REC-73) | Wasted cost; orphaned or overwritten objects | **BC-02 + BC-13**: verify row ownership and existence before calling providers; bail out if the row is gone **Partly fixed 2026-10-19 (BC-02):** the job returns 404 `recap_not_found` before any AI call when the recap is missing or not the caller's; a recap deleted mid-job is still not handled (BC-13). |
+| REC-D03 | Base64url payload decoded with plain `atob` (REC-21). Mechanism reproduced in Node; not reproduced against a live token | Intermittent spurious `401 Unauthorized` for valid sessions (accented names, `>?~` bytes) | **BC-02** (drop the manual decode) **Fixed 2026-10-19 (BC-02).** |
 | REC-D04 | No server-side eligibility or quotas (REC-11) | Unlimited recaps from any client; no basis for entitlements | **BC-07 + BC-12** |
 | REC-D05 | The corpus window is two recaps back, while the prompt and the type contract say "since the last recap" (REC-14, REC-31) | With no new captures, the "new" recap re-summarises the previous stretch, is badged "From your captures", and gets the new page range | **BC-07** server selection + **REC-Q02** |
 | REC-D06 | The inferred warning checks the one-back window; the mode uses two-back (REC-17) | The reader confirms "may contain spoilers" and then gets a corpus recap | **BC-07** (one server decision drives both) + REC-Q02 |
@@ -1162,7 +1159,7 @@ Every client must implement the rules below today. "Moves to" names the work pac
 | REC-D16 | Realtime subscription is dead: `supabase_realtime` has 0 tables, yet a channel opens per mounted panel (REC-48) | Misleading code; wasted channels | **BC-14** (publish `recaps`) or remove the subscription |
 | REC-D17 | The lock is not time-reactive (REC-10) | "Recap in N hours" never counts down; the button never unlocks while the page is open | Tick `now` periodically (e.g. every 60 s) |
 | REC-D18 | Shallow validation. Non-string fields pass; limits are prompt-only; a non-string capture `text` → 500; capture text is uncapped (REC-25, REC-31, REC-36) | `.split(',')` crashes on non-strings; oversized prompts | **BC-07** server-side validation and capture selection |
-| REC-D19 | Raw server error strings are shown, and `detail` is discarded. 500s leak `String(err)` (REC-22, REC-40, REC-70) | Users see "AI output invalid" or "Unauthorized"; internal text is exposed | **BC-02** (no internal text) + an error-code → copy map (REC-Q15) |
+| REC-D19 | Raw server error strings are shown, and `detail` is discarded. 500s leak `String(err)` (REC-22, REC-40, REC-70) | Users see "AI output invalid" or "Unauthorized"; internal text is exposed | **BC-02** (no internal text) + an error-code → copy map (REC-Q15) **Partly fixed 2026-10-19 (BC-02):** 500s no longer carry internal text; the client still shows raw error strings (REC-Q15). |
 | REC-D20 | Signed-URL lifetimes and gallery staleness. 60 s panel URLs; 1 h URLs reused for the session; a failed mint silently removes the slot; the gallery never refreshes in-session, keeps a deleted book's images, and a fetch failure sticks as empty (REC-47, REC-49, REC-57) | Broken images in long-lived views; taps into deleted books | Re-mint on error or expiry; purge by `bookId` on delete; refresh on foreground |
 | REC-D21 | N+1 on the history page: each card re-queries its row and mints its own URL | Slow history for long journals | Batch the status read + `createSignedUrls` |
 | REC-D22 | Passport summary fragility. Online crossing only; offline, import, "Already finished" and other-device paths never; an AI failure leaves no row, no retry and a permanent "being generated"; partial or empty text is persisted; `fetchPassport` has no catch (REC-35) | Missing or empty passport narratives | **BC-05** (server job) with **BC-04** completion detection |
@@ -1175,7 +1172,7 @@ Every client must implement the rules below today. "Moves to" names the work pac
 | REC-D29 | Book Detail `onMounted` awaits `fetchRecapsForBook` with no catch (REC-19) | Passport, lexicon and lore-seen loads are skipped on that visit | Catch each call independently |
 | REC-D30 | The inferred path has no client or server timeout; up to 3 Pro calls before the first byte (REC-30b) [UNVERIFIED: gateway limit behaviour] | A possible gateway 5xx instead of a JSON error; paid work lost | **BC-07** background semantics; a generous client timeout (≥ 120 s) until then |
 | REC-D31 | `progress_snapshot` is shown raw (e.g. "37.45%") on history cards (REC-53) | Cosmetic | REC-Q15 (round for display) |
-| REC-D32 | Drift and dead code (see the list below) | Misleading code; deploy footguns | **BC-03** (sync repo ↔ deployed; baseline migration) + **BC-02** (`config.toml`) + dead-code removal |
+| REC-D32 | Drift and dead code (see the list below) | Misleading code; deploy footguns | **BC-03** (sync repo ↔ deployed; baseline migration) + **BC-02** (`config.toml`) + dead-code removal **Partly fixed 2026-10-19 (BC-02):** `supabase/config.toml` is committed; the other items remain. |
 
 REC-D32 covers:
 
@@ -1223,7 +1220,7 @@ D-01…D-17 have resolved these former questions; they appear as Target lines in
 
 ### Platform-agnostic (iOS now, Android later)
 - **Build against the decided target.** If BC-02 and BC-07 land before the native build, the native client calls the server-owned recap flow (F8). It does not port the lock, mode selection, parsing or insertion. Until then, replicate REC-03…REC-41 exactly, and keep both clients on the same rules (D-05).
-- **Auth.** Send `Authorization: Bearer <access token>`, refreshed when near expiry, plus the `apikey` header. Until BC-02 ships, a `401 Unauthorized` from this function can be the base64url defect (REC-D03). Refresh once and retry before treating the user as signed out.
+- **Auth.** Send `Authorization: Bearer <access token>`, refreshed when near expiry, plus the `apikey` header. Since BC-02 (2026-10-19) the token is verified server-side. Refresh once and retry on a `401` before treating the user as signed out.
 - **Streaming (legacy contract, REC-71).** Accumulate the whole body. Do not render tokens, because they are JSON text. Show a "Generating your recap…" state. Use a generous timeout (≥ 120 s) for the inferred path. Map a gateway 5xx or timeout to the same retryable error as "AI output invalid".
 - **Parsing parity (REC-36).** Trim → fenced block → first `{` … last `}` → decode three **non-empty strings**. Reject other types. Native clients may read `X-Recap-Mode`, but should not trust it for `mode` until REC-Q02 is settled.
 - **Persistence (legacy, REC-37).** Insert exactly `book_id, user_id, progress_snapshot (2 dp), page_snapshot, memory_jogger, concept_watchlist, thematic_bridge, mode, image_status 'pending'`. Never write the `image_*` columns afterwards. Retry the `recap_image` kick-off once on a network failure.
@@ -1249,4 +1246,4 @@ D-01…D-17 have resolved these former questions; they appear as Target lines in
   - Guideline 5.1.2(i): third-party AI disclosure and consent before the first recap or capture. List Google (including Search grounding) and OpenAI in the App Privacy details.
   - Guideline 5.1.1(v): in-app account deletion through the `delete-account` edge function, which purges `recap-images/{uid}/` (D-10).
   - Guideline 1.2: if recap images ever become shareable (`ShareLink`), add a "Report image" affordance and label spoilers.
-  - Do not ship publicly before BC-02 closes the forgeable-auth hole (REC-D01).
+  - BC-02 closed the forgeable-auth hole (REC-D01) on 2026-10-19.

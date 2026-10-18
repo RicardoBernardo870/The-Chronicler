@@ -1,7 +1,7 @@
 # 02 · Reading Sessions, Progress, Completion, Passport & Dashboard — Business Rules
 > **Prefix:** SES · **Verified against:** web master @ 8d8701c + live Supabase, 2026-10-18 · **Legend & glossary:** [README](README.md)
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19 (BC-01 and BC-02 shipped)
 
 ## Overview
 
@@ -731,22 +731,19 @@ At zero (once per crossing): `timeUp = true`, the screen wakes, the chime plays 
 ### Authorization
 
 #### SES-84 · Owner RLS without a book-ownership check
-`reading_progress`, `progress_history`, `book_passports`, `up_next_order` and `books` each have the single policy `ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id)` (role `public`). The policies do **not** check that `book_id` belongs to the caller, so a client can write progress or history rows that reference another user's book ⚠ SES-D03.
+`books` has the single policy `ALL USING (user_id = (select auth.uid())) WITH CHECK (user_id = (select auth.uid()))`. Since 2026-10-19 (BC-01) `reading_progress`, `progress_history`, `book_passports` and `up_next_order` have per-command policies (role `authenticated`) whose INSERT and UPDATE also require `book_id` to belong to the caller; a write against another user's book fails with `42501`. The offline queue is still not user-scoped (SES-97) ⚠ SES-D03.
 - **Enforced:** `server:db` (RLS).
-- **Source:** live `pg_policies`.
-- **Target:** RLS on child tables checks book ownership (BC-01).
+- **Source:** live `pg_policies`; migration `20261018120000_bc01_security_hardening.sql`.
 
 #### SES-85 · Three session RPCs trust p_user_id
-`get_library_with_progress`, `get_last_session` and `get_reading_velocity` are `SECURITY DEFINER`, granted to `authenticated` (not `anon`), and never compare `p_user_id` with `auth.uid()`. Any signed-in account that knows a victim's UUID can read that library, active session, last book title and **private session note** ⚠ SES-D01. In contrast, `get_book_passport_stats` and `get_reading_stats` check `auth.uid()` (`get_book_passport_stats` is also executable by `anon`, returning the empty shape).
-- **Enforced:** `server:rpc` (absence of check).
-- **Source:** live `pg_get_functiondef`; `has_function_privilege`.
-- **Target:** assert `p_user_id = auth.uid()`, keeping the parameter for PWA compatibility; revoke `anon`/PUBLIC EXECUTE (BC-01).
+`get_library_with_progress`, `get_last_session` and `get_reading_velocity` are `SECURITY DEFINER` and granted to `authenticated` only. Since 2026-10-19 (BC-01) they raise `not_allowed` (`42501`) unless `p_user_id = auth.uid()`, so an account can read only its own library, active session, last book title and **private session note**; the parameter is kept for PWA compatibility. `get_book_passport_stats` and `get_reading_stats` filter by `auth.uid()`, and `get_book_passport_stats` is no longer executable by `anon`.
+- **Enforced:** `server:rpc` (owner assert); `server:db` (grants).
+- **Source:** migration `20261018120000_bc01_security_hardening.sql`; live `pg_get_functiondef`; `has_function_privilege`.
 
 #### SES-86 · generate-recap does not verify the JWT signature
-`generate-recap` runs with `verify_jwt = false`. `manualJwtDecode` only base64-decodes the payload to read `sub` and never verifies the signature; the passport path does not use the user ID at all ⚠ SES-D02. A second suspected defect: `atob(parts[1])` runs on a **base64url** segment, and WHATWG `atob` rejects `-` and `_`, which would map a valid token to `401 {"error":"Unauthorized"}`. This would happen when a payload byte is ≥ 0x80 (e.g. accented names in `user_metadata`) or the third byte of a 3-byte group is `>`, `?` or `~`. It is derived from `atob` semantics and code reading and was not reproduced against v84.
-- **Enforced:** `server:edge` (absence of verification).
-- **Source:** `supabase/functions/generate-recap/auth.ts`; live function settings.
-- **Target:** `verify_jwt = true` (or a real `supabase.auth.getUser` check), drop the hand-rolled decode, no internal error text in 500s, and commit `supabase/config.toml` (BC-02).
+Since 2026-10-19 (BC-02, v86) `generate-recap` runs with `verify_jwt = true` and verifies the caller with `supabase.auth.getUser`, so a forged or expired token gets `401` before any AI call; the passport path does not use the user ID beyond that. The hand-rolled `manualJwtDecode`, and with it the suspected base64url `401` for valid tokens, is gone; 500 bodies carry no internal text. Until then the function ran with `verify_jwt = false` and only decoded the payload (SES-D02, fixed).
+- **Enforced:** `server:edge`.
+- **Source:** `supabase/functions/_shared/auth.ts`, `supabase/functions/generate-recap/index.ts`; `supabase/config.toml`; live function settings.
 
 ### Account and lifecycle edges
 
@@ -1033,9 +1030,9 @@ Target: refresh session columns on foreground, or add `reading_progress` to the 
 
 | ID | Defect | Impact | Fix |
 |---|---|---|---|
-| SES-D01 | `get_library_with_progress`, `get_last_session`, `get_reading_velocity` never compare `p_user_id` with `auth.uid()` (SES-85). | Any signed-in account can read another reader's library, active session, last book and private session note. | BC-01 owner assert (keep the param). |
-| SES-D02 | `generate-recap` runs `verify_jwt = false` with decode-only auth; suspected base64url `atob` rejection of valid tokens (SES-86, unverified). | Forged tokens spend AI credits; a valid token could get 401 and kill passport generation. | BC-02. |
-| SES-D03 | RLS on `reading_progress`, `progress_history`, `book_passports` doesn't check book ownership; the offline queue is not user-scoped (SES-84, SES-97). | A queued record drained after a user switch creates a progress row for another user's book. | BC-01 book-ownership RLS; user-scoped queue purged on sign-out. |
+| SES-D01 | `get_library_with_progress`, `get_last_session`, `get_reading_velocity` never compare `p_user_id` with `auth.uid()` (SES-85). | Any signed-in account can read another reader's library, active session, last book and private session note. | BC-01 owner assert (keep the param). **Fixed 2026-10-19 (BC-01).** |
+| SES-D02 | `generate-recap` runs `verify_jwt = false` with decode-only auth; suspected base64url `atob` rejection of valid tokens (SES-86, unverified). | Forged tokens spend AI credits; a valid token could get 401 and kill passport generation. | BC-02. **Fixed 2026-10-19 (BC-02):** `verify_jwt = true` + `supabase.auth.getUser` (v86); the manual decode is gone. |
+| SES-D03 | RLS on `reading_progress`, `progress_history`, `book_passports` doesn't check book ownership; the offline queue is not user-scoped (SES-84, SES-97). | A queued record drained after a user switch creates a progress row for another user's book. | BC-01 book-ownership RLS; user-scoped queue purged on sign-out. **Partly fixed 2026-10-19 (BC-01):** book-ownership RLS shipped; the offline queue is still not user-scoped. |
 | SES-D04 | Session start and DNF upserts send the cached `current_page` (SES-87, SES-75). | A stale device rewinds real progress with no history trail and may re-fire the completion purge. | BC-04 session/DNF RPCs; meanwhile never send `current_page` with session/DNF writes. |
 | SES-D05 | Offline session end is lossy: no history, session never cleared, time lost from stats; a paused session desyncs (SES-77, SES-78). | Offline reading is invisible to streaks, charts, velocity and the passport; the reader must cancel a still-running session. | BC-04 replay through `save_progress` with `client_occurred_at` (D-08). |
 | SES-D06 | "Zombie" sessions on complete books; no UI can cancel them (SES-89). | Stale `sessionStartAt` leaks to every client (Live Activities, widgets). | BC-04 (save ends the session); client stale-session check; SES-Q16. |

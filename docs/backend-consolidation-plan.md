@@ -174,8 +174,8 @@ How to read the edges:
 
 | ID | Title | Status | Wave | Effort | Depends on | PWA must change? |
 |---|---|---|---|---|---|---|
-| BC-01 | Security hardening | Required — not started | 1 | M | BC-03 | No (recommended: user-scoped offline queue) |
-| BC-02 | Edge-function auth | Required — not started | 1 | S | BC-03 | No (recommended: `apikey` header, 401 refresh-retry) |
+| BC-01 | Security hardening | **Done 2026-10-19** (migration history repair pending, BC-03) | 1 | M | BC-03 | No (recommended: user-scoped offline queue) |
+| BC-02 | Edge-function auth | **Done 2026-10-19** for the three exposed functions (follow-ups below) | 1 | S | BC-03 | No (recommended: `apikey` header, 401 refresh-retry) |
 | BC-03 | Source of truth & drift | Decided — in progress (live snapshot committed 2026-10-18) | 1 | M | — | No |
 | BC-04 | Atomic progress & session RPCs | Decided — not started | 2 | L | BC-01 | **Yes** |
 | BC-05 | Server-owned completion & lifecycle effects | Decided — not started | 2 | L | BC-04, BC-06 | **Yes** |
@@ -196,7 +196,19 @@ How to read the edges:
 
 ### BC-01 — Security hardening
 
-**Status:** Required — not started · Wave 1 · Effort M
+**Status:** **Done 2026-10-19** · Wave 1 · Effort M
+
+> **Shipped.** Migration [`20261018120000_bc01_security_hardening.sql`](../supabase/migrations/20261018120000_bc01_security_hardening.sql) was rehearsed as a rollback-only dry run on production, then applied through the SQL editor on 2026-10-19. Remote migration history therefore does not list it yet; BC-03's `migration repair` must record it. The PWA smoke test passed (Dashboard, Library, Profile, recap, lore, OCR capture).
+>
+> **Acceptance results:**
+> - **01-1 to 01-5, 01-7 and 01-8:** pass. The caller's own payloads are byte-identical; another user's id gets `42501 not_allowed`; an anon quest call gets `42501`; 0 anon-executable functions; nothing executable outside the allowlist; new functions are not auto-granted; the dead functions are gone; foreign `book_id` inserts are rejected on all 10 tables; a direct `follows` insert is denied.
+> - **01-6: deviation.** The helpers were not moved to `private` (about thirty RPCs call them schema-qualified), so a direct call returns `42501`, not 404. Circle RLS still works (verified for owner and member).
+> - **01-9:** pass. 0 lint 0028; lint 0029 only for the 34 allowlisted RPCs; 0 `auth_rls_initplan`, `unindexed_foreign_keys` and `duplicate_index` in scope (the remaining hits are `activity_logs`, out of scope).
+> - **01-10:** pass.
+>
+> **Decisions taken:** OP-01.1 yes (anon table privileges revoked, except `activity_logs`); OP-01.2 raise `42501`.
+>
+> **Not done:** the recommended `upsert_my_community_profile` hardening (BC-01.7: display-name cap, avatar URL check, `btrim`).
 
 #### Why
 
@@ -296,7 +308,25 @@ How to read the edges:
 
 ### BC-02 — Edge-function auth
 
-**Status:** Required — not started · Wave 1 · Effort S
+**Status:** **Done 2026-10-19** for `generate-recap` (v86), `generate-lore` (v20) and `ocr-page` (v4) · Wave 1 · Effort S
+
+> **Shipped.**
+> - `supabase/functions/_shared/auth.ts` (`requireUser` → `supabase.auth.getUser`) and `_shared/errors.ts`.
+> - The three functions were first deployed from the repo with the in-code check only, tested in the PWA, then redeployed with `verify_jwt = true`. The bundle hashes are unchanged.
+> - `supabase/config.toml` is committed.
+>
+> **Acceptance results:**
+> - **02-1:** pass for the three functions. A forged token gets 401 from the gateway (`UNAUTHORIZED_LEGACY_JWT`) and from `requireUser`, and no AI call is made. The other four functions were already behind `verify_jwt = true`.
+> - **02-2:** pass by construction (no local decoding).
+> - **02-3:** pass. 500s are `{error, requestId}`; malformed JSON gets 400.
+> - **02-4:** pass. A `recapId` the caller doesn't own gets 404 before any AI call.
+> - **02-5:** pass. All seven functions report `verify_jwt = true`.
+> - **02-6:** pass. Recap text and image, blurb, lore and OCR were tested live.
+>
+> **Follow-ups:**
+> - Replace the local `sub` decoding in `extract-vocabulary`, `generate-reading-dna`, `generate-page-resume` and `generate-book-quiz` with `requireUser` (scope item 3).
+> - OP-02.1 (CORS) is still open.
+> - The recommended PWA changes (`apikey` header, 401 refresh-retry) are not done.
 
 #### Why
 

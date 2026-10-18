@@ -1,7 +1,7 @@
 # 01 · Library & Books — Business Rules
 > **Prefix:** LIB · **Verified against:** web master @ 8d8701c + live Supabase, 2026-10-18 · **Legend & glossary:** [README](README.md)
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19 (BC-01 and BC-02 shipped)
 
 ## Overview
 
@@ -527,7 +527,7 @@ When a book is not in the store (deep link, reload), Book Detail calls `fetchLib
 #### LIB-116 · Library RPC contract and authorization
 `get_library_with_progress(p_user_id uuid) → json` (LANGUAGE sql, STABLE, **SECURITY DEFINER**, `search_path=public`):
 - **Grants:** EXECUTE for `authenticated` and `service_role`, not `anon`.
-- **Authorization:** the body contains **no `auth.uid()` check**, so any signed-in user can read another user's library, ISBNs, descriptions, progress, active session and DNF state by passing that user's UUID. The PWA calls it with `{p_user_id: auth.user.id}`. `get_reading_velocity`, `get_library_breakdown` and `get_last_session` have the same hole. ⚠ LIB-D01
+- **Authorization:** since 2026-10-19 (BC-01) the function raises `not_allowed` (`42501`) unless `p_user_id = auth.uid()`; the parameter is kept, and the PWA calls it with `{p_user_id: auth.user.id}`. `get_reading_velocity`, `get_library_breakdown` and `get_last_session` have the same guard.
 - **Response:** one JSON array (`[]` when empty), with no pagination, ordered per LIB-47. Each element is `{id, title, author, coverUrl, totalPages, genre, isbn, description, source, pageCountEstimated, currentPage, percentage, status, lastReadAt, sessionStartAt, dnfAt, progressId}`.
   - `percentage` is numeric, 2 dp, capped at 100.
   - `lastReadAt` = `reading_progress.updated_at`, bumped by any progress update, not only page saves.
@@ -535,8 +535,8 @@ When a book is not in the store (deep link, reload), Book Detail calls `fetchLib
   - `created_at` and `session_paused_at` are **not** returned.
   - The `coalesce`s on `source` / `page_count_estimated` are dead code, because both columns are NOT NULL.
 - **Enforced:** `server:rpc` (`get_library_with_progress`)
-- **Source:** live `pg_get_functiondef`, `has_function_privilege`; `src/stores/books.ts:86-88`
-- **Target:** The function asserts `p_user_id = auth.uid()` while keeping the parameter for PWA compatibility (BC-01, Required). A delta / paginated variant (`changed_since`) is added for large libraries and multi-device sync (BC-14, recommended).
+- **Source:** live `pg_get_functiondef`, `has_function_privilege`; migration `20261018120000_bc01_security_hardening.sql`; `src/stores/books.ts:86-88`
+- **Target:** A delta / paginated variant (`changed_since`) is added for large libraries and multi-device sync (BC-14, recommended).
 
 ### Up Next queue
 
@@ -575,14 +575,13 @@ Rapid drops race, and the last write wins.
 
 #### LIB-59 · `up_next_order` constraints
 - `UNIQUE(user_id, book_id)`; `sort_position integer NOT NULL DEFAULT 0`; `updated_at DEFAULT now()`.
-- RLS "Users manage own up_next_order": `ALL`, `auth.uid() = user_id`.
+- RLS `up_next_order_select_own` / `_insert_own` / `_update_own` / `_delete_own` (BC-01): `user_id = (select auth.uid())`.
 - FKs to `auth.users` and `books`, both `ON DELETE CASCADE`.
 - Read with `select * where user_id = uid order by sort_position asc`. Written only by `saveOrder`.
 
-RLS does not check that `book_id` belongs to the caller.
+Since 2026-10-19 (BC-01) INSERT and UPDATE also require `book_id` to belong to the caller (`42501` otherwise).
 - **Enforced:** `server:db` (`up_next_order_user_id_book_id_key`, FKs, RLS)
-- **Source:** live
-- **Target:** Child-table RLS also checks book ownership (BC-01, Required).
+- **Source:** live; migration `20261018120000_bc01_security_hardening.sql`
 
 #### LIB-60 · Dashboard Up Next shelf
 The shelf shows books with `percentageForBook = 0` that are not DNF: ordered books first by index, then the rest in `booksStore.books` order. It does **not** exclude the current hero, so a 0-page book with an active session can be both the hero and on the shelf. Tapping a shelf book calls `setActive`, which swaps the hero without starting a session. ⚠ LIB-D11
@@ -1019,17 +1018,16 @@ The badges appear only on Library list and search `BookCard`s: not on the Dashbo
 - **Source:** same
 
 #### LIB-101 · Days-left forecast (`get_reading_velocity`)
-`get_reading_velocity(p_user_id, p_book_ids) → table(book_id, days_left)` (SECURITY DEFINER, **no owner check**, LIB-116):
+`get_reading_velocity(p_user_id, p_book_ids) → table(book_id, days_left)` (SECURITY DEFINER, owner check since BC-01, LIB-116):
 - **History window:** `progress_history` rows with `recorded_at > now() − 30 days`.
 - **Session deltas:** `lag(page)` over **in-window rows only**, partitioned by book, ordered by `recorded_at`. Only rows with `session_start_at` set and a positive delta count. If at least 3 qualify, `avg` = their mean ("pages per session").
 - **Day deltas:** otherwise, the delta for each `date_trunc('day', recorded_at)` in the DB time zone (**UTC**) is `max(page) − min(page)` within that day. If at least 3 days are positive, `avg` = their mean. A day with a single save contributes 0, so a once-a-day saver never qualifies.
 - **Result:** `days_left = ceil((total − current) / avg)`, returned only when `avg > 0` and remaining > 0. It is therefore always ≥ 1, and the client's `'today'` branch is **unreachable**.
 
-The per-session average is presented as days. The forecast is requested only for `status === 'reading'` ids. ⚠ LIB-D29 ⚠ LIB-D01
+The per-session average is presented as days. The forecast is requested only for `status === 'reading'` ids. ⚠ LIB-D29
 - **Enforced:** `server:rpc` (`get_reading_velocity`); `client` (`src/composables/useReadingVelocity.ts:45-56`; `src/pages/LibraryPage.vue:111-112`)
 - **Source:** live function body
 - **Target:**
-  - Owner check that keeps the parameter (BC-01, Required).
   - Day boundaries in the reader's IANA time zone via a `p_timezone` parameter (D-07 · BC-06).
   - Untimed rows count for pages, but the session average uses only real timed sessions (D-08).
 
@@ -1247,7 +1245,7 @@ Every client implements the "Today" column now. Items marked → server move und
 
 | # | Logic | Rules | Today | Target owner |
 |---|---|---|---|---|
-| 1 | Owner isolation of library/velocity/breakdown RPCs | LIB-116, LIB-101 | caller passes own uid (no server check) | → server (BC-01) |
+| 1 | Owner isolation of library/velocity/breakdown RPCs | LIB-116, LIB-101 | caller passes own uid; the server asserts it (BC-01, shipped 2026-10-19) | server |
 | 2 | ISBN normalisation, checksum, 10→13 | LIB-04/05/72/117 | partial client strip; DB rejects | → server normalises (BC-15); client pre-validates for field errors |
 | 3 | Initial-status page clamp + quiet write | LIB-14–17 | client | → server add RPC with baseline history (BC-04; baseline recommended) |
 | 4 | Interactive add atomicity | LIB-111 | none | → server (BC-04 / BC-15) |
@@ -1318,7 +1316,7 @@ Details: [08](08-platform-auth-account.md).
 
 | ID | Defect | Impact | Fix |
 |---|---|---|---|
-| LIB-D01 | `get_library_with_progress`, `get_reading_velocity`, `get_library_breakdown`, `get_last_session` are SECURITY DEFINER with no `auth.uid()` check (LIB-116, LIB-101) | Any signed-in user can read another user's library, progress, session state and DNF state by UUID | BC-01: assert `p_user_id = auth.uid()`, keep the param |
+| LIB-D01 | `get_library_with_progress`, `get_reading_velocity`, `get_library_breakdown`, `get_last_session` are SECURITY DEFINER with no `auth.uid()` check (LIB-116, LIB-101) | Any signed-in user can read another user's library, progress, session state and DNF state by UUID | BC-01: assert `p_user_id = auth.uid()`, keep the param **Fixed 2026-10-19 (BC-01):** all four raise `42501 not_allowed` unless `p_user_id = auth.uid()`. |
 | LIB-D02 | Client ISBN handling violates `books_isbn_check`: hyphens/spaces (manual and typed), lowercase x, EAN-8 scans, `cleanIsbn` lengths 11/12/14+; no checksum (LIB-04/05/19/72) | Add fails with generic copy; one bad CSV ISBN aborts a 100-row chunk | BC-15 server normalisation + client pre-validation; invalid import ISBN → NULL |
 | LIB-D03 | DB errors (CHECK, RLS, network) surface as "Failed to save book" / "Import failed." because supabase-js errors are not `Error` instances (LIB-110) | Users cannot tell what to fix (e.g. a too-long title or a bad ISBN) | Map PostgREST codes to field messages; validate before writing |
 | LIB-D04 | Interactive add is not atomic (LIB-111) | Orphan queued book; retry creates a duplicate | Single server add call (BC-04/BC-15), or delete the book on progress failure |
@@ -1388,7 +1386,7 @@ Items covered by a Phase 0 work package and therefore not repeated here: RPC aut
 ## Notes for native clients
 
 ### Platform-agnostic (iOS now, Android later)
-- **Backend prerequisites:** BC-01 (owner checks) before any beta. Until BC-15 ships, a native client must re-implement LIB-27–43 and LIB-66–81 exactly, **minus** the defects. Every backend change stays backward compatible for the PWA (D-05).
+- **Backend prerequisites:** BC-01 (owner checks) shipped on 2026-10-19. Until BC-15 ships, a native client must re-implement LIB-27–43 and LIB-66–81 exactly, **minus** the defects. Every backend change stays backward compatible for the PWA (D-05).
 - **Single source of truth:** keep one `LibraryBookEntry` store keyed by book id, refreshed from the RPC. Derive sections, cards and percentages from it, using RPC `status` for both list and grid. Replace local values with fresher server rows unless a pending local mutation exists. Never decide freshness with `updatedAt >=`: a `books` edit does not change it (LIB-64).
 - **Decoding:** the RPC returns camelCase JSON. `percentage` is a decimal number. Timestamps are `timestamptz` with microseconds. `createdAt` and `sessionPausedAt` are absent: fetch `session_paused_at` separately on foreground and refresh ([02](02-reading-sessions.md)).
 - **Optimistic status:** use the LIB-44 precedence and cap the percentage at 100. Clamp `current_page` to `[0, total_pages]` before every write.

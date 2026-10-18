@@ -1,7 +1,7 @@
 # 11 · Cross-Domain Interactions — Business Rules
 > **Prefix:** XD · **Verified against:** web master @ 8d8701c + live Supabase, 2026-10-18 · **Legend & glossary:** [README](README.md)
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19 (BC-01 and BC-02 shipped)
 
 ## Overview
 
@@ -597,31 +597,27 @@ There is no page reload; the `online` and service-worker message listeners stay 
 - **Note:** every client must wipe **all** per-user state on any user-id change: caches, stores, module singletons, the offline queue, in-flight tasks, and (native) widgets and Live Activities. This stays client-side ([consolidation plan §5](../backend-consolidation-plan.md#5-what-stays-client-side)).
 
 #### XD-43 · The offline queue is drained as the next user
-Queued records carry no user id and are flushed under whichever user is signed in next; `syncToSupabase` stamps the **current** `user_id`. RLS checks only `user_id`, so the upsert succeeds. The result is an orphan `reading_progress` row that points at the previous user's `book_id`:
-- it is invisible to both libraries;
-- the completion triggers are a no-op, because their ownership match fails.
+Queued records carry no user id and are flushed under whichever user is signed in next; `syncToSupabase` stamps the **current** `user_id`. Since 2026-10-19 RLS also checks book ownership (BC-01), so the upsert fails with `42501` and the record stays queued. Before that it succeeded and left an orphan `reading_progress` row that pointed at the previous user's `book_id` (invisible to both libraries; completion triggers a no-op). Live on 2026-10-18: 0 such rows.
 
-While nobody is signed in, drains throw "Not authenticated" and the records stay queued. Live: 0 such rows. ⚠ XD-D19
-- **Enforced:** `client`; `server:db` (RLS without a book-ownership check).
+While nobody is signed in, drains throw "Not authenticated" and the records stay queued. ⚠ XD-D19
+- **Enforced:** `client`; `server:db` (RLS book-ownership check, BC-01).
 - **Source:** `src/composables/useOfflineSync.ts:12-13,76-88`; `src/stores/progress.ts:52-79`; [PLT-46](08-platform-auth-account.md#plt-46--replay-is-a-fifo-bare-upsert-as-the-current-user).
 - **Target:**
   - queued records carry `userId`, `idempotencyKey` and `occurredAt`, and replay through `save_progress`, which validates book ownership (D-08 · BC-04);
-  - the client drains only the current user's records and drops or flags the rest (BC-01 PWA change);
-  - child-table RLS checks book ownership (BC-01).
+  - the client drains only the current user's records and drops or flags the rest (BC-01 PWA change, not yet done).
 
 #### XD-44 · Cross-user leaks from surviving client state
 - **Achievements.** `_earned` and `_earnedLoaded` are module singletons that are never reset. The next user sees the previous user's earned dates, and `sync()` skips keys the old map already holds, so some new badges may never persist.
 - **Anki.** Totals can be written into the new user's `anki_review_sessions` row if a session is saved before `fetchSession` runs (LEX-D09).
-- **Lore.** Codex "All Books" merges the old user's lore cards. An in-flight Insight job reads the identity at insert time, so it can insert a card owned by the **new** user against the old user's book (RLS checks only `user_id`) ([INS-58](06-insights.md#ins-58--account-switch-mid-generation)).
+- **Lore.** Codex "All Books" merges the old user's lore cards. An in-flight Insight job reads the identity at insert time, so it tries to insert a card owned by the **new** user against the old user's book; since BC-01 (2026-10-19) RLS rejects it with `42501` ([INS-58](06-insights.md#ins-58--account-switch-mid-generation)).
 - **Import.** Dedupe seeds from the old library (XD-39).
 
 ⚠ XD-D20
-- **Enforced:** `client`; `server:db` (RLS without a book-ownership check).
+- **Enforced:** `client`; `server:db` (RLS book-ownership check since BC-01).
 - **Source:** `src/composables/useAchievements.ts:19-20`; `src/stores/ankiSession.ts:9-13`; `src/stores/loreCards.ts:24,28,152-168`; [INS-55](06-insights.md#ins-55--user-change-keeps-lore-state), [LEX-96](05-codex-lexicon.md#lex-96--account-deletion-and-sign-out).
 - **Target:**
   - achievements are server-evaluated (D-06 · BC-09);
   - Insights are server-generated and bound to the job's user and book (D-06 · BC-08);
-  - child-table RLS checks book ownership (BC-01);
   - recommended: atomic Anki session aggregates through BC-10.
 
 #### XD-45 · State that resets itself on a user change
@@ -1061,7 +1057,7 @@ other devices: next token refresh fails ─► treat as sign-out + full wipe
 | XD-D16 | Import dedupe is seeded from the in-memory library: empty on a cold `/books/add`, the previous user's after a switch (XD-39) | Whole library duplicated on re-import | Server dedupe (BC-15); at minimum fetch the library first |
 | XD-D17 | Imported books completed in-app have a passport but "View Journey" stays hidden (XD-38) | Paid passport never reachable from Book Detail | BC-05 gate = "a passport row exists" |
 | XD-D18 | Sign-out wipes only SWR metadata; stores, singletons, the queue and in-flight jobs survive; no reload (XD-42) | Previous user's data in memory; leaks below | Full per-user wipe on every client |
-| XD-D19 | The offline queue is drained as the next user, creating orphan progress rows on another user's book (XD-43) | Cross-user writes; lost offline progress | BC-04 user-scoped replay; BC-01 child-table RLS book ownership |
+| XD-D19 | The offline queue is drained as the next user, creating orphan progress rows on another user's book (XD-43) | Cross-user writes; lost offline progress | BC-04 user-scoped replay; BC-01 child-table RLS book ownership **Partly fixed 2026-10-19 (BC-01):** RLS now rejects the write (`42501`), so no orphan row is created; the queue is still not user-scoped (BC-04). |
 | XD-D20 | Cross-user leaks after a switch: achievements cache never reloaded; Anki totals written into the new user's row; old lore in Codex; an in-flight Insight inserted for the new user against the old user's book (XD-44) | Wrong badges and counters; foreign rows | BC-09, BC-08, BC-01; BC-10 (recommended); client wipe + cancellation |
 | XD-D21 | Sign-out offline fails silently and leaves the user signed in (XD-41) | User believes they signed out (shared devices) | Local sign-out on network failure (PLT-Q01) |
 | XD-D22 | Lowering `total_pages` to ≤ `current_page` completes the book with no purge, history, passport or Insight, and credits XP and quest retroactively (XD-48) | Silent finish; dead-end passport; wrong yearly numbers | BC-05 `a10_books_lifecycle` (OP-05.4) |

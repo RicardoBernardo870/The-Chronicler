@@ -1,7 +1,7 @@
 # 04 · Page Capture, Session Resume & Memory Check — Business Rules
 > **Prefix:** CAP · **Verified against:** web master @ 8d8701c + live Supabase, 2026-10-18 · **Legend & glossary:** [README](README.md)
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19 (BC-01 and BC-02 shipped)
 
 `D-xx` are the 2026-10-18 owner decisions (decisions log in the [README](README.md)). `BC-xx` are the Phase 0 work packages in [backend-consolidation-plan](../backend-consolidation-plan.md). Payload shapes, columns, policies and function bodies are in [backend-contract](../backend-contract.md). Live definitions of every trigger and function named here are in `supabase/reference/live-baseline-2026-10-18.sql`.
 
@@ -253,14 +253,11 @@ A 2xx body is taken as `{ text, confidence, wordCount }` and the state moves to 
 - **Source:** `useCapture.ts:137-139`.
 
 #### CAP-81 · `ocr-page` authentication only decodes the token
-`ocr-page` is deployed with `verify_jwt: false`. `manualJwtDecode` strips `Bearer `, splits the token, runs `atob(parts[1])` and requires a string `sub`. Consequences:
-- the signature, `exp`, `aud` and `role` are **never checked**, so forged and expired tokens are accepted;
-- `atob` runs without base64url→base64 normalisation, so a genuine token whose payload contains `-` or `_` gets a spurious 401.
+Since 2026-10-19 (BC-02, v4) `ocr-page` runs with `verify_jwt = true` and verifies the caller with `supabase.auth.getUser` (shared `supabase/functions/_shared/auth.ts`), so forged, expired and anon-key tokens are rejected. The hand-rolled `manualJwtDecode`, and with it the base64url spurious-401 defect, is gone (CAP-D01, fixed). A non-POST request gets `405 {error:"MethodNotAllowed", message:"Use POST"}`.
 
-The 401 body is `{error:"Unauthorized", message:"Missing or invalid JWT"}`. ⚠ CAP-D01
+The 401 body is `{error:"Unauthorized", message:"Missing or invalid JWT"}`.
 - **Enforced:** `server:edge` (`ocr-page`).
-- **Source:** `supabase/functions/ocr-page/index.ts:24-35,148-152`; deployed v2 (`verify_jwt: false`).
-- **Target:** `verify_jwt = true` (or real `supabase.auth.getUser` verification), the hand-rolled decode is removed, and the per-function setting is committed in `supabase/config.toml` (BC-02).
+- **Source:** `supabase/functions/ocr-page/index.ts`, `supabase/functions/_shared/auth.ts`; `supabase/config.toml`; deployed v4.
 
 #### CAP-82 · `ocr-page` request validation
 **Check order:**
@@ -464,10 +461,9 @@ Owner-only SELECT / INSERT / UPDATE / DELETE: role `public`, predicate `auth.uid
 - **Target:** the policies use `(select auth.uid())` (initplan advisory) and also check book ownership (BC-01; see CAP-89).
 
 #### CAP-89 · Child-table RLS does not check book ownership
-The owner policies on `page_captures` and `book_quizzes` check only `user_id = auth.uid()`. A signed-in client can therefore insert a capture or quiz row whose `book_id` belongs to another user; the FK only checks that the book exists. The completion purge never fires for such a row, because the trigger joins `books` on `id` **and** `user_id`. ⚠ CAP-D25
-- **Enforced:** not enforced (`server:db` gap).
-- **Source:** live policies; BE-02. [Logic read from the live definitions; not exercised.]
-- **Target:** RLS on child tables checks that `book_id` belongs to the caller (BC-01).
+Since 2026-10-19 (BC-01) the INSERT and UPDATE policies on `page_captures` and `book_quizzes` also require `book_id` to belong to the caller; a row against another user's book fails with `42501`. Before that only the FK applied, and the completion purge (which joins `books` on `id` **and** `user_id`) would never fire for such a row (CAP-D25, fixed).
+- **Enforced:** `server:db` (RLS).
+- **Source:** migration `20261018120000_bc01_security_hardening.sql`; BE-02.
 
 ### G. Capture side effects and XP
 
@@ -510,11 +506,10 @@ On a conflict with the partial unique index `(user_id, book_id, page) WHERE even
 
 Here `page_captures = count(reading_quest_events WHERE event_type='page_capture')`. That count is **lifetime** (not year-scoped), not filtered by book source, and survives both capture deletion and book deletion (`book_id` → NULL).
 
-Badges: "Chronicler" (`capture_first`) at pageCaptures ≥ 1; "Archivist" (`captures_50`) at ≥ 50. The RPC's identity guard is NULL-unsafe, so an anon caller can read any user's counts ⚠ CAP-D03.
+Badges: "Chronicler" (`capture_first`) at pageCaptures ≥ 1; "Archivist" (`captures_50`) at ≥ 50. Since 2026-10-19 (BC-01) the RPC's identity guard is NULL-safe and `anon` cannot execute it, so only the reader can read their counts (CAP-D03, fixed).
 - **Enforced:** `server:rpc` `get_reading_quest_summary` (XP); `client` (badges, `src/utils/achievements.ts:82-95`).
 - **Source:** live RPC definition; PRO-01 / PRO-05.
 - **Target:**
-  - **NULL-safe guard:** `auth.uid() IS NULL OR p_user_id IS DISTINCT FROM auth.uid()` → raise, and anon / PUBLIC `EXECUTE` is revoked (BC-01).
   - **Badges:** evaluated server-side with a server-authoritative `earned_at` (BC-09).
   - **XP:** capture XP stays lifetime, so BC-06 time zones do not affect it.
 
@@ -532,12 +527,10 @@ Badges: "Chronicler" (`capture_first`) at pageCaptures ≥ 1; "Archivist" (`capt
 ### H. Retention, completion purge and cascades
 
 #### CAP-41 · No per-book retention cap
-`prune_page_captures_for_book(p_user_id, p_book_id, p_keep default 5)` would keep only the newest captures (`captured_at desc, page desc, id desc`). It is called only by `after_page_capture_saved()`, and that function is **attached to no trigger**; migration `20260513` dropped `page_capture_retention_after_save`. Captures therefore accumulate until completion; live aggregates show books with more than 5 captures (maximum 22).
-
-Both functions are absent from the repo migrations. `prune_page_captures_for_book` is SECURITY DEFINER with **no `auth.uid()` check**, and `EXECUTE` is granted to PUBLIC, `anon` and `authenticated` ⚠ CAP-D02.
-- **Enforced:** `server:db` (absence of a trigger).
-- **Source:** live `pg_trigger`, `proacl`; `supabase/migrations/20260513_page_capture_completion_cleanup.sql:153-157`.
-- **Target:** `after_page_capture_saved` is dropped and `prune_page_captures_for_book` is dropped or locked (BC-01). Keeping captures until completion stays the behaviour.
+Captures accumulate until completion; live aggregates show books with more than 5 captures (maximum 22). No retention function exists: on 2026-10-19 BC-01 dropped `prune_page_captures_for_book(p_user_id, p_book_id, p_keep default 5)`, which would have kept only the newest captures, and its only caller `after_page_capture_saved()`, which was attached to no trigger (migration `20260513` dropped `page_capture_retention_after_save`). The prune function had **no `auth.uid()` check** and was executable by PUBLIC, `anon` and `authenticated` (CAP-D02, fixed).
+- **Enforced:** by absence.
+- **Source:** migration `20261018120000_bc01_security_hardening.sql` (§3); `supabase/migrations/20260513_page_capture_completion_cleanup.sql:153-157`.
+- **Note:** Keeping captures until completion stays the behaviour. If a retention cap is decided later, it is recreated outside the exposed schema (BC-01.4).
 
 #### CAP-42 · Completion purge from the progress side
 Triggers `page_captures_delete_on_completion` and `book_quizzes_delete_on_completion` run AFTER INSERT OR UPDATE **OF current_page** ON `reading_progress`, FOR EACH ROW. When `books.total_pages > 0 AND NEW.current_page >= total_pages`, they delete all of the user's `page_captures` and `book_quizzes` for that book. The book row is matched on `id` **and** `user_id`.
@@ -1222,9 +1215,9 @@ Under D-06 native clients stay thin. Today almost everything in this domain is c
 
 | ID | Defect | Impact | Fix |
 |---|---|---|---|
-| CAP-D01 | `ocr-page` runs with `verify_jwt: false` and only decodes `sub`: no signature or `exp` check, and `atob` without base64url normalisation (CAP-81) | Anyone can spend Gemini OCR quota with a forged or expired token; rare spurious 401s for real users | BC-02 |
-| CAP-D02 | `prune_page_captures_for_book` is SECURITY DEFINER with no identity check, and `EXECUTE` is granted to PUBLIC / anon / authenticated; `after_page_capture_saved` is dead; neither is in the repo migrations (CAP-41) | Cross-user delete of captures given a (user_id, book_id); repo/live drift | BC-01 (drop or lock both; revoke) |
-| CAP-D03 | The `get_reading_quest_summary` guard `p_user_id <> auth.uid()` is NULL-unsafe, and anon / PUBLIC hold `EXECUTE` (CAP-39) | An unauthenticated caller can read any user's XP, level and capture counts | BC-01 (NULL-safe guard; revoke anon) |
+| CAP-D01 | `ocr-page` runs with `verify_jwt: false` and only decodes `sub`: no signature or `exp` check, and `atob` without base64url normalisation (CAP-81) | Anyone can spend Gemini OCR quota with a forged or expired token; rare spurious 401s for real users | BC-02 **Fixed 2026-10-19 (BC-02):** v4 runs with `verify_jwt = true` and verifies the caller with `supabase.auth.getUser`. |
+| CAP-D02 | `prune_page_captures_for_book` is SECURITY DEFINER with no identity check, and `EXECUTE` is granted to PUBLIC / anon / authenticated; `after_page_capture_saved` is dead; neither is in the repo migrations (CAP-41) | Cross-user delete of captures given a (user_id, book_id); repo/live drift | BC-01 (drop or lock both; revoke) **Fixed 2026-10-19 (BC-01):** both dropped. |
+| CAP-D03 | The `get_reading_quest_summary` guard `p_user_id <> auth.uid()` is NULL-unsafe, and anon / PUBLIC hold `EXECUTE` (CAP-39) | An unauthenticated caller can read any user's XP, level and capture counts | BC-01 (NULL-safe guard; revoke anon) **Fixed 2026-10-19 (BC-01).** |
 | CAP-D04 | A re-capture keeps the old `resume`, `captured_at` and row id, and never re-runs vocabulary extraction (CAP-31/36) | "Previously" describes the old text; new words are never mined | Per CAP-Q04: e.g. a BEFORE UPDATE trigger that nulls `resume` / `resume_generated_at` when `text` changes |
 | CAP-D05 | Captures store and `quizByBook` never revalidate and are never cleared (`clearCachedCaptures` unused) | Ghost captures and quizzes after a server purge or delete; stale across devices; previous user's data in memory | Clear per book on completion, delete and sign-out; refresh on foreground (BC-14) |
 | CAP-D06 | Book Detail offers the capture prompt for a just-completed book; the capture is acknowledged, toasted, deleted by the trigger, earns +5 XP, and the vocabulary insert fails with FK 23503 (CAP-04/43) | Misleading success; free XP; wasted AI calls | CAP-Q02; minimum: hide the prompt when complete (all clients) |
@@ -1246,7 +1239,7 @@ Under D-06 native clients stay thin. Today almost everything in this domain is c
 | CAP-D22 | Hygiene: `page_captures` policies use per-row `auth.uid()` on role `public`; `idx_page_captures_user_book_page` duplicates the unique-constraint index; `fetchCapturesForBook` has no `user_id` filter; default grants give anon / authenticated full DML (RLS is the only guard); unindexed FK `book_id` (`page_captures`, `reading_quest_events`) | Advisor findings; weaker defence in depth | BC-01 |
 | CAP-D23 | Unmount mid-flow drops the consume and discards a low-confidence result (CAP-06a) | Re-prompt for a page already captured; silent data loss | Bind the save to a store / view model; CAP-Q15 |
 | CAP-D24 | No client timeout on the OCR fetch, the resume backfill or the quiz invoke (CAP-19/55a) | The Start button can spin for the platform wall-clock limit | ~15 s OCR, ~20 s resume and quiz, then degrade silently |
-| CAP-D25 | Child-table RLS checks only `user_id`, not book ownership (CAP-89) | Rows against another user's book; the completion purge never fires for them | BC-01 |
+| CAP-D25 | Child-table RLS checks only `user_id`, not book ownership (CAP-89) | Rows against another user's book; the completion purge never fires for them | BC-01 **Fixed 2026-10-19 (BC-01).** |
 | CAP-D26 | Lowering `total_pages` to ≤ `current_page` never purges captures or the quiz, which then linger (CAP-47) | Completion side effects depend on the path | BC-05 (path-independent completion) |
 | CAP-D27 | A failed note save is silent and still consumes the event (CAP-06b) | The note is lost with no feedback | Show an error; keep the prompt pending on failure |
 | CAP-D28 | The quiz payload is trusted: no checks on `sourcePage` membership, option distinctness or word limits (CAP-77a) | Odd or broken questions can render | Server: validate `sourcePage ∈ submitted pages` and distinct options; client: validate before rendering |

@@ -1,7 +1,7 @@
 # 05 · Codex — Lexicon, Word of the Day & Review — Business Rules
 > **Prefix:** LEX · **Verified against:** web master @ 8d8701c + live Supabase, 2026-10-18 · **Legend & glossary:** [README](README.md)
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19 (BC-01 and BC-02 shipped)
 
 `D-xx` are the 2026-10-18 owner decisions (decisions log in the [README](README.md)). `BC-xx` are the Phase 0 work packages in [backend-consolidation-plan](../backend-consolidation-plan.md). Column types, policies, RPC bodies and edge-function contracts are in [backend-contract](../backend-contract.md). Live definitions of every object named here are in `supabase/reference/live-baseline-2026-10-18.sql`.
 
@@ -180,17 +180,11 @@ The add form's `InputNumber :min="1"` does not protect the pre-filled value. Pri
   Either way, current PWA inserts keep working (D-05). Whether a new entry is first due "today" or "tomorrow" is decision LEX-Q04.
 
 #### LEX-08 · Owner-only access; book ownership is not checked
-A single RLS policy, `Users manage own lexicon_entries`, covers `FOR ALL` (role `public`) with `USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id)`.
+Since 2026-10-19 (BC-01) four per-command policies (`lexicon_entries_select_own`, `_insert_own`, `_update_own`, `_delete_own`, role `authenticated`) check `user_id = (select auth.uid())`. INSERT and UPDATE also require `book_id` to belong to the caller; otherwise the write fails with `42501` (LEX-D31, fixed). `anon` has no table privileges.
 
 Foreign keys: `book_id → books(id) ON DELETE CASCADE`, `user_id → auth.users(id) ON DELETE CASCADE`.
-
-The policy does **not** check that `book_id` belongs to the caller. The FK checks only that the book exists ⚠ LEX-D31.
-- **Enforced:** `server:db` (RLS policy, FKs).
-- **Source:** live `pg_policies`, `pg_constraint`.
-- **Target:**
-  - Insert and update also require the referenced book to belong to `auth.uid()`.
-  - The policy uses the `(select auth.uid())` initplan form.
-  - Default anon / PUBLIC grants are revoked (BC-01).
+- **Enforced:** `server:db` (RLS policies, FKs).
+- **Source:** migration `20261018120000_bc01_security_hardening.sql`; live `pg_constraint`.
 
 #### LEX-09 · No uniqueness, no triggers
 There is no unique constraint on `(user_id, term)` or `(user_id, book_id, term)`, and no trigger on `lexicon_entries`.
@@ -1540,11 +1534,11 @@ Each defect keeps its original tracking number. "Plausible" means the code path 
 | LEX-D28 | Header N excludes quotes, but M counts mastered entries of any type (LEX-82) | Harmless today (quotes cannot be mastered) | Count M over reviewable entries |
 | LEX-D29 | Dead code: `src/pages/LexiconPage.vue` (not routed), `useLeitner().getDueWord`, `dueTodayCount` (UTC), `invalidateAll`; the stale "Vocabulary Garden" comment | Misleading to implementers | Remove |
 | LEX-D30 | `extract-vocabulary` decodes the JWT without verification (safe only while `verify_jwt: true`); `npm:@google/genai` is unpinned; no input-length cap (LEX-86) | Defence in depth; non-reproducible deploys; token cost | BC-02 (drop hand-rolled decoding; `config.toml`), BC-03 (pin), cap `ocrText` at 10 000 chars |
-| LEX-D31 | RLS does not check that `book_id` belongs to the caller (LEX-08) | Rows against another user's book, invisible to the RPCs and cascade-deleted by the other user | BC-01 |
+| LEX-D31 | RLS does not check that `book_id` belongs to the caller (LEX-08) | Rows against another user's book, invisible to the RPCs and cascade-deleted by the other user | BC-01 **Fixed 2026-10-19 (BC-01).** |
 | LEX-D32 | A `fetchSession` error sets `isDueForReview` true, so the prompt shows on transient errors (LEX-55) | Spurious prompt; leads into LEX-D09 | Treat an error as "not due"; retry |
 | LEX-D33 | The `lexicon` and `ankiSession` Pinia stores are not reset on sign-out or user switch (only SWR is cleared); the WotD key is not removed (LEX-96) | Previous user's words and totals in memory; LEX-D09 overwrite | Reset all per-user stores on a user change ([08 · Platform](08-platform-auth-account.md)) |
 | LEX-D34 | Migration drift. `create_lexicon_entries` (20260416212019), `create_anki_review_sessions` (20260506141628) and `lexicon_quote_entry_type` (20260703151513) exist only in the live history. The repo files `20260428_reader_profile.sql`, `20260617_lexicon_mastered.sql` and `20260618_lexicon_last_reviewed.sql` were applied out of band and are not recorded | A replay does not reproduce the live schema | BC-03 (baseline migration from the live snapshot) |
-| LEX-D35 | Redundant index `idx_anki_review_sessions_user` duplicates the unique `anki_review_sessions_user_id_key`; `book_id` is unindexed on `lexicon_entries` and `vocabulary_extractions` | Write overhead; slow cascades | BC-01 (advisor cleanup) |
+| LEX-D35 | Redundant index `idx_anki_review_sessions_user` duplicates the unique `anki_review_sessions_user_id_key`; `book_id` is unindexed on `lexicon_entries` and `vocabulary_extractions` | Write overhead; slow cascades | BC-01 (advisor cleanup) **Fixed 2026-10-19 (BC-01):** redundant index dropped; `book_id` indexes added. |
 | LEX-D36 | The WotD and Anki prompt are hidden in the `completedOnly` / `oneQueued` / `empty` dashboard states (LEX-53) | Those readers have no in-app path to review | LEX-Q06 |
 | LEX-D37 | The add-word book selector offers DNF books, while Book Detail hides add-word for DNF (LEX-10/95) | Inconsistent | LEX-Q19 |
 | LEX-D38 | The proper-noun heuristic is ASCII-only and checks only the first case-sensitive occurrence; no in-batch dedupe; the term keeps the model's casing, e.g. "Ephemeral" (LEX-87/88) | Real words dropped; names kept; duplicate auto words | Unicode-aware heuristic, in-batch dedupe, normalised casing (best done server-side, LEX-Q12) |

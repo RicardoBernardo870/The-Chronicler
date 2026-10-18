@@ -1,7 +1,7 @@
 # 06 · Insights (Lore cards) — Business Rules
 > **Prefix:** INS · **Verified against:** web master @ 8d8701c + live Supabase, 2026-10-18 · **Legend & glossary:** [README](README.md)
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19 (BC-01 and BC-02 shipped)
 
 ## Overview
 
@@ -25,7 +25,7 @@ Today the whole pipeline is **client-orchestrated**: the web client detects the 
 |---|---|
 | Table owned | `lore_cards` |
 | Tables read | `recaps` (Master Recap), `books` (title, author, ISBN, total pages), `reading_progress` (trigger source) |
-| Edge function | `generate-lore` (deployed **v18**, canonical per D-09; `verify_jwt: false`) |
+| Edge function | `generate-lore` (deployed v18, canonical per D-09; **v20** since 2026-10-19 adds BC-02 auth with `verify_jwt: true`) |
 | RPC | `get_reading_quest_summary` (counts cards for XP — the only DB function that reads `lore_cards`) |
 | Constraints / indexes | `lore_cards_unique_milestone`, `lore_cards_unlocked_at_milestone_check`, `lore_cards_book_id_fkey`, `lore_cards_user_id_fkey`, `lore_cards_user_book_idx`, `lore_cards_user_created_at_idx` |
 | Triggers | none on `lore_cards`; not in the `supabase_realtime` publication |
@@ -214,11 +214,10 @@ Any throw anywhere (fetch, edge non-2xx, insert error including the unique viola
 - **Source:** deployed v18 source; repo `supabase/functions/generate-lore/index.ts:4-8,146-208`.
 
 #### INS-23 · Auth is decode-only
-Deployed with `verify_jwt: false`. The function strips a case-insensitive `Bearer ` prefix (empty token → 401), base64url-decodes the JWT payload **without verifying the signature or expiry**, and requires a `sub` claim; otherwise 401 `{"error":"Unauthorized"}`. `sub` is not used further (no DB access, no per-user limit). ⚠ INS-D01
-- **Enforced:** `server:edge` (weak)
-- **Source:** live `list_edge_functions` (`verify_jwt: false`); deployed v18 `decodeJwt`; repo `index.ts:12-19,160-175`.
-- **Target:** `verify_jwt = true` or real `supabase.auth.getUser` verification, no hand-rolled decoding, and a committed `supabase/config.toml` (BC-02). A shared entitlement and AI-usage check runs in the function, allowing everything until tiers are decided (D-14 · BC-12).
-- **Note:** unlike `generate-recap` and `ocr-page`, this decoder normalises base64url (`-`→`+`, `_`→`/`), so genuine tokens are not spuriously rejected.
+Since 2026-10-19 (BC-02, v20) deployed with `verify_jwt: true`, and the function verifies the caller with `supabase.auth.getUser` (shared `supabase/functions/_shared/auth.ts`); a missing, forged or expired token → 401 `{"error":"Unauthorized"}`. The hand-rolled `decodeJwt` is gone. The user id is not used further (no DB access, no per-user limit). ⚠ INS-D01
+- **Enforced:** `server:edge`
+- **Source:** live `list_edge_functions`; `supabase/config.toml`; repo `supabase/functions/generate-lore/index.ts`, `supabase/functions/_shared/auth.ts`.
+- **Target:** A shared entitlement and AI-usage check runs in the function, allowing everything until tiers are decided (D-14 · BC-12).
 
 #### INS-24 · Body validation
 Required non-null: `title`, `author`, `currentPage`, `totalPages`, `percentage`, `milestone`, `masterRecap`. `masterRecap` must be a non-blank string and `Number(milestone)` must be in the INS-01 set. Invalid JSON or any failure → 400 `{"error":"Missing required fields"}`. Numeric types and string lengths are **not** validated; `existingTopics` and `isbn` are optional. ⚠ INS-D15
@@ -284,10 +283,10 @@ Each call sends to Google Gemini: book title, author, ISBN, current page, total 
 - **Note:** the local migration `20260417_lore_cards.sql:14` creates `CHECK (type IN ('History','Myth','Geography'))`, which does not exist live and would reject live rows on a replay. ⚠ INS-D14
 
 #### INS-32 · Row-level security and grants
-Four per-command policies on role `public`: `lore_cards_select_own`, `lore_cards_insert_own` (WITH CHECK `auth.uid() = user_id`), `lore_cards_update_own` (USING + WITH CHECK), `lore_cards_delete_own` — all `auth.uid() = user_id`. Any column is insertable and updatable by the owner, and the INSERT policy does **not** check that `book_id` belongs to the caller (only the FK exists). Table grants are the Supabase defaults (full DML to `anon` and `authenticated`), so RLS is the only gate. ⚠ INS-D02, INS-D16
+Four per-command policies on role `authenticated` (recreated by BC-01 on 2026-10-19): `lore_cards_select_own`, `lore_cards_insert_own`, `lore_cards_update_own` (USING + WITH CHECK), `lore_cards_delete_own` — all `user_id = (select auth.uid())`. INSERT and UPDATE also require `book_id` to belong to the caller (`42501` otherwise). Any column is still insertable and updatable by the owner. `authenticated` holds the Supabase default full DML, so RLS is the only gate; `anon` has no table privileges since BC-01. ⚠ INS-D02, INS-D16
 - **Enforced:** `server:db` (RLS)
-- **Source:** live `pg_policies`, `information_schema.role_table_grants`.
-- **Target:** RLS on child tables checks book ownership (BC-01); once BC-08 owns the insert, clients lose INSERT and may only update `seen` (column grant or a mark-seen RPC) (D-06 · BC-08). The PWA keeps its insert path until it migrates (D-05).
+- **Source:** migration `20261018120000_bc01_security_hardening.sql`; live `pg_policies`, `information_schema.role_table_grants`.
+- **Target:** Once BC-08 owns the insert, clients lose INSERT and may only update `seen` (column grant or a mark-seen RPC) (D-06 · BC-08). The PWA keeps its insert path until it migrates (D-05).
 
 #### INS-33 · Book delete cascade
 Deleting a `books` row deletes its cards server-side (`lore_cards_book_id_fkey ON DELETE CASCADE`), and their XP disappears from `get_reading_quest_summary`. The web client does **not** purge lore state or lore cache keys on delete. ⚠ INS-D18
@@ -464,10 +463,10 @@ Milestones are percentage-based and carry no dates. `created_at` is the server's
 - **Note:** [UNVERIFIED: the Supabase edge wall-clock limit for this plan is not readable via MCP; see backend-contract §1.4.] Expected latency is 10–30 s (spec SC-002 "< 30 s"; not measured).
 
 #### INS-58 · Account switch mid-generation
-`authStore.user.id` is read at INSERT time, not captured at the start. Sign-out during the AI call → `authStore.user` is null → TypeError → silent exit (the paid result is lost). Sign-out **and** sign-in as another user in the same tab during the call → the card is inserted under the **new** user's `user_id` referencing the **previous** user's `book_id` (RLS checks only `user_id`, INS-32): the new user gains 15 XP and a card in Codex "All Books". ⚠ INS-D10
+`authStore.user.id` is read at INSERT time, not captured at the start. Sign-out during the AI call → `authStore.user` is null → TypeError → silent exit (the paid result is lost). Sign-out **and** sign-in as another user in the same tab during the call → the INSERT under the **new** user's `user_id` references the **previous** user's `book_id`. Since 2026-10-19 RLS checks book ownership (INS-32, BC-01), so it fails with `42501` and the paid result is lost; before that the new user gained 15 XP and a card in Codex "All Books". ⚠ INS-D10
 - **Enforced:** `client`
 - **Source:** `src/stores/loreCards.ts:105-106,155`.
-- **Target:** the server binds the job to the `auth.uid()` of the save and checks book ownership, so this cannot happen (BC-08 · BC-01). Native clients bind any legacy job to the starting user.
+- **Target:** the server binds the job to the `auth.uid()` of the save, so the result is never lost (BC-08). Native clients bind any legacy job to the starting user.
 
 #### INS-59 · No per-book serialisation
 Two milestone generations for the same book (rapid consecutive saves, INS-07) run in parallel; each reads `existingTopics` before the other inserts (INS-16), and the banner's Set holds the book id once, so it hides when the first finishes. ⚠ INS-D09
@@ -656,8 +655,8 @@ Every client must implement the rules below today. "Moves to" names the work pac
 
 | ID | Defect | Impact | Fix |
 |---|---|---|---|
-| INS-D01 | `generate-lore` runs with `verify_jwt: false` and only base64-decodes the JWT; any token with a `sub` passes (INS-23) | Anyone can spend Gemini quota; no per-user limit | **BC-02** (`verify_jwt = true` or `auth.getUser`; commit `config.toml`) + **BC-12** usage check |
-| INS-D02 | The owner may INSERT arbitrary rows and UPDATE any column; INSERT does not check `book_id` ownership (INS-32) | Fabricated cards (+15 XP each, "Lorekeeper") up to 9 per book × any known book id; rows on foreign books (enables INS-58) | **BC-01** (ownership check in RLS) + **BC-08** (server-only insert; client may update `seen` only) |
+| INS-D01 | `generate-lore` runs with `verify_jwt: false` and only base64-decodes the JWT; any token with a `sub` passes (INS-23) | Anyone can spend Gemini quota; no per-user limit | **BC-02** (`verify_jwt = true` or `auth.getUser`; commit `config.toml`) + **BC-12** usage check **Partly fixed 2026-10-19 (BC-02):** v20 runs with `verify_jwt = true` and verifies the caller with `supabase.auth.getUser`; no per-user limit yet (BC-12). |
+| INS-D02 | The owner may INSERT arbitrary rows and UPDATE any column; INSERT does not check `book_id` ownership (INS-32) | Fabricated cards (+15 XP each, "Lorekeeper") up to 9 per book × any known book id; rows on foreign books (enables INS-58) | **BC-01** (ownership check in RLS) + **BC-08** (server-only insert; client may update `seen` only) **Partly fixed 2026-10-19 (BC-01):** INSERT/UPDATE require book ownership; the owner may still insert cards and update any column (BC-08). |
 | INS-D03 | The spoiler wall is entirely client-built; the edge function accepts any `masterRecap` | A modified or buggy client can feed spoilers or arbitrary text | **BC-08** (server builds the context) |
 | INS-D04 | No Insight without a qualifying mid-book recap; the crossed milestone is consumed forever; the recap lock makes the 10 % card rare (INS-12, INS-12a) | Readers who never press "Get Recap" never get Insights, while the hero promises them | **BC-08** (D-12 captures / metadata fallback + backfill) |
 | INS-D05 | Multi-bucket jumps generate only the latest milestone; the others are never generated (INS-04) | Missing cards on short books and big jumps | **BC-08** backfill (INS-Q01) |
@@ -671,7 +670,7 @@ Every client must implement the rules below today. "Moves to" names the work pac
 | INS-D13 | Deployed `thinkingBudget` / `includeThoughts` sit at the `config` root instead of `thinkingConfig` (INS-26) | Intended 1 000-token budget likely ignored; thinking shares the 4 096-token budget; unknown `MAX_TOKENS` failure rate | **BC-03** (move into `thinkingConfig`; recommended `includeThoughts: false`); log `usageMetadata.thoughtsTokenCount` |
 | INS-D14 | Local migration `20260417_lore_cards.sql` creates a `type` CHECK (`History`, `Myth`, `Geography`) that is absent live (INS-31) | A migration replay would reject live `Lore` / `Culture` rows | **BC-03** (baseline migration from the live snapshot) |
 | INS-D15 | Input/output hardening: no body-size limit on `masterRecap` / `existingTopics`, no rate limit, CORS `*`, unescaped prompt interpolation, shallow validation (non-array `existingTopics` → 500, numeric types unchecked), `detail` leaks exception text, unpinned `npm:@google/genai` (INS-24, INS-27, INS-30) | Cost abuse; confusing errors; non-reproducible deploys | **BC-02** (no internal text), **BC-12** (usage ledger), **BC-03** (pin the SDK); validate types and sizes in the BC-08 contract |
-| INS-D16 | Default grants give `anon` and `authenticated` full DML on `lore_cards`; policies use per-row `auth.uid()` (advisor `auth_rls_initplan`); `book_id` FK is not the leading column of any index | Weaker defence in depth; slower cascade deletes | **BC-01** |
+| INS-D16 | Default grants give `anon` and `authenticated` full DML on `lore_cards`; policies use per-row `auth.uid()` (advisor `auth_rls_initplan`); `book_id` FK is not the leading column of any index | Weaker defence in depth; slower cascade deletes | **BC-01** **Partly fixed 2026-10-19 (BC-01):** `anon` table privileges revoked, policies use `(select auth.uid())`, `book_id` indexed; `authenticated` keeps the default full DML under RLS. |
 | INS-D17 | Sign-out / account switch keeps `loreByBook` and `generatingBookIds` (INS-55) | The previous user's cards appear in Codex "All Books" on a shared device | Reset the lore store on every user change |
 | INS-D18 | Book delete does not purge `loreByBook[id]` or the lore keys; the all-books merge never removes keys (INS-33) | A deleted book's cards stay in Codex "All Books" for the session | Purge the book's cards and invalidate `lore:*` on delete |
 | INS-D19 | `swrTouch` on a never-loaded `lore:{uid}:all` key marks partial data fresh (Caching table) | Codex "All Books" can show only some cards for up to 120 s | Only touch keys with `fetchedAt > 0`, or invalidate instead |
@@ -737,4 +736,4 @@ D-01…D-17 have resolved these former questions; they appear as Target lines in
 - **Accessibility:** the type badge needs a text label for VoiceOver ("Type: Geography"), not colour alone; the cycle button's label says "Show another Insight, {i} of {n}".
 - **Arrival:** `.sensoryFeedback(.success, trigger:)` on a new card; `.badge(unseenCount)` on the Codex tab (INS-Q07). Remote push needs BC-08 + `device_tokens` (BC-14).
 - **Legacy path only:** wrap the edge call and insert in `beginBackgroundTask` — readers often end a session and immediately background the app, which loses the card on the PWA. Under BC-08 this is unnecessary.
-- **App Store:** Guideline 5.1.2(i) — disclose that book metadata, recap text, and (with D-12) page-capture text are sent to Google Gemini, and obtain consent before the first AI feature; list Google in the App Privacy details. Label Insights as AI-generated and offer "Report / hide" (generative-content moderation; INS-Q10). Guideline 5.1.1(v) — in-app account deletion through `delete-account` (D-10); the `lore_cards` FK cascade already covers Insights. Do not ship publicly before BC-02 closes INS-D01.
+- **App Store:** Guideline 5.1.2(i) — disclose that book metadata, recap text, and (with D-12) page-capture text are sent to Google Gemini, and obtain consent before the first AI feature; list Google in the App Privacy details. Label Insights as AI-generated and offer "Report / hide" (generative-content moderation; INS-Q10). Guideline 5.1.1(v) — in-app account deletion through `delete-account` (D-10); the `lore_cards` FK cascade already covers Insights. BC-02 closed the forgeable-auth part of INS-D01 on 2026-10-19; the per-user limit (BC-12) is still open.

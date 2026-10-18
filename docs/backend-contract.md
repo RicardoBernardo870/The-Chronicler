@@ -1,16 +1,16 @@
 # The Chronicler — Backend Contract
 
-Last updated: 2026-10-18 · Verified against the live Supabase project `zlndhygpqacygceivuvk` and web `master` @ `8d8701c`.
+Last updated: 2026-10-19 · Verified against the live Supabase project `zlndhygpqacygceivuvk` and web `master` @ `8d8701c`. BC-01 (migration `bc01_security_hardening`) and BC-02 (edge-function auth) are live since 2026-10-19.
 
 > **What this is.** The authoritative, live-verified contract of the one shared Supabase backend behind every client: the web PWA (live), the iOS app (next), and Android (later). Product / App Store name: **The Chronicler**. **BookHero** is the internal code name (repo, Supabase project, code identifiers).
 >
-> **Source of truth.** The live database, not `supabase/migrations/` (which has drifted, §13). A read-only catalog snapshot is committed at [`supabase/reference/live-baseline-2026-10-18.sql`](../supabase/reference/live-baseline-2026-10-18.sql) (functions, triggers, policies, constraints, indexes, enums, buckets, columns, runtime settings).
+> **Source of truth.** The live database, not `supabase/migrations/` (which has drifted, §13). A read-only catalog snapshot is committed at [`supabase/reference/live-baseline-2026-10-19.sql`](../supabase/reference/live-baseline-2026-10-19.sql) (post-BC-01; the pre-BC-01 baseline is `live-baseline-2026-10-18.sql`) (functions, triggers, policies, constraints, indexes, enums, buckets, columns, runtime settings).
 >
 > **Companion docs.** Business rules (stable IDs, e.g. BE-21, LIB-04, COM-52): [docs/business-rules/](business-rules/README.md) — database invariants are in [09 · Database invariants](business-rules/09-database-invariants.md). Work packages BC-01…BC-15: [backend-consolidation-plan.md](backend-consolidation-plan.md).
 >
 > **Principles (owner decisions 2026-10-18).** Every backend change is client-agnostic and backward compatible; the PWA keeps working and migrates to new RPCs too (D-05). Core logic moves server-side before the iOS build; native clients stay thin (D-06). Deployed edge-function sources are canonical (D-09).
 >
-> **Legend.** ✅ guarded = the RPC derives or compares identity with `auth.uid()`. ⚠ BC-01 = the identity check is missing or bypassable (fix in BC-01). Exec: A = `anon`, U = `authenticated`. "Owner" = `auth.uid() = user_id`. `[UNVERIFIED: …]` = not readable through SQL/MCP; stated from Supabase defaults or code reading.
+> **Legend.** ✅ guarded = the RPC derives or compares identity with `auth.uid()`. ✅ owner-checked = the RPC raises `42501 not_allowed` unless `p_user_id = auth.uid()` (BC-01, 2026-10-19). Exec: A = `anon`, U = `authenticated`. "Owner" = `auth.uid() = user_id`. `[UNVERIFIED: …]` = not readable through SQL/MCP; stated from Supabase defaults or code reading.
 >
 > **Keeping it current.** Any backend change ships as a migration, a regenerated baseline file and an update to this document in the same change (BC-03).
 
@@ -49,11 +49,12 @@ Last updated: 2026-10-18 · Verified against the live Supabase project `zlndhygp
 
 ### 1.3 Authorization model
 
-- RLS is **enabled (not forced)** on all 26 product tables in `public`. `anon` and `authenticated` hold full DML grants on every table (Supabase default), so RLS policies are the only barrier for direct PostgREST access (§5).
-- Owner policies compare only `user_id` with `auth.uid()`. **No policy checks that a referenced `book_id` belongs to the caller** (§5, §12 S-10).
-- Aggregated reads go through `SECURITY DEFINER` RPCs (60 of 69 functions are definer). Not all of them re-assert the caller's identity (§8, §12).
-- Default privileges (`pg_default_acl`, schema `public`, owners `postgres` and `supabase_admin`) grant `EXECUTE` on every **new** function and full DML on every **new** table to `anon` and `authenticated`. Any new function is anon-executable unless its migration revokes it; `CREATE OR REPLACE` keeps an existing function's ACL (BC-01).
-- Every function pins `search_path = public` (no mutable-search-path lint).
+- RLS is **enabled (not forced)** on all 26 product tables in `public`. `authenticated` holds full DML grants on every table (Supabase default), so RLS policies are the barrier for direct PostgREST access (§5). Since BC-01 `anon` holds **no** table privileges in `public` (except the out-of-scope `activity_logs`).
+- Owner policies compare `user_id` with `(select auth.uid())`; INSERT/UPDATE on the ten book-child tables also require the referenced `book_id` to belong to the caller (BC-01, §5).
+- Aggregated reads go through `SECURITY DEFINER` RPCs. Every RPC `authenticated` can execute derives or asserts identity from `auth.uid()`; the four `p_user_id` stats RPCs and `get_reading_quest_summary` raise `42501 not_allowed` for any other id (§8).
+- **Function grants (BC-01):** no `public` function is executable by `anon`/`PUBLIC`; `authenticated` may execute only the client allowlist (§8.1, §9.2). `pg_default_acl` for owner `postgres` no longer grants `EXECUTE` on new functions (to `PUBLIC`, `anon` or `authenticated`) or any privilege on new tables/sequences to `anon`: every new function needs an explicit `grant execute … to authenticated` in its migration. Defaults owned by `supabase_admin` still grant to `anon`/`authenticated` and cannot be changed from a `postgres` migration, so every migration must run as `postgres`.
+- Schema `private` (not exposed by PostgREST) holds `assert_is_caller(uuid)` (identity guard, not client-executable) and the RLS helpers `is_circle_member(uuid)` / `is_circle_owner(uuid)` (executable by `authenticated`, identity from `auth.uid()`).
+- Every `public` function pins `search_path = public`; the `private` functions pin `search_path = ''`.
 
 ### 1.4 Runtime limits
 
@@ -558,7 +559,7 @@ No server cascade: `dnf_at` is read only by `get_library_with_progress`. Shelvin
 
 ### 4.8 Offline replay (PWA today)
 
-The PWA queues `{bookId, currentPage}` in IndexedDB and replays **only** the `reading_progress` upsert. No `progress_history` row is ever written for an offline save, the session columns are not cleared, and `updated_at` is the replay time. Replays are FIFO last-write-wins with no version check. The queue is **not user-scoped**: if another user signs in on the same browser, the replay runs under the new user and RLS accepts a progress row pointing at the previous user's `book_id` (§12 S-10). D-08 (decided): offline saves count for pages, streaks and charts, replayed with their original timestamp — implemented by BC-04.
+The PWA queues `{bookId, currentPage}` in IndexedDB and replays **only** the `reading_progress` upsert. No `progress_history` row is ever written for an offline save, the session columns are not cleared, and `updated_at` is the replay time. Replays are FIFO last-write-wins with no version check. The queue is **not user-scoped**: if another user signs in on the same browser, the replay runs under the new user. Since BC-01 the RLS book-ownership check rejects such a row with `42501`, and the record stays queued, like saves for deleted books (§5, §12 S-10). Scoping the queue per user is still a recommended PWA change. D-08 (decided): offline saves count for pages, streaks and charts, replayed with their original timestamp — implemented by BC-04.
 
 ### 4.9 `updated_at` drift
 
@@ -587,42 +588,43 @@ Updates run with the service role scoped `id = recapId AND user_id = <decoded su
 
 ## 5. Row-level security
 
-Live policies (all PERMISSIVE; RLS enabled, not forced). "Owner" = `auth.uid() = user_id`; "owner\*" = `(select auth.uid()) = user_id` (initplan-safe form). A missing command means that command is denied to `anon`/`authenticated` through PostgREST (only `SECURITY DEFINER` functions or the service role can do it).
+Live policies after BC-01 (2026-10-19; all PERMISSIVE; RLS enabled, not forced). "owner\*" = `user_id = (select auth.uid())` (initplan-safe form). "owner\*+book" = owner\* **and** `exists (select 1 from books b where b.id = book_id and b.user_id = (select auth.uid()))` — the referenced book must belong to the caller. A missing command means that command is denied to `anon`/`authenticated` through PostgREST (only `SECURITY DEFINER` functions or the service role can do it).
 
 | Table | Role | SELECT | INSERT | UPDATE | DELETE | Notes |
 |---|---|---|---|---|---|---|
-| `books` | public | owner | owner | owner | owner | One `FOR ALL` policy |
-| `reading_progress` | public | owner | owner | owner | owner | `FOR ALL` |
-| `progress_history` | public | owner | owner | owner | owner | `FOR ALL` |
-| `up_next_order` | public | owner | owner | owner | owner | `FOR ALL` |
-| `recaps` | public | owner | owner | owner | owner | `FOR ALL`; clients could also update `image_*` |
-| `book_passports` | public | owner | owner | owner | owner | `FOR ALL` |
-| `lexicon_entries` | public | owner | owner | owner | owner | `FOR ALL` |
-| `anki_review_sessions` | public | owner | owner | owner | owner | `FOR ALL` |
-| `lore_cards` | public | owner | owner | owner | owner | Four per-command policies |
-| `page_captures` | public | owner | owner | owner | owner | Four per-command policies |
-| `reading_dna` | public | owner | owner | owner (USING only) | — | UPDATE without WITH CHECK reuses USING (not a hole) |
-| `vocabulary_extractions` | public | owner | owner | owner (USING only) | — | Same |
-| `user_settings` | public | owner | owner | owner | — | Dormant |
-| `book_quizzes` | authenticated | owner\* | owner\* | owner\* | owner\* | — |
+| `books` | authenticated | owner\* | owner\* | owner\* | owner\* | One `FOR ALL` policy |
+| `reading_progress` | authenticated | owner\* | owner\*+book | owner\*+book | owner\* | Per-command policies (BC-01) |
+| `progress_history` | authenticated | owner\* | owner\*+book | owner\*+book | owner\* | Per-command policies (BC-01) |
+| `up_next_order` | authenticated | owner\* | owner\*+book | owner\*+book | owner\* | Per-command policies (BC-01) |
+| `recaps` | authenticated | owner\* | owner\*+book | owner\*+book | owner\* | Clients could also update `image_*` |
+| `book_passports` | authenticated | owner\* | owner\*+book | owner\*+book | owner\* | Per-command policies (BC-01) |
+| `lexicon_entries` | authenticated | owner\* | owner\*+book | owner\*+book | owner\* | Per-command policies (BC-01) |
+| `anki_review_sessions` | authenticated | owner\* | owner\* | owner\* | owner\* | `FOR ALL` |
+| `lore_cards` | authenticated | owner\* | owner\*+book | owner\*+book | owner\* | — |
+| `page_captures` | authenticated | owner\* | owner\*+book | owner\*+book | owner\* | — |
+| `reading_dna` | authenticated | owner\* | owner\* | owner\* | — | — |
+| `vocabulary_extractions` | authenticated | owner\* | owner\*+book | owner\*+book | — | — |
+| `user_settings` | authenticated | owner\* | owner\* | owner\* | — | Dormant |
+| `book_quizzes` | authenticated | owner\* | owner\*+book | owner\*+book | owner\* | — |
 | `reading_goals` | authenticated | owner\* | owner\* | owner\* | owner\* | — |
 | `achievements` | authenticated | owner\* | owner\* | — | — | Insert-only ledger |
 | `reading_quest_events` | authenticated | owner\* | — | — | — | Trigger-written |
-| `community_profiles` | public | own row | own row | own row | own row | `user_id = (select auth.uid())` |
+| `community_profiles` | public | own row | — | — | own row | Writes only via `upsert_my_community_profile` (BC-01) |
 | `community_profile_privacy` | public | own row | own row | own row | — | — |
 | `community_follow_counts` | public | own row | — | — | — | Trigger-maintained |
-| `follows` | public | follower or following | as follower | — | as follower | Direct insert bypasses follow rules (§12 S-11) |
+| `follows` | public | follower or following | — | — | as follower | Inserts only via `follow_community_user` (BC-01) |
 | `blocks` | public | blocker or blocked | as blocker | — | as blocker | A blocked user can read the block row naming the blocker |
-| `reading_circles` | authenticated | active member (`circle_user_is_member`) | — | — | — | All writes via RPCs |
-| `circle_members` | authenticated | active member | — | — | — | — |
-| `circle_invitations` | authenticated | invitee or circle owner | — | — | — | — |
+| `reading_circles` | authenticated | active member (`private.is_circle_member`) | — | — | — | All writes via RPCs |
+| `circle_members` | authenticated | active member (`private.is_circle_member`) | — | — | — | — |
+| `circle_invitations` | authenticated | invitee or circle owner (`private.is_circle_owner`) | — | — | — | — |
 | `circle_reactions` | authenticated | author only | — | — | — | Others' reactions only via `get_visible_circle_reactions` |
 
 Facts every client must respect:
 
-- **No policy checks `book_id` ownership.** A client can insert `reading_progress`, `progress_history`, `recaps`, `lexicon_entries`, `page_captures`, `lore_cards`, `up_next_order`, `book_quizzes`, `vocabulary_extractions` rows whose `book_id` is another user's book (the FK only checks existence). Such rows are invisible to every RPC (they join `books.user_id`) and are cascade-deleted when the other user deletes that book. Clients must only reference their own book ids (BC-01 adds ownership checks).
-- Policies granted to role `public` include `anon`, but `auth.uid()` is NULL for `anon`, so they match no rows.
-- 25 policies on the older tables use the per-row `auth.uid()` form (advisor `auth_rls_initplan`, §14).
+- **Child rows must reference the caller's own book** (BC-01). Inserting or updating a row in `reading_progress`, `progress_history`, `recaps`, `lexicon_entries`, `page_captures`, `lore_cards`, `up_next_order`, `book_passports`, `book_quizzes` or `vocabulary_extractions` whose `book_id` belongs to another user fails with `42501` (PostgREST 403). Offline queues must be scoped per user (PLT-46, SES-84): after an account switch, a queued save for the previous user's book is rejected, not written.
+- `anon` holds **no** table privileges in `public` (except the out-of-scope `activity_logs`), so signed-out PostgREST calls get `42501` before RLS is consulted.
+- `private.is_circle_member(circle_id)` / `private.is_circle_owner(circle_id)` take the user from `auth.uid()`; they are the only `private` functions `authenticated` may execute.
+- Remaining per-row `auth.uid()` policies (advisor `auth_rls_initplan`) are only on `activity_logs`, which is out of scope (§14).
 - Storage policies are in §7.
 
 ---
@@ -716,27 +718,27 @@ Common to all: `POST /rest/v1/rpc/<name>` with the user's JWT and a JSON body of
 
 | RPC | Signature | Exec | Guard | Day boundaries | Caller today |
 |---|---|---|---|---|---|
-| `get_library_with_progress` | `(p_user_id uuid) → json` | U | ⚠ BC-01 (no check) | — | PWA |
+| `get_library_with_progress` | `(p_user_id uuid) → json` | U | ✅ owner-checked | — | PWA |
 | `get_reading_stats` | `(p_user_id uuid) → json` | U | ✅ guarded | **UTC** | PWA |
-| `get_last_session` | `(p_user_id uuid) → json` | U | ⚠ BC-01 (no check) | — | PWA |
-| `get_library_breakdown` | `(p_user_id uuid) → json` | U | ⚠ BC-01 (no check) | — | PWA |
-| `get_reading_velocity` | `(p_user_id uuid, p_book_ids uuid[]) → table(book_id uuid, days_left int)` | U | ⚠ BC-01 (no check) | **UTC** | PWA |
-| `get_book_passport_stats` | `(p_user_id uuid, p_book_id uuid, p_time_zone text = 'UTC') → json` | A, U | ✅ guarded (anon EXECUTE to revoke, BC-01) | local (`p_time_zone`) | PWA |
-| `get_reading_calendar` | `(p_user_id uuid, p_month_start date, p_timezone text = 'UTC') → json` | A, U | ✅ guarded (anon EXECUTE to revoke) | local | PWA |
-| `get_monthly_reading` | `(p_user_id uuid, p_year int, p_timezone text = 'UTC') → json` | A, U | ✅ guarded (anon EXECUTE to revoke) | local | PWA |
-| `get_reading_records` | `(p_user_id uuid, p_timezone text = 'UTC') → json` | A, U | ✅ guarded (anon EXECUTE to revoke) | local | PWA |
-| `get_reading_quest_summary` | `(p_user_id uuid, p_year int) → jsonb` | A, U | ⚠ BC-01 (NULL-unsafe: anon bypasses) | **UTC** year | PWA |
+| `get_last_session` | `(p_user_id uuid) → json` | U | ✅ owner-checked | — | PWA |
+| `get_library_breakdown` | `(p_user_id uuid) → json` | U | ✅ owner-checked | — | PWA |
+| `get_reading_velocity` | `(p_user_id uuid, p_book_ids uuid[]) → table(book_id uuid, days_left int)` | U | ✅ owner-checked | **UTC** | PWA |
+| `get_book_passport_stats` | `(p_user_id uuid, p_book_id uuid, p_time_zone text = 'UTC') → json` | U | ✅ guarded | local (`p_time_zone`) | PWA |
+| `get_reading_calendar` | `(p_user_id uuid, p_month_start date, p_timezone text = 'UTC') → json` | U | ✅ guarded | local | PWA |
+| `get_monthly_reading` | `(p_user_id uuid, p_year int, p_timezone text = 'UTC') → json` | U | ✅ guarded | local | PWA |
+| `get_reading_records` | `(p_user_id uuid, p_timezone text = 'UTC') → json` | U | ✅ guarded | local | PWA |
+| `get_reading_quest_summary` | `(p_user_id uuid, p_year int) → jsonb` | U | ✅ owner-checked | **UTC** year | PWA |
 | `get_my_community_profile` | `() → jsonb` | U | ✅ guarded | — | PWA |
 | `upsert_my_community_profile` | `(payload jsonb) → jsonb` | U | ✅ guarded | — | PWA |
 | `is_username_available` | `(p_username text) → jsonb` | U | ✅ guarded | — | PWA |
-| `upsert_weekly_goal` | `(p_goal int) → void` | A, U | ✅ guarded | — | none (dormant) |
-| `get_retention_summary` | `(p_timezone text = 'UTC') → json` | A, U | ✅ guarded | local (validated) | none (dormant) |
+| `upsert_weekly_goal` | `(p_goal int) → void` | — | ✅ guarded | — | none (dormant; not on the allowlist) |
+| `get_retention_summary` | `(p_timezone text = 'UTC') → json` | — | ✅ guarded | local (validated) | none (dormant; not on the allowlist) |
 
-"Guarded" RPCs compare `p_user_id` with `auth.uid()` inside the query and **return empty/zero data silently** for a foreign or anonymous caller; only `get_reading_quest_summary` raises. Timezone arguments are applied with `AT TIME ZONE` directly: an unknown IANA name raises `22023` (only `get_retention_summary` validates against `pg_timezone_names` and falls back to UTC). Note the spelling `p_time_zone` on `get_book_passport_stats` versus `p_timezone` elsewhere. BC-06 adds `p_timezone` to every stats RPC (D-07).
+"Guarded" RPCs compare `p_user_id` with `auth.uid()` inside the query and **return empty/zero data silently** for a foreign caller. "Owner-checked" RPCs (BC-01) **raise** `42501 not_allowed` (PostgREST 403) for a foreign or missing caller; the payload for the caller's own id is unchanged. Signed-out calls to any RPC fail with `42501` because `anon` has no `EXECUTE`. `upsert_weekly_goal` and `get_retention_summary` are not on the client allowlist (no client calls them); re-grant them in a migration when a client needs them. Timezone arguments are applied with `AT TIME ZONE` directly: an unknown IANA name raises `22023` (only `get_retention_summary` validates against `pg_timezone_names` and falls back to UTC). Note the spelling `p_time_zone` on `get_book_passport_stats` versus `p_timezone` elsewhere. BC-06 adds `p_timezone` to every stats RPC (D-07).
 
 ### 8.2 Library & reading
 
-#### `get_library_with_progress(p_user_id uuid) → json` — ⚠ BC-01
+#### `get_library_with_progress(p_user_id uuid) → json` — ✅ owner-checked
 
 - Semantics: every `books` row of `p_user_id`, LEFT JOIN its `reading_progress` row (joined on book id and `user_id = p_user_id`). Ordered by `coalesce(rp.updated_at, b.created_at) DESC` with no tiebreaker. **No pagination** (one JSON scalar; grows with the library). Includes imported books.
 - Status: `dnf` if `dnf_at` is not null → else `unread` if `current_page` is 0 or there is no progress row → else `finished` if `total_pages > 0 AND current_page ≥ total_pages` → else `reading` (a negative `current_page` also yields `reading`).
@@ -751,7 +753,7 @@ Common to all: `POST /rest/v1/rpc/<name>` with the user's JWT and a JSON body of
      "dnfAt": "timestamptz|null", "progressId": "uuid|null" }]
   ```
 - `lastReadAt` = `reading_progress.updated_at` (bumped by any update, not only page saves). Not returned: `created_at`, **`session_paused_at`** (read `reading_progress.session_paused_at` separately).
-- Errors: none (unknown user → `[]`). Planned: BC-01 asserts `p_user_id = auth.uid()` (parameter kept for PWA compatibility); BC-14 adds a delta / paginated variant (`changed_since`).
+- Errors: `42501 not_allowed` when `p_user_id` is not the caller (BC-01; the parameter is kept for PWA compatibility and must equal the caller). Planned: BC-14 adds a delta / paginated variant (`changed_since`).
 
 #### `get_reading_stats(p_user_id uuid) → json` — ✅ guarded, UTC
 
@@ -772,21 +774,21 @@ Common to all: `POST /rest/v1/rpc/<name>` with the user's JWT and a JSON body of
 
 - Response: `{pagesThisWeek, pagesThisMonth, totalPagesRead, totalReadingHours, sessionsThisMonth, currentStreakDays, longestStreakDays, allTimeVelocityPph}`. Foreign caller → all zeros. Device-written `recorded_at` is compared with server `now()`, so a fast device clock counts future rows immediately. Planned: BC-06 (`p_timezone`), D-08 counting rules (BC-04).
 
-#### `get_last_session(p_user_id uuid) → json` — ⚠ BC-01
+#### `get_last_session(p_user_id uuid) → json` — ✅ owner-checked
 
 - Picks the latest `progress_history` row of any book of `p_user_id`. Previous row = the latest row of the same book with `recorded_at` strictly earlier (default page 0).
 - Fields: `pagesDelta = max(0, page − previous)`, `startPage` (previous page), `endPage`, `endedAt` (`recorded_at`), `startedAt` (`session_start_at` or null), `durationSeconds` (only when timed), `velocityPph` (only when duration ≥ 60 s and delta ≥ 1), `completionDelta = round(delta / total × 1000) / 10` (percent, 1 dp), `finishPredictionSessions = ceil(remaining / max(1, rollingVelocity × lastSessionHours))` where `rollingVelocity` = Σ delta / Σ hours over the **3 most recent valid sessions across all books**; `0` when the book is finished; `sessionNote`; `bookTitle` (fallback `'Unknown Book'`).
 - An **untimed** latest save makes the divisor 1, so `finishPredictionSessions` equals the remaining pages — hide the prediction when `durationSeconds` is null.
 - Response: `null` (no history) or `{bookId: uuid, bookTitle: string, endedAt: timestamptz, startedAt: timestamptz|null, pagesDelta: int, startPage: int, endPage: int, durationSeconds: number|null, velocityPph: number|null, completionDelta: number|null, finishPredictionSessions: int|null, sessionNote: string|null}`. Ignores DNF and `source`. Planned: BC-01; D-08 (the Last Session card requires a real timed session, BC-04).
 
-#### `get_library_breakdown(p_user_id uuid) → json` — ⚠ BC-01
+#### `get_library_breakdown(p_user_id uuid) → json` — ✅ owner-checked
 
 - Status per book (all books incl. imports; **DNF ignored**): `unread` if `coalesce(current_page,0) = 0`; `finished` if `current_page ≥ total_pages AND total_pages > 0`; else `reading`.
 - `genreDistribution = [{genre, count, percentage}]`: `genre = nullif(trim(genre), '')` else `'Uncategorized'`; grouping is case-sensitive; `percentage = round(count / total × 100, 1)`; ordered by count DESC (ties unordered).
 - `authorsCount = count(distinct lower(trim(author)))`; `booksFinished`, `booksInProgress`, `booksUnstarted` = status counts; `avgCompletionPct = round(avg(per-book completion, capped 100) over non-unread books, 1)`.
 - Response: `{genreDistribution: [{genre: string, count: int, percentage: number}], authorsCount: int, booksFinished: int, booksInProgress: int, booksUnstarted: int, avgCompletionPct: number|null}`.
 
-#### `get_reading_velocity(p_user_id uuid, p_book_ids uuid[]) → table(book_id uuid, days_left int)` — ⚠ BC-01, UTC
+#### `get_reading_velocity(p_user_id uuid, p_book_ids uuid[]) → table(book_id uuid, days_left int)` — ✅ owner-checked, UTC
 
 - Window: the last 30 days of history for the given books owned by `p_user_id`.
 - Average pages per day: the mean positive delta per timed session (needs ≥ 3 session deltas; a delta needs a previous row of the same book **inside** the window) — else the mean per UTC day of `max(page) − min(page)` (needs ≥ 3 active days; single-save days give 0 and are dropped).
@@ -821,9 +823,9 @@ Common to all: `POST /rest/v1/rpc/<name>` with the user's JWT and a JSON body of
 
 - Response: `{bestDay: {pages: int, date: "YYYY-MM-DD"}|null, longestSession: {minutes: int, date: "YYYY-MM-DD"}|null, fastestFinish: {days: int, title: string}|null, nightOwl: bool}`; foreign caller → `{bestDay:null, longestSession:null, fastestFinish:null, nightOwl:false}`.
 
-#### `get_reading_quest_summary(p_user_id uuid, p_year int) → jsonb` — ⚠ BC-01
+#### `get_reading_quest_summary(p_user_id uuid, p_year int) → jsonb` — ✅ owner-checked
 
-- Guard: `IF p_user_id <> (select auth.uid()) THEN RAISE 'Not allowed'`. For `anon`, `auth.uid()` is NULL, the comparison is NULL, and the function **returns the target's data** (anon holds EXECUTE). BC-01: `IF (select auth.uid()) IS NULL OR p_user_id <> (select auth.uid())` and revoke anon.
+- Guard (BC-01): `private.assert_is_caller(p_user_id)` raises `42501 not_allowed` when `auth.uid()` is NULL or differs from `p_user_id`. Before 2026-10-19 the check was a NULL-unsafe `<>` that let `anon` read any user's summary. `anon` has no EXECUTE.
 - XP (lifetime, not per year): `totalXp = pagesRead + 25·completedBooks + 10·readingSessions + 5·pageCaptures + 20·recapsGenerated + 15·loreCardsUnlocked`.
 
 | Source | Definition |
@@ -961,28 +963,30 @@ Every `public` function is reachable at `/rest/v1/rpc/<name>`. Trigger functions
 | `reading_circles_touch_updated_at` | `reading_circles` | BEFORE UPDATE | `circle_touch_updated_at()` | `updated_at = now()` |
 | `circle_members_assert_insert` | `circle_members` | BEFORE INSERT | `circle_assert_member_insert()` (definer) | Raise `circle_full` at ≥ 10 members, `blocked` if any member has a block with the new member (no lock: concurrent accepts can exceed 10) |
 
-No triggers exist on `auth.users`, `books`, `progress_history`, `recaps`, `lexicon_entries`, `lore_cards`, `book_quizzes`, `up_next_order` or `user_settings`. The function `after_page_capture_saved()` is **not attached** to any trigger.
+No triggers exist on `auth.users`, `books`, `progress_history`, `recaps`, `lexicon_entries`, `lore_cards`, `book_quizzes`, `up_next_order` or `user_settings`. Trigger functions fire regardless of `EXECUTE` grants (Postgres checks `EXECUTE` only when a trigger is created).
 
 ### 9.2 Internal functions and their grants
 
-All 69 functions are executable by `authenticated`. "A" = also executable by `anon`.
+Since BC-01 (2026-10-19) **no client role can execute any function in this table**: `anon` and `PUBLIC` have no `EXECUTE` on any `public` function, and `authenticated` has `EXECUTE` only on the client allowlist (§8.1 RPCs, the dormant community/circle RPCs in §8, and `normalize_isbn`). `service_role` keeps its grants. The definer RPCs that call these helpers run as the owner (`postgres`), so they are unaffected.
 
-| Function | Definer | A | Purpose / risk | Planned |
-|---|---|---|---|---|
-| `set_updated_at`, `set_reading_goals_updated_at`, `community_profiles_touch_updated_at`, `circle_touch_updated_at` | no | yes (except `circle_touch_updated_at`) | Trigger functions; harmless via `/rpc` | revoke (BC-01) |
-| `delete_page_captures_on_book_completion`, `delete_book_quizzes_on_book_completion`, `record_page_capture_quest_event`, `community_follow_counts_after_follow`, `community_block_cleanup_follows`, `community_ensure_count_on_profile_insert` | yes | yes | Trigger functions; cannot run outside a trigger | revoke anon/PUBLIC |
-| `circle_assert_member_insert`, `circle_block_cleanup_memberships` | yes | no | Trigger functions | — |
-| `after_page_capture_saved()` | yes | yes | **Dead**: would insert the quest event and prune captures to 5; attached to nothing; no migration anywhere | drop (BC-01) |
-| `prune_page_captures_for_book(p_user_id uuid, p_book_id uuid, p_keep int = 5) → int` | yes | **yes** (also PUBLIC) | **Destructive, no identity check**: deletes all but the newest `p_keep` (≥ 1) captures of any user's book, ordered `captured_at DESC, page DESC, id DESC`. Called by nothing. | drop or lock (BC-01) |
-| `community_remove_pair_follows(p_user_a uuid, p_user_b uuid) → int` | yes | **yes** (also PUBLIC) | **Destructive**: deletes any follow edge between any two users | lock (BC-01) |
-| `community_ensure_follow_count(p_user_id uuid) → void` | yes | yes | Inserts a zero row for a user who has a profile (`ON CONFLICT DO NOTHING`); benign | lock |
-| `community_reconcile_follow_counts() → void` | yes | no | Recomputes every counter from `follows` (correct values; cost/lock contention). Never scheduled. | lock |
-| `circle_progress_location(p_circle_id uuid, p_user_id uuid) → table(book_id, current_page, total_pages, normalized_location)` | yes | no | **Leaks** any user's progress for books matching a circle's ISBN (create your own circle, pass a victim's uid) | lock (BC-01) |
-| `community_relationship_payload(p_viewer, p_target)`, `community_has_block_between(a, b)` (true when either is NULL), `community_interaction_reason(viewer, target)`, `community_can_view_profile(viewer, target)` | yes | no | Reveal follow/block edges between arbitrary users | lock (BC-01) |
-| `circle_user_is_member`, `circle_user_is_owner`, `circle_member_count`, `circle_members_have_block`, `circle_book_matches`, `circle_users_can_share` (unused) | yes | no | Used inside RLS / circle RPCs; oracles when called directly | lock (BC-01) |
-| `community_cursor_payload(text)`, `community_encode_cursor(timestamptz, uuid)` | no | yes | Cursor helpers | revoke anon |
-| `also_reading_cursor_payload(text)`, `also_reading_encode_cursor(timestamptz, uuid)` | no | no | Cursor helpers | — |
-| `normalize_isbn(p_isbn text) → text` | no (IMMUTABLE) | no | `nullif(upper(regexp_replace(coalesce(p,''), '[^0-9X]', '', 'g')), '')` — the regex runs before `upper`, so a lowercase `x` is deleted. Used by the books functional index and community matching. | BC-15 normalises at write time |
+| Function | Definer | Purpose / risk | Status |
+|---|---|---|---|
+| `set_updated_at`, `set_reading_goals_updated_at`, `community_profiles_touch_updated_at`, `circle_touch_updated_at` | no | Trigger functions | Not client-executable (BC-01) |
+| `delete_page_captures_on_book_completion`, `delete_book_quizzes_on_book_completion`, `record_page_capture_quest_event`, `community_follow_counts_after_follow`, `community_block_cleanup_follows`, `community_ensure_count_on_profile_insert`, `circle_assert_member_insert`, `circle_block_cleanup_memberships` | yes | Trigger functions | Not client-executable (BC-01) |
+| `after_page_capture_saved()` | — | Was dead (attached to nothing) | **Dropped** (BC-01) |
+| `prune_page_captures_for_book(…)` | — | Was destructive with no identity check | **Dropped** (BC-01). Recreate in `private` if a capture-retention cap is ever decided. |
+| `community_remove_pair_follows(p_user_a uuid, p_user_b uuid) → int` | yes | Deletes any follow edge between two users; called by `block_community_user` and the block trigger | Not client-executable (BC-01) |
+| `community_ensure_follow_count(p_user_id uuid) → void` | yes | Inserts a zero row for a user who has a profile | Not client-executable (BC-01) |
+| `community_reconcile_follow_counts() → void` | yes | Recomputes every counter from `follows`. Never scheduled. | Service role only (BC-01) |
+| `circle_progress_location(p_circle_id uuid, p_user_id uuid)` | yes | Would leak any user's progress for books matching a circle's ISBN | Not client-executable (BC-01) |
+| `community_relationship_payload`, `community_has_block_between` (true when either is NULL), `community_interaction_reason`, `community_can_view_profile` | yes | Would reveal follow/block edges between arbitrary users | Not client-executable (BC-01) |
+| `circle_user_is_member`, `circle_user_is_owner`, `circle_member_count`, `circle_members_have_block`, `circle_book_matches`, `circle_users_can_share` (unused) | yes | Used inside circle RPCs; oracles when called directly | Not client-executable (BC-01); the RLS policies now use `private.is_circle_member/owner` |
+| `community_cursor_payload(text)`, `community_encode_cursor(timestamptz, uuid)`, `also_reading_cursor_payload(text)`, `also_reading_encode_cursor(timestamptz, uuid)` | no | Cursor helpers | Not client-executable (BC-01) |
+| `private.assert_is_caller(p_user_id uuid) → void` | no (invoker) | Raises `42501 not_allowed` unless `auth.uid()` is set and equals `p_user_id`. Called first by the owner-checked RPCs. | Not client-executable |
+| `private.is_circle_member(p_circle_id uuid)`, `private.is_circle_owner(p_circle_id uuid) → boolean` | yes | Active-membership / ownership of the **caller** (`auth.uid()`); used by the `reading_circles`, `circle_members`, `circle_invitations` SELECT policies | `authenticated` only |
+| `normalize_isbn(p_isbn text) → text` | no (IMMUTABLE) | `nullif(upper(regexp_replace(coalesce(p,''), '[^0-9X]', '', 'g')), '')`. The regex runs before `upper`, so a lowercase `x` is deleted. Used by the books functional index and community matching. | `authenticated` (allowlist). BC-15 normalises at write time. |
+
+**Deviation from the plan (BC-01.5):** the helpers were not moved into the `private` schema. About thirty community RPCs call them by their schema-qualified names (`public.community_…(`), so moving them would mean rewriting every caller. Revoking `EXECUTE` closes the same hole. The one visible difference: a direct `/rest/v1/rpc/<helper>` call returns 401/403 (`42501`) instead of 404.
 
 ---
 
@@ -992,9 +996,9 @@ All 69 functions are executable by `authenticated`. "A" = also executable by `an
 
 | Slug | Deployed | `verify_jwt` | In-function auth | PWA transport | Models | Env vars (names) | Repo vs deployed |
 |---|---|---|---|---|---|---|---|
-| `generate-recap` | v84 | **false** | `atob` decode of the JWT payload, requires `sub`; no signature/`exp` check; **no base64url normalisation** | raw `fetch` (no `apikey`) | `gemini-2.5-flash`, `gemini-2.5-pro` (+ Google Search), OpenAI `gpt-image-2` | `GEMINI_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Semantically identical (deployed strips comments, ASCII dashes in the blurb prompt; `types.ts` not shipped) |
-| `generate-lore` | v18 | **false** | decode with base64url normalisation, requires `sub`; no signature/`exp` | raw `fetch` | `gemini-2.5-flash` | `GEMINI_API_KEY` | **Differs** — deployed is canonical (D-09) |
-| `ocr-page` | v2 | **false** | `atob` decode, requires `sub`; no signature/`exp`; **no base64url normalisation** | raw `fetch` | `gemini-2.5-flash` (multimodal) | `GEMINI_API_KEY` | Trivial prompt-wording differences |
+| `generate-recap` | v86 | true | gateway + `requireUser` (`supabase.auth.getUser`, BC-02) | raw `fetch` (no `apikey`) | `gemini-2.5-flash`, `gemini-2.5-pro` (+ Google Search), OpenAI `gpt-image-2` | `GEMINI_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Identical (deployed from the repo 2026-10-19) |
+| `generate-lore` | v20 | true | gateway + `requireUser` (BC-02) | raw `fetch` | `gemini-2.5-flash` | `GEMINI_API_KEY` | Identical (repo synced to v18 per D-09, then deployed from the repo) |
+| `ocr-page` | v4 | true | gateway + `requireUser` (BC-02) | raw `fetch` | `gemini-2.5-flash` (multimodal) | `GEMINI_API_KEY` | Identical (deployed from the repo 2026-10-19) |
 | `extract-vocabulary` | v2 | true | gateway verifies; function decodes `sub` | `functions.invoke` | `gemini-2.5-flash` | `GEMINI_API_KEY` | Identical |
 | `generate-reading-dna` | v8 | true | gateway + decode | `functions.invoke` | `gemini-2.5-flash` + Google Search tool | `GEMINI_API_KEY` | **Differs** — deployed is canonical (D-09) |
 | `generate-page-resume` | v3 | true | gateway + decode | `functions.invoke` | `gemini-2.5-flash` | `GEMINI_API_KEY` | Identical |
@@ -1003,9 +1007,9 @@ All 69 functions are executable by `authenticated`. "A" = also executable by `an
 Common rules:
 
 - `POST` + `OPTIONS` (CORS `Access-Control-Allow-Origin: *`, allowed headers `authorization, x-client-info, apikey, content-type`, methods `POST, OPTIONS`; no `Access-Control-Expose-Headers`). All Gemini calls use `npm:@google/genai` **unpinned** (resolved at deploy).
-- Send `Authorization: Bearer <user access token>` (and `apikey`, which `functions.invoke` adds). All functions require a `sub` claim, so the anon key as Bearer is rejected with 401. No function checks `exp`; for `verify_jwt=true` functions the gateway rejects missing/invalid/expired tokens **before** the function runs, with the gateway's own 401 body. [UNVERIFIED: gateway body shape.] Treat any 401 as "refresh the session and retry once".
-- `generate-recap` and `ocr-page` call `atob()` on the raw base64url payload; WHATWG `atob` rejects `-`/`_`, so a **valid** token whose payload encoding contains them gets a spurious 401 — likely once `user_metadata` carries non-ASCII text (e.g. an Apple-provided name). Fixed by BC-02 before Sign in with Apple ships.
-- Every function is stateless except the `recap_image` job: clients persist all results (`recaps`, `lore_cards`, `page_captures.resume`, `book_quizzes`, `reading_dna`, `book_passports`, lexicon rows). No function enforces per-user rate limits, quotas or entitlements (BC-12). There is no `supabase/config.toml`: `verify_jwt` lives only in deployed metadata (BC-02 commits it).
+- Send `Authorization: Bearer <user access token>` (and `apikey`, which `functions.invoke` adds). Every function runs with `verify_jwt = true` (committed in `supabase/config.toml`, BC-02): the gateway rejects a missing, forged, foreign-key or expired token **before** the function runs, with its own body — `401 {"code":"UNAUTHORIZED_NO_AUTH_HEADER","message":"Missing authorization header"}` or `401 {"code":"UNAUTHORIZED_LEGACY_JWT","message":"Invalid JWT"}` (verified 2026-10-19). Treat any 401 as "refresh the session and retry once".
+- `generate-recap`, `generate-lore` and `ocr-page` additionally verify the caller in code with `requireUser` (`supabase/functions/_shared/auth.ts`, `supabase.auth.getUser`): signature, expiry and that the user still exists. The anon key as Bearer is rejected (no user). The other four functions still decode `sub` locally behind the gateway check (safe, but to be moved to `requireUser`; BC-02 follow-up).
+- Every function is stateless except the `recap_image` job: clients persist all results (`recaps`, `lore_cards`, `page_captures.resume`, `book_quizzes`, `reading_dna`, `book_passports`, lexicon rows). No function enforces per-user rate limits, quotas or entitlements (BC-12).
 
 Soft- vs hard-failure semantics:
 
@@ -1017,9 +1021,9 @@ Soft- vs hard-failure semantics:
 | `ocr-page` | Hard errors (502/503/504); but a model JSON missing `text`/`confidence` returns **200** with `text: ""` / `confidence: 0` — route to manual review (empty text cannot be saved) |
 | `generate-recap`, `generate-lore`, `generate-reading-dna` | Hard errors (JSON body, non-2xx) |
 
-### 10.2 `generate-recap` (v84, `verify_jwt: false`)
+### 10.2 `generate-recap` (v86, `verify_jwt: true`)
 
-Routing (`router.ts`): `mode === "recap_image"` → image job; `mode === "passport_summary"` → passport; `currentPage === 0` (strict) → pre-start blurb; anything else → mid-book recap (a body without `currentPage` routes to recap). Check order: Authorization header (401) → payload decode (401) → `req.json()` (malformed JSON → **500**) → field validation (400) → `GEMINI_API_KEY` (503, all modes) → `OPENAI_API_KEY` (image) → dispatch. There is no HTTP-method check.
+Routing (`router.ts`): `mode === "recap_image"` → image job; `mode === "passport_summary"` → passport; `currentPage === 0` (strict) → pre-start blurb; anything else → mid-book recap (a body without `currentPage` routes to recap). Check order: gateway JWT check (401) → method (`405` unless `POST`) → Authorization header (401) → `requireUser` (401) → `req.json()` (malformed JSON → `400 {"error":"invalid_input"}`) → field validation (400) → `GEMINI_API_KEY` (503, all modes) → `OPENAI_API_KEY` (image) → (image mode) recap ownership (404) → dispatch.
 
 **Text modes request**
 
@@ -1056,11 +1060,13 @@ The passport body is plain prose (one 90–100-word paragraph). The server does 
 
 | Status | Body | When |
 |---|---|---|
-| 401 | `{"error":"No authorization header"}` / `{"error":"Unauthorized"}` | Header missing / payload undecodable or no `sub` (also the spurious base64url case) |
-| 400 | `{"error":"Missing required fields"}` / `{"error":"Missing required image fields"}` | Validation |
+| 401 | Gateway body (§10.1), or `{"error":"No authorization header"}` / `{"error":"Unauthorized"}` | Missing or invalid token |
+| 405 | `{"error":"Method not allowed"}` | Not `POST` |
+| 400 | `{"error":"invalid_input"}` / `{"error":"Missing required fields"}` / `{"error":"Missing required image fields"}` | Malformed JSON / validation |
+| 404 | `{"error":"recap_not_found"}` | Image mode: `recapId` is not a recap of the caller (checked before any AI call) |
 | 503 | `{"error":"AI service not configured"}` / `"OpenAI image service not configured"` / `"Supabase admin client not configured"` | Missing env |
 | 500 | `{"error":"AI output invalid","detail":"Provider safety block"\|"Low extraction confidence after retries"\|"No JSON block found in response"\|"Recap composition failed","finishReason"?,"blockReason"?}` | Inferred/corpus failures **before** streaming starts; a safety block is terminal (no retry) |
-| 500 | `{"error":"Internal server error","detail":"<internal error text>"}` | Uncaught errors (malformed body, blurb/passport stream-start failure). Leaks internal text (BC-02). |
+| 500 | `{"error":"Internal server error","requestId":"uuid"}` | Uncaught errors (e.g. blurb/passport stream-start failure). Details are logged server-side under `requestId` only (BC-02). |
 | 5xx gateway | Platform body | A slow inferred path exceeding platform limits before the first byte [UNVERIFIED] |
 
 **Image mode (`recap_image`) — the 202 job**
@@ -1069,26 +1075,26 @@ The passport body is plain prose (one 90–100-word paragraph). The server does 
 - Response: **`202 {"status":"accepted"}`** immediately; the work continues in `EdgeRuntime.waitUntil`. The result arrives only through the `recaps` row (§4.10).
 - Job: set `image_status = 'pending'`, `image_path = null`, `image_generated_at = null` → refine the prompt with `gemini-2.5-flash` (temperature 0.4, 4 096 tokens, no thinking override; input = title, author, genre, `memoryJogger` only; deterministic fallback prompt on error or empty output) → OpenAI `POST https://api.openai.com/v1/images/generations` `{model:"gpt-image-2", size:"1024x1024", quality:"low", n:1}` (base64 response) → upload `recap-images/{sub}/{recapId}.png` (upsert) → `succeeded` + `image_path` + `image_generated_at`.
 - Errors: HTTP 429/5xx → transient; message matching `/safety|policy|moderation|content policy|blocked/i` → safety; anything else → transient. One retry: safety → re-refine with a "softer" prompt; transient → wait 2 000 ms, same prompt. Final failure → `failed_safety` or `failed_transient`.
-- All updates use the **service role** scoped `id = recapId AND user_id = <decoded sub>`. A `recapId` that is not the caller's matches 0 rows silently, yet Gemini and OpenAI are still billed and an object is still written under the caller's folder. The job has `try/finally` without `catch`: an upload or DB exception leaves the row `pending` while the log reports `failed_transient`.
+- Before the job starts, the function checks with the service role that `recaps.id = recapId AND user_id = <verified caller>`; otherwise it returns `404 recap_not_found` and makes no AI call or upload (BC-02). All job updates use the **service role** scoped the same way. The job has `try/finally` without `catch`: an upload or DB exception leaves the row `pending` while the log reports `failed_transient`.
 - Structured logs: `[generate-recap] {stage, attempt, finishReason, blockReason, safetyRatings, usage, rawTextLength, rawTextPreview}` on failures; image summary `{recap_id, text_stage_duration_ms, image_stage_duration_ms, transient_retry_used, safety_retry_used, final_image_status}`.
 
-Planned: BC-02 (real JWT verification), BC-07 (server-side eligibility: +5 % pages / 6 h cooldown / 72 h idle on the server clock; server-side corpus window; the function persists and returns the validated `recaps` row; once paid, finish and save), BC-12 (entitlement/usage check), BC-13 (job error handling, stale `pending`).
+Planned: BC-07 (server-side eligibility: +5 % pages / 6 h cooldown / 72 h idle on the server clock; server-side corpus window; the function persists and returns the validated `recaps` row; once paid, finish and save), BC-12 (entitlement/usage check), BC-13 (job error handling, stale `pending`).
 
-### 10.3 `generate-lore` (v18, `verify_jwt: false`)
+### 10.3 `generate-lore` (v20, `verify_jwt: true`)
 
 - Request: `{ "title", "author", "isbn"?: "string|null", "currentPage", "totalPages", "percentage", "milestone": 10…90 (step 10; `Number()`-coerced, so "50" passes), "masterRecap": "non-blank string", "existingTopics"?: ["titles of this book's existing cards"] }`. All of `title, author, currentPage, totalPages, percentage, milestone, masterRecap` must be non-null; numeric types and string lengths are not validated.
 - Response `200`: `{ "title": "3–8 words", "content": "90–160 words", "type": "History|Culture|Geography|Technology|Lore", "linked_entities": ["≤5 names from the recap"] }` — exactly these four fields, trimmed. The function never writes `lore_cards`; it does not return page or milestone (the client adds them). Not idempotent; no server dedupe.
-- Errors: `400 {"error":"Missing required fields"}` (also invalid JSON) · `401 {"error":"Unauthorized"}` · `405 {"error":"Method not allowed"}` · `503 {"error":"AI service not configured"}` · `500 {"error":"AI output invalid","detail":"No JSON block found in response"|"Response was not valid JSON"|"Response failed shape validation","finishReason"?,"blockReason"?}` · `500 {"error":"Internal server error","detail"}` (e.g. a non-array truthy `existingTopics`). No soft-failure 200.
-- Model (deployed, canonical per D-09): `gemini-2.5-flash`, non-streaming, temperature **0.35**, 4 096 tokens; **accuracy-first** prompt ("canonical context … do NOT invent", draw from the author's established lore and companion materials, match the author's prose style); `thinkingBudget: 1000` + `includeThoughts: true` are placed at the `config` root instead of inside `thinkingConfig`, so thinking runs at the model default. Repo source differs (temperature 0.85, `thinkingConfig.thinkingBudget 0`, "you may introduce NEW details", extra Romance tone line) and must be synced to deployed with the thinking config fixed (BC-03).
-- Data sent to Google: title, author, ISBN, page numbers, the reader's recap text, prior card titles. Planned: BC-08 (server-side orchestration with recap → captures → metadata fallback, spoiler-guarded; insert `ON CONFLICT DO NOTHING`; clients only list and mark seen), BC-02.
+- Errors: `400 {"error":"Missing required fields"}` (also invalid JSON) · `401` gateway body or `{"error":"Unauthorized"}` · `405 {"error":"Method not allowed"}` · `503 {"error":"AI service not configured"}` · `500 {"error":"AI output invalid","detail":"No JSON block found in response"|"Response was not valid JSON"|"Response failed shape validation","finishReason"?,"blockReason"?}` · `500 {"error":"Internal server error","requestId"}` (e.g. a non-array truthy `existingTopics`; no internal text since BC-02). No soft-failure 200.
+- Model (deployed, canonical per D-09): `gemini-2.5-flash`, non-streaming, temperature **0.35**, 4 096 tokens; **accuracy-first** prompt ("canonical context … do NOT invent", draw from the author's established lore and companion materials, match the author's prose style); `thinkingBudget: 1000` + `includeThoughts: true` are placed at the `config` root instead of inside `thinkingConfig`, so thinking runs at the model default. The repo source was synced to v18 on 2026-10-19 (D-09); the misplaced thinking config is unchanged and still to be fixed in BC-03.
+- Data sent to Google: title, author, ISBN, page numbers, the reader's recap text, prior card titles. Planned: BC-08 (server-side orchestration with recap → captures → metadata fallback, spoiler-guarded; insert `ON CONFLICT DO NOTHING`; clients only list and mark seen).
 
-### 10.4 `ocr-page` (v2, `verify_jwt: false`)
+### 10.4 `ocr-page` (v4, `verify_jwt: true`)
 
 - Request: `{ "imageBase64": "<raw base64, no data: prefix>", "mimeType": "image/jpeg" | "image/png" }`.
 - Validation order: auth → body JSON (`400 InvalidRequest "Body must be JSON"`) → `imageBase64` non-empty (`"imageBase64 missing or invalid"`) → MIME (`"mimeType must be image/jpeg or image/png"`) → decoded size `floor(len × 3/4) − padding ≤ 5 MiB` (`"Image exceeds 5 MB limit"`) → `GEMINI_API_KEY`.
 - Model: `gemini-2.5-flash`, temperature 0.1, 8 192 tokens, `thinkingBudget 0`. The prompt excludes printed page numbers, running headers/footers, footnote markers and ornaments; it asks for `{text, confidence 0–1 (self-assessed), notes?}` with bands 0.95–1 clean / 0.70–0.94 minor / 0.40–0.69 review / 0–0.39 retake.
 - Response `200`: `{ "text": "string", "confidence": 0.0–1.0 (clamped; missing → 0), "wordCount": int (whitespace split) }`; `notes` discarded. Image bytes are never persisted.
-- Errors (all `{error, message}`): `401 Unauthorized` ("Missing or invalid JWT"), `400 InvalidRequest`, `503 AiUnavailable`, **`504 OcrTimeout`** ("OCR took too long; please try again" — one 10 s budget covers both attempts; the timed-out call is not aborted), **`502 OcrUpstream`** ("Gemini call failed after retry" — one retry on any first-attempt error), `500 InternalError`. No HTTP-method check (a GET returns 400). Expired tokens are accepted.
+- Errors (all `{error, message}`, except the gateway's own 401 body): `401 Unauthorized` ("Missing or invalid JWT"), `405 MethodNotAllowed` (not `POST`), `400 InvalidRequest`, `503 AiUnavailable`, **`504 OcrTimeout`** ("OCR took too long; please try again" — one 10 s budget covers both attempts; the timed-out call is not aborted), **`502 OcrUpstream`** ("Gemini call failed after retry" — one retry on any first-attempt error), `500 InternalError`. Expired or forged tokens are rejected (gateway + `requireUser`, BC-02).
 - Client thresholds (PWA): auto-save at `confidence ≥ 0.90` with non-empty text; review otherwise; warning banner below 0.70. These are Gemini-calibrated. iOS uses on-device Apple Vision first and falls back to `ocr-page` on low confidence; the thresholds must be recalibrated for Vision (D-15).
 
 ### 10.5 `extract-vocabulary` (v2, `verify_jwt: true`)
@@ -1159,35 +1165,38 @@ Notes:
 
 ## 12. Security status
 
-Findings verified on the live project on 2026-10-18. The repository is being made private (D-16), so they are documented in full — make sure it is private before pushing. Fix before any public native release.
+Findings verified on the live project on 2026-10-18; status updated 2026-10-19 after BC-01 (migration `bc01_security_hardening`) and BC-02 (edge-function deploys `generate-recap` v86, `generate-lore` v20, `ocr-page` v4). The repository is private (D-16). Everything still open must be fixed before any public native release.
 
-| ID | Severity | Finding | Fix |
+| ID | Severity | Finding (as found 2026-10-18) | Status |
 |---|---|---|---|
-| S-01 | **Critical** | **IDOR in core RPCs.** `get_library_with_progress`, `get_last_session`, `get_library_breakdown`, `get_reading_velocity` are `SECURITY DEFINER`, take `p_user_id` and never compare it with `auth.uid()`. Any signed-in user can read any other user's titles, progress, DNF state, session notes and velocity by UUID, bypassing all privacy settings. User ids are discoverable (e.g. `search_community_readers`, `get_public_profile_by_username`). | BC-01: assert `p_user_id = (select auth.uid())`; keep the parameter for PWA compatibility |
-| S-02 | **Critical** | **Anon bypass of `get_reading_quest_summary`.** The guard `IF p_user_id <> (select auth.uid())` is NULL for `anon`, and `anon` holds EXECUTE, so anyone with the public anon key gets any user's goal row (incl. `userId`, `targetBooks`), completions, XP/level and XP source counts. Verified live. | BC-01: NULL-safe guard; revoke anon |
-| S-03 | **High** | **Destructive anon-executable functions.** `prune_page_captures_for_book(p_user_id, p_book_id, p_keep)` (EXECUTE to PUBLIC/anon/authenticated, no identity check) deletes all but one capture of any user's book given two UUIDs. `community_remove_pair_follows(a, b)` (PUBLIC/anon) deletes any follow edge. `community_reconcile_follow_counts` (authenticated) lets anyone run a global recompute (correct values; load/lock risk). `community_ensure_follow_count` is benign. | BC-01: drop the dead `after_page_capture_saved`; drop or lock `prune_page_captures_for_book`; lock `community_remove_pair_follows` and the other helpers |
-| S-04 | **High** | **Helper functions leak data.** `circle_progress_location(circle, user)` returns any user's `current_page`/`total_pages` for books matching a circle's ISBN (create your own circle, pass a victim uid). `community_relationship_payload`, `community_has_block_between`, `community_interaction_reason`, `community_can_view_profile` reveal follow/block edges between arbitrary pairs; `circle_user_is_member/owner`, `circle_member_count`, `circle_members_have_block`, `circle_book_matches`, `circle_users_can_share` act as oracles. All are EXECUTE to `authenticated`. | BC-01: revoke EXECUTE on every non-RPC helper |
-| S-05 | **High** | **Default privileges re-open the anon surface.** `pg_default_acl` grants EXECUTE (functions) and full DML (tables) on every new object to `anon`/`authenticated`. The 2026-05-02 `revoke_anon_rpc_execute` migration only covered functions that existed then; today 17 `SECURITY DEFINER` functions (22 functions in total) are anon-executable. | BC-01: revoke anon/PUBLIC EXECUTE across `public` and alter the default ACL |
-| S-06 | **Critical** | **Unverified JWTs in `generate-recap`, `generate-lore`, `ocr-page`.** `verify_jwt = false` and the code only base64-decodes the payload (no signature, `exp` or `aud` check). Anyone on the internet can spend Gemini/OpenAI credits with a forged token. In `recap_image` mode a forged `sub` plus a known `recapId` lets an attacker overwrite another user's recap image status/path through the **service role** and write objects into the victim's folder. The `auth.ts` comment cites "ES256 compat", but four other functions run with `verify_jwt = true`. | BC-02: `verify_jwt = true` or `supabase.auth.getUser` verification; drop hand-rolled decoding; commit `supabase/config.toml` |
-| S-07 | Medium (correctness) | `generate-recap` and `ocr-page` reject some **valid** tokens (base64url not normalised before `atob`) → spurious 401, likely after Sign in with Apple puts non-ASCII names into `user_metadata`. | BC-02, before BC-11 enables Apple |
-| S-08 | Medium | **Internal error text in 500s.** `generate-recap` returns `{"error":"Internal server error","detail": String(err)}`; `generate-lore` returns `detail` similarly. | BC-02 |
-| S-09 | High (cost) | **No rate limiting, quota or entitlement checks** in any AI function; CORS `*`. | BC-12 (shared check, allow-all until tiers exist, D-14); BC-02 |
-| S-10 | Medium | **RLS does not verify `book_id` ownership** on child tables (`lore_cards`, `recaps`, `page_captures`, `reading_progress`, `progress_history`, `lexicon_entries`, `up_next_order`, `book_quizzes`, `vocabulary_extractions`). Cross-user references are accepted. Concrete path: the PWA offline queue is not user-scoped, so after an account switch it replays the old user's queued saves as the new user, creating `reading_progress` rows on another user's books. | BC-01: child-table RLS checks book ownership; clients scope queues per user |
-| S-11 | Medium (dormant) | **RLS bypasses RPC business rules.** `follows_follower_insert` lets a user insert `follows(self → anyone)` directly (follow private users or users who blocked them, inflate counts). `community_profiles_owner_insert/update` bypass the reserved-username list and allow arbitrary `avatar_url` and `created_at` (which drives search order) and a profile without a privacy row. | BC-01 closes the direct follows-insert bypass; restrict profile writes to the RPC |
-| S-12 | Medium | **Leaked-password protection disabled** in Auth. | BC-11 |
-| S-13 | Medium | The Google Books API key ships in the web bundle and a literal key is committed in `.env.example`. | Rotate and restrict now; BC-15 server-side proxy |
-| S-14 | Low (dormant) | `community_profiles.avatar_url` is free text: any external URL is rendered by viewers (tracking / unmoderated images). | BC-01 (BC-01.7, recommended): `upsert_my_community_profile` accepts only a public `community-avatars` URL under the caller's uid, and direct profile writes are closed |
-| S-15 | Low (dormant) | **Community privacy leaks.** `get_also_reading_for_book` accepts a caller-controlled `p_isbn`, so a follower can probe every in-progress book of the people they follow. Public `currentlyReading` returns pages even when `progress = nobody`; `lexiconHighlights.bookTitle` reveals books when `currentlyReading = nobody`; `hasBlockedViewer` tells a blocked user; `is_public = false` is ignored inside circles; search `LIKE` wildcards are not escaped. | Deferred out of Phase 0 (BC-01 OP-01.3, plan §6); fix before the Community phase (D-13) |
-| S-16 | High (compliance) | **No account deletion** on any client (App Store Guideline 5.1.1(v)), and Storage objects are never purged. | D-10 / BC-11 `delete-account`; BC-13 (Storage hygiene & AI-job robustness) |
+| S-01 | **Critical** | **IDOR in core RPCs.** `get_library_with_progress`, `get_last_session`, `get_library_breakdown`, `get_reading_velocity` were `SECURITY DEFINER`, took `p_user_id` and never compared it with `auth.uid()`: any signed-in user could read any other user's titles, progress, DNF state, session notes and velocity by UUID. | **Fixed 2026-10-19 (BC-01).** Each raises `42501 not_allowed` unless `p_user_id = auth.uid()`. The parameter is kept, and the caller's own payload is unchanged (verified byte-identical). |
+| S-02 | **Critical** | **Anon bypass of `get_reading_quest_summary`.** The guard `IF p_user_id <> (select auth.uid())` was NULL for `anon`, and `anon` held EXECUTE. | **Fixed 2026-10-19 (BC-01).** NULL-safe guard (`private.assert_is_caller`) and no anon EXECUTE; anon calls get `42501`. |
+| S-03 | **High** | **Destructive anon-executable functions.** `prune_page_captures_for_book` (any user's captures), `community_remove_pair_follows` (any follow edge), `community_reconcile_follow_counts` (global recompute). | **Fixed 2026-10-19 (BC-01).** `after_page_capture_saved` and `prune_page_captures_for_book` are dropped. No client role can execute the community helpers; `community_reconcile_follow_counts` is service-role only. |
+| S-04 | **High** | **Helper functions leak data.** `circle_progress_location`, `community_relationship_payload`, `community_has_block_between`, `community_interaction_reason`, `community_can_view_profile` and the `circle_*` oracles were EXECUTE to `authenticated` with arbitrary user ids. | **Fixed 2026-10-19 (BC-01).** EXECUTE is revoked from `anon` and `authenticated`. The circle RLS policies now use `private.is_circle_member/owner`, which take the user from `auth.uid()`. The helpers stay in `public` (§9.2 explains why), so a direct call returns `42501` instead of 404. |
+| S-05 | **High** | **Default privileges re-open the anon surface.** `pg_default_acl` granted EXECUTE and full DML on every new object to `anon`/`authenticated`; 22 functions (17 definer) were anon-executable. | **Fixed 2026-10-19 (BC-01)** for owner `postgres`. 0 functions are anon-executable. New functions get no client EXECUTE, and new tables and sequences get no anon privileges, without an explicit grant. Defaults owned by `supabase_admin` cannot be changed from a migration, so every migration must run as `postgres`. `anon` table privileges are revoked everywhere except the out-of-scope `activity_logs`. |
+| S-06 | **Critical** | **Unverified JWTs in `generate-recap`, `generate-lore`, `ocr-page`.** `verify_jwt = false` and the code only base64-decoded the payload; a forged `sub` could spend Gemini/OpenAI credits and, in `recap_image`, write via the service role. | **Fixed 2026-10-19 (BC-02).** `verify_jwt = true` at the gateway, plus `requireUser` (`supabase.auth.getUser`) in code; the hand-rolled decoders are removed. All three return 401 for a forged token (verified). `recap_image` checks recap ownership before any AI call (404 `recap_not_found`). |
+| S-07 | Medium (correctness) | `generate-recap` and `ocr-page` rejected some **valid** tokens (base64url not normalised before `atob`). | **Fixed 2026-10-19 (BC-02)**: neither function decodes tokens locally any more. |
+| S-08 | Medium | **Internal error text in 500s** (`detail: String(err)`). | **Fixed 2026-10-19 (BC-02).** 500s return `{"error":"Internal server error","requestId"}`, and details are logged server-side only. `generate-recap` also returns 400 for malformed JSON and 405 for non-POST; `ocr-page` returns 405 for non-POST. The fixed-string `detail` fields on AI-output errors remain; they contain no internal text. |
+| S-09 | High (cost) | **No rate limiting, quota or entitlement checks** in any AI function; CORS `*`. | Open: BC-12 (shared check, allow-all until tiers exist, D-14). Restricting CORS is BC-02 OP-02.1, after BC-11 confirms the domain. |
+| S-10 | Medium | **RLS did not verify `book_id` ownership** on child tables; cross-user references were accepted (concrete path: the PWA's non-user-scoped offline queue after an account switch). | **Fixed 2026-10-19 (BC-01)** on `reading_progress`, `progress_history`, `recaps`, `lexicon_entries`, `page_captures`, `lore_cards`, `up_next_order`, `book_passports`, `book_quizzes` and `vocabulary_extractions`; a foreign `book_id` gets `42501`. Clients should still scope offline queues per user (§4). |
+| S-11 | Medium (dormant) | **RLS bypassed RPC business rules.** `follows_follower_insert` allowed direct follows (private users, blockers); `community_profiles_owner_insert/update` bypassed the reserved-username list and allowed arbitrary `avatar_url`/`created_at`. | **Fixed 2026-10-19 (BC-01).** The three policies are dropped; follows and profiles are written only through their `SECURITY DEFINER` RPCs. |
+| S-12 | Medium | **Leaked-password protection disabled** in Auth. | Open: BC-11 |
+| S-13 | Medium | The Google Books API key ships in the web bundle and a literal key is committed in `.env.example`. | Open: rotate and restrict now; BC-15 server-side proxy |
+| S-14 | Low (dormant) | `community_profiles.avatar_url` is free text: any external URL is rendered by viewers (tracking / unmoderated images). | **Partly fixed (BC-01):** direct profile writes are closed. Still open: `upsert_my_community_profile` does not yet restrict `avatar_url` to the caller's `community-avatars` folder, cap `display_name` at 60 code points, or `btrim` whitespace (BC-01.7, recommended). |
+| S-15 | Low (dormant) | **Community privacy leaks.** `get_also_reading_for_book` accepts a caller-controlled `p_isbn`, so a follower can probe every in-progress book of the people they follow. Public `currentlyReading` returns pages even when `progress = nobody`; `lexiconHighlights.bookTitle` reveals books when `currentlyReading = nobody`; `hasBlockedViewer` tells a blocked user; `is_public = false` is ignored inside circles; search `LIKE` wildcards are not escaped. | Open: deferred out of Phase 0 (BC-01 OP-01.3, plan §6); fix before the Community phase (D-13) |
+| S-16 | High (compliance) | **No account deletion** on any client (App Store Guideline 5.1.1(v)), and Storage objects are never purged. | Open: D-10 / BC-11 `delete-account`; BC-13 (Storage hygiene & AI-job robustness) |
 | S-17 | Info | Sign-out uses the `global` scope: signing out on one device ends every session (web and native). Intentional unless changed in BC-11. | Open decision BC-11 OP-11.2 (sign-out scope) |
 
-The security advisor currently reports 17 × lint 0028 (anon-executable definer functions), 60 × lint 0029 (authenticated-executable definer functions — expected for real RPCs, a finding for the helpers above) and leaked-password protection disabled (§14).
+Security advisor after BC-01 (2026-10-19):
+- lint 0028 (anon-executable definer functions): **0**, down from 17.
+- lint 0029 (authenticated-executable definer functions): **34**, down from 60. These are exactly the client allowlist, which is expected.
+- Leaked-password protection is still disabled (§14).
 
 ---
 
 ## 13. Drift: migrations & deployed sources
 
-The live database is canonical; D-16 committed its snapshot as [`supabase/reference/live-baseline-2026-10-18.sql`](../supabase/reference/live-baseline-2026-10-18.sql) (not a migration; outside `supabase/migrations/` and `supabase/schemas/` so the CLI never applies it). BC-03 squashes it into a baseline migration and enforces migration discipline.
+The live database is canonical; D-16 committed its snapshot as [`supabase/reference/live-baseline-2026-10-18.sql`](../supabase/reference/live-baseline-2026-10-18.sql), regenerated after BC-01 as [`live-baseline-2026-10-19.sql`](../supabase/reference/live-baseline-2026-10-19.sql) (not migrations; outside `supabase/migrations/` and `supabase/schemas/` so the CLI never applies it). BC-03 squashes it into a baseline migration and enforces migration discipline.
 
 ### 13.1 Migration history vs `supabase/migrations/`
 
@@ -1200,7 +1209,7 @@ Counts cover product migrations only.
 | Recorded remotely **and** present locally | 17 | lore_cards, session_stats, corpus_recaps, reading_velocity, rpc_performance_improvements, recap_image_columns, sessions_this_month_fix, sessions_this_calendar_month, pages_this_calendar_month, library_import (034), get_reading_calendar, get_monthly_reading, session_pause_resume, session_page_resume, book_quizzes, records_achievements, dnf_status |
 | Recorded remotely, **no local file** | 27 | `initial_schema`, `add_page_snapshot_to_recaps`, `create_up_next_order`, `create_progress_history`, `create_lexicon_entries`, `create_recap_fragments`, `create_book_passports`, `create_book_maps`, `fix_reading_stats_total_pages_read`, `relax_books_isbn_check_allow_x`, `add_genre_to_library_rpc`, `add_isbn_to_library_rpc`, `reading_velocity_rpc_fix_ambiguous`, `fix_reading_stats_pages_read`, `lock_down_reading_stats_rpc_execute`, `community_profiles`, `revoke_anon_rpc_execute`, `set_updated_at_search_path`, `drop_redundant_community_indexes`, `20260503_community_follows_blocks`, `20260503_community_avatar_storage`, `…_restrict_listing`, `…_owner_upsert`, `also_reading_card`, `reading_circles`, `create_anki_review_sessions`, `lexicon_quote_entry_type` |
 | Local file, **not in remote history** (applied out-of-band) | 7 | `20260428_reader_profile.sql` (reading_dna, vocabulary_extractions, lexicon source), `20260512_reading_quest_goal.sql`, `20260513_page_capture_completion_cleanup.sql`, `20260517_book_passport_stats_rpc.sql`, `20260616_book_description.sql`, `20260617_lexicon_mastered.sql`, `20260618_lexicon_last_reviewed.sql` |
-| Live objects with **no migration anywhere** | — | Table `user_settings` (+ CHECK, policies), `upsert_weekly_goal`, `get_retention_summary`, `prune_page_captures_for_book`, `after_page_capture_saved` (and the historically dropped trigger `page_capture_retention_after_save`) |
+| Live objects with **no migration anywhere** | — | Table `user_settings` (+ CHECK, policies), `upsert_weekly_goal`, `get_retention_summary` (`prune_page_captures_for_book` and `after_page_capture_saved` were dropped by BC-01) |
 | Created by a recorded migration but **absent live** | — | Tables `recap_fragments`, `book_maps` (dropped out-of-band) |
 
 Function-level comparison (69 live functions, normalised bodies): 14 are defined locally — 13 match the latest local definition by file order, 1 differs (`get_reading_stats`); **55 have no local definition** (the whole community/circles layer, `normalize_isbn`, `set_updated_at`, …).
@@ -1218,13 +1227,15 @@ Replay hazards of the local folder:
 
 | Function | Deployed | Repo | Action (BC-03) |
 |---|---|---|---|
-| `generate-lore` v18 | Accuracy-first prompt, temperature 0.35, `thinkingBudget: 1000` + `includeThoughts: true` misplaced at the `config` root | "Expanded context" prompt, temperature 0.85, `thinkingConfig.thinkingBudget 0` | Sync repo to deployed; move the thinking settings into `thinkingConfig` deliberately |
+| `generate-lore` v20 | Accuracy-first prompt, temperature 0.35, `thinkingBudget: 1000` + `includeThoughts: true` misplaced at the `config` root | **Synced 2026-10-19** (v18 source + BC-02 auth), deployed from the repo | Move the thinking settings into `thinkingConfig` deliberately |
 | `generate-reading-dna` v8 | `googleSearch` tool, top-level `dynamicRetrievalConfig`, `thinkingBudget 1` | No tools, `thinkingBudget 0` | Sync repo to deployed; drop the ignored `dynamicRetrievalConfig` |
-| `generate-recap` v84 | Semantically identical | Comments, Unicode dashes in the blurb prompt, `types.ts` | Re-sync byte-for-byte; drop the ignored `dynamicRetrievalConfig` in extraction |
-| `ocr-page` v2 | Trivial prompt-wording differences | — | Re-sync |
+| `generate-recap` v86 | Deployed from the repo 2026-10-19 | **Synced** (v84 source + BC-02 auth) | Drop the ignored `dynamicRetrievalConfig` in extraction |
+| `ocr-page` v4 | Deployed from the repo 2026-10-19 | **Synced** (v2 source + BC-02 auth) | — |
 | `extract-vocabulary` v2, `generate-page-resume` v3, `generate-book-quiz` v1 | Identical | — | — |
 
-No `supabase/config.toml` exists: per-function `verify_jwt` is recorded nowhere in the repo, so a redeploy from the repo would not reproduce the live settings (BC-02 commits the file).
+`supabase/config.toml` (BC-02, 2026-10-19) records `verify_jwt = true` and the import maps for the seven managed functions, so a deploy from the repo reproduces the live flags. `log-geo` (activity-log feature) is intentionally not managed there.
+
+The BC-01 migration was applied through the SQL editor, so remote migration history does not list `bc01_security_hardening`; BC-03's `supabase migration repair` step must record it.
 
 ### 13.3 Corrections to the previous contract (2026-06-18)
 
@@ -1247,19 +1258,20 @@ This rewrite replaces the old document. Corrected statements:
 
 ## 14. Advisors & performance
 
-### 14.1 Advisor lints (2026-10-18, product objects)
+### 14.1 Advisor lints (product objects)
 
-| Advisor | Lint | Count | Notes | Fix |
+| Advisor | Lint | 2026-10-18 | 2026-10-19 (after BC-01) | Notes |
 |---|---|---|---|---|
-| Security | `anon_security_definer_function_executable` (0028) | 17 | Includes the destructive and leaking functions in §12 | BC-01 |
-| Security | `authenticated_security_definer_function_executable` (0029) | 60 | Expected for real RPCs; a finding for the helpers in §9.2 | BC-01 |
-| Security | `auth_leaked_password_protection` | 1 | Disabled | BC-11 |
-| Performance | `auth_rls_initplan` | 25 | Per-row `auth.uid()` in policies on `books`, `reading_progress`, `progress_history`, `recaps`, `lexicon_entries`, `book_passports`, `up_next_order`, `anki_review_sessions`, `lore_cards` (4), `page_captures` (4), `reading_dna` (3), `vocabulary_extractions` (3), `user_settings` (3). Wrap as `(select auth.uid())`. | BC-01 |
-| Performance | `unindexed_foreign_keys` | 7 | `book_passports.user_id`; `book_id` on `lexicon_entries`, `lore_cards`, `page_captures`, `reading_quest_events`, `up_next_order`, `vocabulary_extractions` (matters for cascade deletes) | BC-01 |
-| Performance | `duplicate_index` | 1 | `progress_history_user_recorded_at_idx` ≡ `progress_history_user_recorded_at_desc_idx` | BC-01 |
-| Performance | `unused_index` | 11 | Mostly community/circle indexes (dormant feature) | Review after the Community phase |
+| Security | `anon_security_definer_function_executable` (0028) | 17 | **0** | Fixed (BC-01) |
+| Security | `authenticated_security_definer_function_executable` (0029) | 60 | **34** | Remaining = exactly the client allowlist (expected) |
+| Security | `auth_leaked_password_protection` | 1 | 1 | Disabled; BC-11 |
+| Performance | `auth_rls_initplan` | 25 | **0** in scope | Fixed (BC-01). The 4 remaining hits are `activity_logs` policies (activity-log feature, out of scope) |
+| Performance | `unindexed_foreign_keys` | 7 | **0** in scope | Fixed (BC-01). Remaining: `activity_logs.user_id` (out of scope) |
+| Performance | `duplicate_index` | 1 | **0** | Fixed (BC-01) |
+| Performance | `unused_index` | 11 | 18 | Dormant community/circle indexes, plus the 7 new FK indexes (unused until cascade deletes hit them) |
 
-Redundant indexes not flagged by the advisor: `idx_page_captures_user_book_page` (= the unique constraint index), `idx_anki_review_sessions_user`, `reading_goals_user_year_idx` (= unique indexes), `progress_history_user_book_recorded_at_idx` (prefix of `…_recorded_at_id_idx`).
+BC-01 also dropped the redundant indexes the advisor does not flag: `idx_page_captures_user_book_page`, `idx_anki_review_sessions_user` and `reading_goals_user_year_idx` (each duplicated a unique-constraint index). Still redundant: `progress_history_user_book_recorded_at_idx` (a prefix of `…_recorded_at_id_idx`).
+
 
 ### 14.2 Performance characteristics
 
@@ -1348,8 +1360,8 @@ Details, sequencing and acceptance criteria: [backend-consolidation-plan.md](bac
 
 | Planned change | Contract sections affected | BC |
 |---|---|---|
-| Owner checks in `get_library_with_progress` / `get_library_breakdown` / `get_last_session` / `get_reading_velocity` (keep `p_user_id`); NULL-safe quest guard; revoke anon/PUBLIC EXECUTE and fix `pg_default_acl`; drop `after_page_capture_saved`, drop/lock `prune_page_captures_for_book`; lock `community_remove_pair_follows`, `circle_progress_location` and other helpers; child-table RLS checks book ownership; close the direct follows-insert bypass; initplan, FK indexes, duplicate index | §1.3, §5, §8, §9.2, §12, §14 | BC-01 |
-| `verify_jwt = true` (or `auth.getUser`) for `generate-recap`, `generate-lore`, `ocr-page`; drop base64 decoding; no internal error text in 500s; commit `supabase/config.toml` | §10, §12 | BC-02 |
+| **Done 2026-10-19.** Owner checks in `get_library_with_progress` / `get_library_breakdown` / `get_last_session` / `get_reading_velocity` (keep `p_user_id`); NULL-safe quest guard; revoke anon/PUBLIC EXECUTE and fix `pg_default_acl`; drop `after_page_capture_saved`, drop/lock `prune_page_captures_for_book`; lock `community_remove_pair_follows`, `circle_progress_location` and other helpers; child-table RLS checks book ownership; close the direct follows-insert bypass; initplan, FK indexes, duplicate index | §1.3, §5, §8, §9.2, §12, §14 | BC-01 |
+| **Done 2026-10-19.** `verify_jwt = true` and `auth.getUser` for `generate-recap`, `generate-lore`, `ocr-page`; base64 decoding removed; no internal error text in 500s; `recap_image` ownership check; `supabase/config.toml` committed. Still open: move the other four functions' local `sub` decoding to `requireUser`; CORS (OP-02.1) | §10, §12 | BC-02 |
 | Baseline migration from the live snapshot; migration discipline; sync edge sources to deployed (lore v18, DNA v8) and fix the misplaced thinking config; keep this contract in sync | §13 | BC-03 |
 | `start/pause/resume/cancel_session`, `save_progress(book, page, note, client_occurred_at, idempotency_key)` on the server clock; atomic progress + history + session end; completion detection and `reading_progress.completed_at`; DNF/resume RPCs; timed vs untimed history (D-08); baseline history row for mid-way adds | §3.1, §4.5–§4.9, §8.2, §15.3 | BC-04 |
 | One server owner for completion effects: frozen passport stats + AI-summary job, capture/quiz purge, Insight milestones, achievements, DNA eligibility | §4.5, §10.2, §10.8 | BC-05 |

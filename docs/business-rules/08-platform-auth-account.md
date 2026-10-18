@@ -1,7 +1,7 @@
 # 08 · Platform — Auth, Account, Navigation, Caching & Offline — Business Rules
 > **Prefix:** PLT · **Verified against:** web master @ 8d8701c + live Supabase, 2026-10-18 · **Legend & glossary:** [README](README.md)
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19 (BC-01 and BC-02 shipped)
 
 ## Overview
 
@@ -412,11 +412,11 @@ PrimeVue Toast carries page-level success and error feedback in four files: `Ses
 - **`generate-recap`:**
   - image mode returns **202** `{status:"accepted"}`;
   - it returns 503 when the service-role client or the OpenAI key is missing;
-  - it has no HTTP-method check;
-  - its top-level 500 body includes `detail: String(err)`, so internal error text leaks to the caller ⚠ PLT-D08.
+  - a non-POST request gets 405 and a malformed JSON body 400 `invalid_input`;
+  - its top-level 500 body is `{"error":"Internal server error","requestId"}`, with details logged server-side only (since 2026-10-19, BC-02).
+- **`ocr-page`** also answers 405 to a non-POST request, and its 500 body is `{error:"InternalError", message:"Unexpected error"}`.
 - **Enforced:** `server:edge`; `client`.
-- **Source:** `src/services/recapService.ts:69-76,151-158`; `src/services/loreService.ts:45-48`; `src/composables/useCapture.ts:126-134`; `supabase/functions/generate-recap/index.ts:22-30,43-50,61-63`; `supabase/functions/generate-recap/handlers/recapImage.ts:16,32`; deployed `ocr-page` v2.
-- **Target:** no internal error text in 500s (BC-02).
+- **Source:** `src/services/recapService.ts:69-76,151-158`; `src/services/loreService.ts:45-48`; `src/composables/useCapture.ts:126-134`; `supabase/functions/generate-recap/index.ts`, `handlers/recapImage.ts`; `supabase/functions/_shared/errors.ts`; `supabase/functions/ocr-page/index.ts`; deployed `generate-recap` v86, `ocr-page` v4.
 
 ### Theme
 
@@ -634,11 +634,10 @@ The repo has 26 unit spec files (about 121 cases). Platform coverage is limited 
 - **Note:** `CLAUDE.md`'s "npm test; npm run lint" is stale: there is no lint script, and the repo uses pnpm.
 
 #### PLT-61 · Edge-function deploy settings are not version-controlled
-There is no `supabase/config.toml`, although the comment at `generate-recap/auth.ts:2` refers to one. The live `verify_jwt` flags exist only on the project (PLT-78). A fresh `supabase functions deploy` from this repo would flip `generate-recap`, `generate-lore` and `ocr-page` to the default `true`. Local `supabase/migrations/` have drifted from live ⚠ PLT-D11.
-- **Enforced:** —
-- **Source:** `supabase/` (holds only `functions/`, `migrations/`, `reference/`); live `list_edge_functions`; `supabase/reference/README.md`.
+Since 2026-10-19 (BC-02) `supabase/config.toml` is committed with the project id and `verify_jwt = true` for `generate-recap`, `generate-lore`, `ocr-page`, `extract-vocabulary`, `generate-reading-dna`, `generate-page-resume` and `generate-book-quiz`, so a deploy from the repo reproduces the live flags (PLT-78). Local `supabase/migrations/` have drifted from live ⚠ PLT-D11.
+- **Enforced:** Configuration (`supabase/config.toml`).
+- **Source:** `supabase/config.toml`; live `list_edge_functions`; `supabase/reference/README.md`.
 - **Target:**
-  - commit `supabase/config.toml` with per-function settings (BC-02);
   - keep the live baseline and squash it into a baseline migration (BC-03);
   - sync repo edge sources to the **deployed** versions, which are canonical: `generate-lore` v18 (accuracy-first, temperature 0.35) and `generate-reading-dna` v8 (Google Search grounding) (D-09 · BC-03).
 
@@ -781,7 +780,8 @@ RLS is enabled on all **26** product tables.
 
 | Table group | Policies |
 |---|---|
-| Core tables (`books`, `reading_progress`, `progress_history`, `recaps`, `up_next_order`, `lexicon_entries`, `book_passports`, `anki_review_sessions`) | `ALL` with `auth.uid() = user_id` |
+| `books`, `anki_review_sessions` | `ALL` with `user_id = (select auth.uid())` |
+| `reading_progress`, `progress_history`, `recaps`, `up_next_order`, `lexicon_entries`, `book_passports` | per-command owner policies (split by BC-01) |
 | `reading_quest_events` | SELECT-only (writes by trigger) |
 | `achievements` | SELECT/INSERT (insert-only ledger) |
 | `lore_cards`, `page_captures`, `reading_goals`, `book_quizzes` | per-command owner policies |
@@ -789,31 +789,29 @@ RLS is enabled on all **26** product tables.
 | circle tables | SELECT-only for `authenticated` (writes through SECURITY DEFINER RPCs) |
 | `community_follow_counts` | owner SELECT only, role `public` (trigger-maintained) |
 
-No policy checks that a referenced `book_id` belongs to the caller ⚠ PLT-D06.
+Since 2026-10-19 (BC-01), INSERT and UPDATE on the child tables (`reading_progress`, `progress_history`, `recaps`, `lexicon_entries`, `page_captures`, `lore_cards`, `up_next_order`, `book_passports`, `book_quizzes`, `vocabulary_extractions`) also require the referenced `book_id` to belong to the caller; otherwise the write fails with `42501`. Clients can no longer insert `follows` or write `community_profiles` directly (BE-05).
 - **Enforced:** `server:db` (RLS).
-- **Source:** live `pg_class.relrowsecurity`, `pg_policies`.
-- **Target:** RLS on child tables checks book ownership, and the direct follows-insert bypass is closed (BC-01).
+- **Source:** live `pg_class.relrowsecurity`, `pg_policies`; migration `20261018120000_bc01_security_hardening.sql`.
 
 #### PLT-77 · RPC caller-identity checks are inconsistent
 | RPC | Guard (live) | `anon` EXECUTE | Effect for a mismatched caller |
 |---|---|---|---|
 | `get_reading_stats` | silent filter `p_user_id = auth.uid()` | no | zeros |
-| `get_reading_records`, `get_monthly_reading`, `get_reading_calendar`, `get_book_passport_stats` | silent filter | **yes** | zeros / `[]` / nulls |
-| `get_reading_quest_summary` | `if p_user_id <> (select auth.uid()) then raise 'Not allowed'` — **NULL-bypassable** | **yes** | anon (uid NULL) reads any user's goal, completions, XP/level and activity counts ⚠ PLT-D02 |
-| `get_library_with_progress`, `get_library_breakdown`, `get_last_session`, `get_reading_velocity` | **none** (SECURITY DEFINER, filters by caller-supplied `p_user_id`) | no | any signed-in user reads another user's library, progress, session notes and velocity ⚠ PLT-D01 |
-| `prune_page_captures_for_book(p_user_id, p_book_id, p_keep)` | **none** | **yes** | anyone with the anon key deletes all but one of another user's captures for a book ⚠ PLT-D03 |
+| `get_reading_records`, `get_monthly_reading`, `get_reading_calendar`, `get_book_passport_stats` | silent filter | no (revoked 2026-10-19) | zeros / `[]` / nulls |
+| `get_reading_quest_summary` | raises `not_allowed` (`42501`) when `auth.uid()` is NULL or differs from `p_user_id` (NULL-safe since 2026-10-19) | no (revoked 2026-10-19) | 401 (anon) / 403 |
+| `get_library_with_progress`, `get_library_breakdown`, `get_last_session`, `get_reading_velocity` | same `not_allowed` (`42501`) guard (since 2026-10-19); the parameter is kept for PWA compatibility | no | 403 |
 
-In all, 60 SECURITY DEFINER functions are EXECUTE-able by `authenticated` and 17 by `anon`. Trigger and helper functions are included (e.g. `community_remove_pair_follows`; `after_page_capture_saved`, which no trigger references), and the schema's default ACL re-grants anon EXECUTE on every new function ⚠ PLT-D05.
-- **Enforced:** `server:rpc`.
-- **Source:** live `pg_get_functiondef`, `has_function_privilege`, `get_advisors(security)`; BE-06 ([09](09-database-invariants.md)).
-- **Target:** owner checks (`p_user_id = auth.uid()`, keeping the parameter for PWA compatibility) in the four unguarded RPCs; a NULL-safe guard in `get_reading_quest_summary`; anon/PUBLIC EXECUTE revoked across public functions and `pg_default_acl` fixed; `after_page_capture_saved` dropped and `prune_page_captures_for_book` dropped or locked; leaking helpers locked (BC-01). Until this ships, every client passes only its own uid.
+`after_page_capture_saved` and `prune_page_captures_for_book` were dropped. Since 2026-10-19 (BC-01) no `public` function is executable by `anon` or PUBLIC, and `authenticated` may execute only the client allowlist (BE-06): trigger and helper functions such as `community_remove_pair_follows` are not client-callable, and the `postgres`-owned default ACL no longer grants EXECUTE on new functions.
+- **Enforced:** `server:rpc` (guards); `server:db` (function grants).
+- **Source:** migration `20261018120000_bc01_security_hardening.sql`; live `pg_get_functiondef`, `has_function_privilege`, `get_advisors(security)`; BE-06, BE-07 ([09](09-database-invariants.md)).
+- **Note:** every client passes only its own uid.
 
 #### PLT-78 · Three AI edge functions accept forged tokens
 | Function (live version) | `verify_jwt` | In-function auth | Web transport |
 |---|---|---|---|
-| `generate-recap` (v84) | **false** | `manualJwtDecode` → `sub`; no signature or `exp` check | raw `fetch` |
-| `generate-lore` (v18) | **false** | `decodeJwt` → `sub`; no signature or `exp` check | raw `fetch` |
-| `ocr-page` (v2) | **false** | `manualJwtDecode`; 401 `{error:"Unauthorized", message:"Missing or invalid JWT"}` | raw `fetch` |
+| `generate-recap` (v86) | true | `supabase.auth.getUser` (`_shared/auth.ts`): signature, expiry, user exists | raw `fetch` |
+| `generate-lore` (v20) | true | `supabase.auth.getUser` (`_shared/auth.ts`) | raw `fetch` |
+| `ocr-page` (v4) | true | `supabase.auth.getUser` (`_shared/auth.ts`); 401 `{error:"Unauthorized", message:"Missing or invalid JWT"}` | raw `fetch` |
 | `extract-vocabulary` (v2), `generate-reading-dna` (v8), `generate-page-resume` (v3), `generate-book-quiz` (v1) | true | gateway, then `decodeJwt` for `sub` | `functions.invoke` |
 
 Common to all seven:
@@ -821,15 +819,12 @@ Common to all seven:
 - CORS `Access-Control-Allow-Origin: *`;
 - allowed headers `authorization, x-client-info, apikey, content-type`.
 
-Anyone can therefore spend Gemini/OpenAI credits on the three `false` functions with a forged `sub`, and `generate-recap` image mode then writes with the service role, scoped by `recapId` plus the forged user id ⚠ PLT-D04. `manualJwtDecode` also calls `atob` on base64url without `-`/`_` translation, so a genuine token whose payload encodes to those characters gets a 401. That can happen with non-ASCII `user_metadata`, such as a Sign in with Apple full name ⚠ PLT-D07.
+Since 2026-10-19 (BC-02) the gateway and the function both verify the token for `generate-recap`, `generate-lore` and `ocr-page`, so a forged, expired or anon-key bearer gets 401 before any AI call, and the base64url decoding bug is gone. The `recap_image` mode checks that the recap belongs to the caller before any AI call (404 `recap_not_found`). Until then these three ran with `verify_jwt = false` and only decoded the payload, so forged tokens were accepted (PLT-D04, PLT-D07, both fixed). The other four functions still decode `sub` by hand after the gateway check. There is no rate limit (BC-12).
 - **Enforced:** `server:edge`.
-- **Source:** live `list_edge_functions`; `supabase/functions/generate-recap/auth.ts:2-16`; `supabase/functions/ocr-page/index.ts:24-36`; `supabase/functions/generate-lore/index.ts:12-19,160-175`; deployed `ocr-page` v2 (matches repo).
+- **Source:** live `list_edge_functions`; `supabase/config.toml`; `supabase/functions/_shared/auth.ts`; `supabase/functions/generate-recap/index.ts`, `supabase/functions/generate-lore/index.ts`, `supabase/functions/ocr-page/index.ts`.
 - **Target:**
-  - `verify_jwt = true`, or real `supabase.auth.getUser` verification, for `generate-recap`, `generate-lore` and `ocr-page`;
-  - drop hand-rolled base64 decoding; no internal error text in 500s;
-  - commit `config.toml` (BC-02);
+  - drop the hand-rolled `sub` decoding from the other four functions and use the shared check (BC-02 scope, not yet done);
   - one shared entitlement and AI-usage check in every AI function (BC-12).
-- **Note:** the "ES256 compat" reason in the `auth.ts` comment is [UNVERIFIED: the project's JWT signing-key algorithm is not visible via SQL/MCP]. The four `verify_jwt=true` functions work with current tokens, which suggests the switch is feasible.
 
 #### PLT-84 · No realtime; cross-device freshness is TTL- and refocus-driven
 Publication `supabase_realtime` contains **no tables**. The PWA's Postgres-changes subscription on `recaps` therefore never fires, and recap image status arrives by polling ([03 · Recaps](03-recaps.md)). A change made on another device (for example a session started on the web) appears only after the SWR TTL, a refocus, or a reload.
@@ -838,7 +833,7 @@ Publication `supabase_realtime` contains **no tables**. The PWA's Postgres-chang
 - **Target:** add `recaps` (`image_status`) and `reading_progress` to the publication, **or** define refresh-on-foreground as the contract. Also: a delta/paginated library RPC (`changed_since`) and `device_tokens` for APNs later (BC-14; PLT-Q12).
 
 #### PLT-85 · No entitlements or AI-usage metering
-No table, RPC or edge-function check gates any feature or meters AI usage. Every signed-in user, and today anyone with a forged token on the three `verify_jwt=false` functions, can call every AI function without limit.
+No table, RPC or edge-function check gates any feature or meters AI usage. Every signed-in user can call every AI function without limit. (Until BC-02 on 2026-10-19, so could anyone with a forged token on three of them.)
 - **Enforced:** —
 - **Source:** live schema (no entitlement or usage tables); `supabase/functions/*`.
 - **Target:** add an `entitlements` table (App Store Server Notifications v2 or RevenueCat), an `ai_usage` ledger and one shared check in every AI edge function, allowing all calls until tiers are decided. Tiers and prices are undecided, and any tier table is a non-binding draft (D-14 · BC-12; PLT-Q14).
@@ -1281,17 +1276,17 @@ Never invalidated by any mutation (TTL or refocus only):
 
 | ID | Defect | Impact | Fix |
 |---|---|---|---|
-| PLT-D01 | `get_library_with_progress`, `get_library_breakdown`, `get_last_session` and `get_reading_velocity` have no caller check (PLT-77) | Any signed-in user reads another user's library, progress, private session notes and velocity, given their uuid | BC-01 |
-| PLT-D02 | `get_reading_quest_summary` guard `p_user_id <> auth.uid()` is NULL-bypassable, and anon has EXECUTE (PLT-77) | Anyone with the public anon key reads any user's goal, completions, XP/level and activity counts | BC-01 (`is distinct from` + `auth.uid() is null` check; revoke anon) |
-| PLT-D03 | `prune_page_captures_for_book` is SECURITY DEFINER, unguarded and anon-executable (PLT-77) | Destructive cross-user delete of captures (keeps 1) | BC-01 (drop or lock) |
-| PLT-D04 | `generate-recap`, `generate-lore` and `ocr-page` use `verify_jwt=false` + decode-only auth (PLT-78) | Unauthenticated AI spend; service-role image writes scoped by a forged id | BC-02 |
-| PLT-D05 | 60 DEFINER functions are executable by `authenticated` and 17 by `anon`, including trigger/helper functions; the default ACL re-grants anon on new functions (PLT-77) | Wide attack surface that reopens with every migration | BC-01 (revoke + fix `pg_default_acl`) |
-| PLT-D06 | RLS checks only `user_id`, never `book_id` ownership (PLT-76) | Rows can reference another user's book (reachable through the shared offline queue) | BC-01 |
-| PLT-D07 | `manualJwtDecode` uses `atob` on base64url without `-`/`_` normalisation (PLT-78) | Genuine tokens with non-ASCII claims (e.g. an Apple full name) get a 401 from `generate-recap` / `ocr-page` | BC-02 (verify, don't decode) |
-| PLT-D08 | `generate-recap` 500 body returns `detail: String(err)` (PLT-39) | Internal error text leaks to any caller | BC-02 |
+| PLT-D01 | `get_library_with_progress`, `get_library_breakdown`, `get_last_session` and `get_reading_velocity` have no caller check (PLT-77) | Any signed-in user reads another user's library, progress, private session notes and velocity, given their uuid | BC-01 **Fixed 2026-10-19 (BC-01):** all four raise `42501 not_allowed` unless `p_user_id = auth.uid()`. |
+| PLT-D02 | `get_reading_quest_summary` guard `p_user_id <> auth.uid()` is NULL-bypassable, and anon has EXECUTE (PLT-77) | Anyone with the public anon key reads any user's goal, completions, XP/level and activity counts | BC-01 (`is distinct from` + `auth.uid() is null` check; revoke anon) **Fixed 2026-10-19 (BC-01):** NULL-safe guard; anon `EXECUTE` revoked. |
+| PLT-D03 | `prune_page_captures_for_book` is SECURITY DEFINER, unguarded and anon-executable (PLT-77) | Destructive cross-user delete of captures (keeps 1) | BC-01 (drop or lock) **Fixed 2026-10-19 (BC-01):** dropped. |
+| PLT-D04 | `generate-recap`, `generate-lore` and `ocr-page` use `verify_jwt=false` + decode-only auth (PLT-78) | Unauthenticated AI spend; service-role image writes scoped by a forged id | BC-02 **Fixed 2026-10-19 (BC-02):** `verify_jwt = true` and `supabase.auth.getUser` (`generate-recap` v86, `generate-lore` v20, `ocr-page` v4). |
+| PLT-D05 | 60 DEFINER functions are executable by `authenticated` and 17 by `anon`, including trigger/helper functions; the default ACL re-grants anon on new functions (PLT-77) | Wide attack surface that reopens with every migration | BC-01 (revoke + fix `pg_default_acl`) **Fixed 2026-10-19 (BC-01):** nothing in `public` is executable by `anon`/PUBLIC, `authenticated` only the client allowlist; the `postgres`-owned default ACL no longer grants `EXECUTE` (`supabase_admin` defaults unchanged). |
+| PLT-D06 | RLS checks only `user_id`, never `book_id` ownership (PLT-76) | Rows can reference another user's book (reachable through the shared offline queue) | BC-01 **Fixed 2026-10-19 (BC-01):** child-table INSERT/UPDATE require book ownership. |
+| PLT-D07 | `manualJwtDecode` uses `atob` on base64url without `-`/`_` normalisation (PLT-78) | Genuine tokens with non-ASCII claims (e.g. an Apple full name) get a 401 from `generate-recap` / `ocr-page` | BC-02 (verify, don't decode) **Fixed 2026-10-19 (BC-02):** the decoders are gone from `generate-recap` and `ocr-page`. |
+| PLT-D08 | `generate-recap` 500 body returns `detail: String(err)` (PLT-39) | Internal error text leaks to any caller | BC-02 **Fixed 2026-10-19 (BC-02):** 500 body is `{"error":"Internal server error","requestId"}`. |
 | PLT-D09 | Leaked-password protection is off; no password reset, change or account deletion (PLT-03, PLT-72) | Weak passwords accepted; a forgotten password locks the reader out; App Store 5.1.1(v) and GDPR blockers | Enable HIBP protection; BC-11 (D-10, D-11) |
 | PLT-D10 | Tracked `.env.example` holds a real-format Google API key (PLT-57) | Key exposure; all `VITE_*` keys ship in the bundle anyway | Replace with a placeholder, rotate and referrer-restrict; BC-15 proxy |
-| PLT-D11 | No `supabase/config.toml`; `verify_jwt` exists only on the live project; migrations drift (PLT-61) | A redeploy silently changes auth mode; the repo does not reproduce prod | BC-02 + BC-03 |
+| PLT-D11 | No `supabase/config.toml`; `verify_jwt` exists only on the live project; migrations drift (PLT-61) | A redeploy silently changes auth mode; the repo does not reproduce prod | BC-02 + BC-03 **Partly fixed 2026-10-19 (BC-02):** `supabase/config.toml` committed; migration drift remains (BC-03). |
 | PLT-D12 | Sign-out leaves all Pinia, module and IndexedDB state, and the offline queue is not user-scoped (PLT-15, PLT-44, PLT-46) | Previous user's data visible on shared devices; their queued saves replay as the next user and create orphan rows; Anki totals and achievement dates can leak across accounts | Wipe every per-user store on user change (F-4); user-scoped queue (BC-04) |
 | PLT-D13 | In-flight AI jobs are not cancelled or bound to their user on sign-out or switch (INS-58) | A lore card can be inserted for user B against user A's book; the lore banner persists over `/login` | Capture the user id at job start, abort on change; cancel on sign-out |
 | PLT-D14 | Sign-out failure (offline) is silent and the promise rejects unhandled (PLT-14) | The reader believes they signed out but stays signed in | PLT-Q01 (recommended: sign out locally anyway, with feedback) |
@@ -1349,7 +1344,7 @@ D-01…D-17 answered these questions, so they are not repeated: product name (D-
 | PLT-Q10 | **Read-retry policy for native clients** | Web gets 3× backoff on GET table reads (library default) plus the 401 retry | Retry idempotent reads on network errors / 503 / 520 with 1/2/4 s backoff. Never auto-retry writes unless they carry an `idempotency_key` (BC-04). Keep the 401 retry-once. Show a manual "Retry" after the budget. |
 | PLT-Q11 | **Multiple accounts on one device:** is fast switching supported? | Possible, but unsafe (PLT-D12) | Support one signed-in account per device; switching = full sign-out + wipe. |
 | PLT-Q12 | **Realtime vs refresh-on-foreground (BC-14)** | Publication empty; polling for recap images | v1: refresh-on-foreground + bounded polling for image status. Add `recaps` and `reading_progress` to the publication when cross-device sessions or Live Activities need push. |
-| PLT-Q13 | **Dead `user_settings` / weekly-goal backend** | No client caller; anon-executable functions | Same question as BE-Q01 ([09](09-database-invariants.md), which owns the backend decision) and PRO-Q07. Drop `upsert_weekly_goal`, `get_retention_summary` and `weekly_goal` unless a weekly-goal feature is on the roadmap. Keep `user_settings` as the home of `time_zone` (BC-06) and consent flags (PLT-Q03). |
+| PLT-Q13 | **Dead `user_settings` / weekly-goal backend** | No client caller; since BC-01 (2026-10-19) the functions are not client-executable | Same question as BE-Q01 ([09](09-database-invariants.md), which owns the backend decision) and PRO-Q07. Drop `upsert_weekly_goal`, `get_retention_summary` and `weekly_goal` unless a weekly-goal feature is on the roadmap. Keep `user_settings` as the home of `time_zone` (BC-06) and consent flags (PLT-Q03). |
 | PLT-Q14 | **Entitlement source (BC-12):** App Store Server Notifications v2 directly, or RevenueCat? | No entitlements | Keep the schema provider-agnostic (`entitlements(user_id, product, source, status, expires_at)` + `ai_usage`) with allow-all checks now. Pick the provider when tiers are decided (D-14). |
 | PLT-Q15 | **Crash reporting and diagnostics for native clients** | Web has none | Apple-native (MetricKit / Xcode Organizer) first. Any third-party SDK must collect no book titles, words, notes or recap text, and must appear in the privacy manifest and App Privacy labels. |
 | PLT-Q16 | **Account-deletion edge cases:** recent-auth window; Apple revocation failure; owned circles with other members | No deletion exists | 5-minute recent-auth window. An Apple revocation failure does not block deletion (log for retry). Warn only if owned circles have other members (none while circles are dormant, D-13). |
@@ -1399,7 +1394,7 @@ D-01…D-17 answered these questions, so they are not repeated: product name (D-
   - use `ASAuthorizationAppleIDProvider` with a hashed nonce → `signInWithIdToken(provider: .apple, …)`;
   - linking: `linkIdentity` from Settings (F-10);
   - deletion re-auth requests a fresh authorisation so `delete-account` can revoke the Apple token (F-12);
-  - the base64url decode bug (PLT-D07) must be fixed before Apple users with non-ASCII names reach `generate-recap` / `ocr-page`.
+  - the base64url decode bug (PLT-D07) that would have hit Apple users with non-ASCII names on `generate-recap` / `ocr-page` was fixed by BC-02 (2026-10-19).
 - **Account deletion (Guideline 5.1.1(v)):** reachable in-app from Settings, never only through a website. It uses the confirm + re-auth flow above.
 - **Universal links:** add the Associated Domains entitlement for the canonical domain (PLT-Q05). The `apple-app-site-association` file is served from the web host (PLT-55, PLT-D35).
 - **Theme:** `preferredColorScheme(nil)` for System, with an optional Light/Dark override in `@AppStorage("bookhero_theme")`, a device preference (PLT-Q06).

@@ -1,7 +1,7 @@
 # 07 · Profile, Reading Quest, Goals, Achievements, Stats & Reading DNA — Business Rules
 > **Prefix:** PRO · **Verified against:** web master @ 8d8701c + live Supabase, 2026-10-18 · **Legend & glossary:** [README](README.md)
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19 (BC-01 and BC-02 shipped)
 
 ## Overview
 
@@ -214,10 +214,9 @@ Server and client are identical. The web client **overwrites** the server status
 - **Source:** `src/components/profile/QuestGoalHero.vue:30-38`.
 
 #### PRO-17 · Quest RPC authorization is NULL-unsafe
-`get_reading_quest_summary` raises `'Not allowed'` (P0001 → HTTP 400) when `p_user_id <> auth.uid()`. When `auth.uid()` is NULL the comparison is NULL and nothing is raised. `EXECUTE` is granted to PUBLIC and `anon`, so an unauthenticated request with any user UUID returns that user's goal, yearly completions and XP sources ⚠ PRO-D01.
-- **Enforced:** `server:rpc` (guard), with a defect.
-- **Source:** live function body; `pg_proc.proacl` (`=X/postgres, anon=X/postgres`).
-- **Target:** raise when `auth.uid() IS NULL OR p_user_id IS DISTINCT FROM auth.uid()`; revoke anon/PUBLIC `EXECUTE`; keep the parameter for PWA compatibility (BC-01).
+Since 2026-10-19 (BC-01) `get_reading_quest_summary` raises `not_allowed` (`42501` → HTTP 403, or 401 for `anon`) when `auth.uid() IS NULL OR p_user_id IS DISTINCT FROM auth.uid()`, and `EXECUTE` is granted to `authenticated` only. The parameter is kept for PWA compatibility. Before BC-01 the guard raised `'Not allowed'` (P0001) only when `p_user_id <> auth.uid()` was TRUE, and PUBLIC/`anon` held `EXECUTE`, so an unauthenticated caller could read any user's quest (PRO-D01, fixed).
+- **Enforced:** `server:rpc` (guard); `server:db` (grants).
+- **Source:** migration `20261018120000_bc01_security_hardening.sql` (§2, §5).
 
 #### PRO-106 · Quest hero render states and copy (Trophy Room)
 The hero picks the first matching state:
@@ -235,7 +234,7 @@ The hero picks the first matching state:
 `reading_goals` has unique `(user_id, year)` (`reading_goals_user_year_key`), `year` 2000–2100 (`reading_goals_year_check`) and `target_books ≥ 1` (`reading_goals_target_books_check`), with **no DB maximum**. Trigger `set_reading_goals_updated_at` maintains `updated_at`. RLS allows owner select/insert/update/delete for role `authenticated`.
 - **Enforced:** `server:db` (constraints, trigger, policies "Reading goals are … by owner").
 - **Source:** live `pg_constraint`, `pg_policies`.
-- **Target:** drop the duplicate index `reading_goals_user_year_idx`; the unique index already covers it (BC-01) ⚠ PRO-D41.
+- **Note:** the duplicate index `reading_goals_user_year_idx` was dropped on 2026-10-19; the unique index covers it (BC-01, PRO-D41).
 
 #### PRO-19 · Goal input validation (client)
 - **Dialog:** integer input from 1 to 999, no digit grouping, +/- stepper and autofocus. It defaults to **12** when no goal exists and is re-seeded with the current target each time it opens.
@@ -341,10 +340,9 @@ When `!breakdown || genreDistribution.length === 0` the card shows "Add a book t
 - **Source:** `LibraryBreakdownCard.vue:41-47`.
 
 #### PRO-31 · Breakdown has no authorization check
-`get_library_breakdown` is SECURITY DEFINER, filters only `b.user_id = p_user_id`, and never references `auth.uid()`. Any authenticated user can read any user's genre, author and status composition by UUID, bypassing privacy settings ⚠ PRO-D02.
-- **Enforced:** none (defect); `EXECUTE` is limited to `authenticated`.
-- **Source:** live function body; `pg_proc.proacl`.
-- **Target:** assert `p_user_id = auth.uid()` and keep the parameter for the PWA (BC-01).
+`get_library_breakdown` is SECURITY DEFINER and filters `b.user_id = p_user_id`. Since 2026-10-19 (BC-01) it raises `not_allowed` (`42501`) unless `p_user_id = auth.uid()`, so a reader can read only their own composition. The parameter is kept for the PWA.
+- **Enforced:** `server:rpc` (owner assert); `EXECUTE` is limited to `authenticated`.
+- **Source:** migration `20261018120000_bc01_security_hardening.sql` (§1); `pg_proc.proacl`.
 
 ### Calendar, monthly chart and records (time-zone-aware RPCs)
 
@@ -357,7 +355,7 @@ The web client passes `Intl.DateTimeFormat().resolvedOptions().timeZone` (IANA) 
 - **Target:**
   - every stats RPC takes `p_timezone` and falls back to the reader's stored zone, not to UTC (D-07 · BC-06);
   - recommended: validate against `pg_timezone_names` with a fallback, as `get_retention_summary` already does;
-  - revoke the PUBLIC/anon `EXECUTE` these three RPCs carry today (BC-01) ⚠ PRO-D05.
+  - the PUBLIC/anon `EXECUTE` these three RPCs carried was revoked on 2026-10-19 (BC-01, PRO-D05).
 - **Note:** `p_month_start` may be any date in the month (the server applies `date_trunc('month', …)`). Native clients send `TimeZone.current.identifier`.
 
 #### PRO-33 · Calendar day
@@ -414,7 +412,7 @@ Unauthorized callers get `{bestDay:null, longestSession:null, fastestFinish:null
 - **Source:** live table, constraint, policies, function.
 - **Note:**
   - `upsert_weekly_goal(NULL)` passes the range check (`NULL < 1` is NULL) and then fails `NOT NULL` with a raw Postgres error ⚠ PRO-D46.
-  - The RPC is anon-executable; the uid check guards it (⚠ PRO-D05).
+  - Since BC-01 (2026-10-19) the RPC is not executable by `anon` or `authenticated` (PRO-D05).
   - Neither object has a repo migration (⚠ PRO-D42).
   - Product decision: PRO-Q07.
 
@@ -431,7 +429,7 @@ Unauthorized callers get `{bestDay:null, longestSession:null, fastestFinish:null
 Signed-out callers get `nudgeCode = 'signed_out'`. No client calls it.
 - **Enforced:** `server:rpc`; no client.
 - **Source:** live `get_retention_summary`.
-- **Note:** it is anon-executable (⚠ PRO-D05) and has no repo migration (⚠ PRO-D42).
+- **Note:** since BC-01 (2026-10-19) it is not executable by `anon` or `authenticated` (PRO-D05); it has no repo migration (⚠ PRO-D42).
 
 ### Profile-surface derivations (client)
 
@@ -1223,11 +1221,11 @@ Wipe every per-user cache on user change.
 
 | ID | Defect | Impact | Fix |
 |---|---|---|---|
-| PRO-D01 | `get_reading_quest_summary` guard is NULL-unsafe and the function is anon/PUBLIC-executable (PRO-17). | An unauthenticated caller with any UUID reads that user's goal, yearly completions and XP sources. UUIDs leak through the public-profile payload. | BC-01: `auth.uid() IS NULL OR p_user_id IS DISTINCT FROM auth.uid()` → raise; revoke anon/PUBLIC. |
-| PRO-D02 | `get_library_breakdown` has no owner check (PRO-31). | Any signed-in user reads anyone's genre, author and status composition, bypassing privacy. | BC-01 owner assert; keep the param. |
-| PRO-D03 | `get_library_with_progress` (first call on Profile and Stats), `get_last_session` and `get_reading_velocity` never reference `auth.uid()` (same as SES-D01). | Full library (titles, ISBNs, progress, DNF, active session) readable by UUID. | BC-01 owner assert. |
-| PRO-D04 | `prune_page_captures_for_book` is SECURITY DEFINER, anon-executable, has no auth check and deletes captures; its only caller, `after_page_capture_saved`, is attached to no trigger. | Anyone can delete another user's captures by ids. | BC-01: drop or lock both. |
-| PRO-D05 | `get_reading_calendar`, `get_monthly_reading`, `get_reading_records`, `upsert_weekly_goal` and `get_retention_summary` are PUBLIC/anon-executable; `pg_default_acl` grants EXECUTE on every new function. | Safe today only through internal guards; a widened attack surface. | BC-01: revoke and fix default ACLs. |
+| PRO-D01 | `get_reading_quest_summary` guard is NULL-unsafe and the function is anon/PUBLIC-executable (PRO-17). | An unauthenticated caller with any UUID reads that user's goal, yearly completions and XP sources. UUIDs leak through the public-profile payload. | BC-01: `auth.uid() IS NULL OR p_user_id IS DISTINCT FROM auth.uid()` → raise; revoke anon/PUBLIC. **Fixed 2026-10-19 (BC-01).** |
+| PRO-D02 | `get_library_breakdown` has no owner check (PRO-31). | Any signed-in user reads anyone's genre, author and status composition, bypassing privacy. | BC-01 owner assert; keep the param. **Fixed 2026-10-19 (BC-01).** |
+| PRO-D03 | `get_library_with_progress` (first call on Profile and Stats), `get_last_session` and `get_reading_velocity` never reference `auth.uid()` (same as SES-D01). | Full library (titles, ISBNs, progress, DNF, active session) readable by UUID. | BC-01 owner assert. **Fixed 2026-10-19 (BC-01).** |
+| PRO-D04 | `prune_page_captures_for_book` is SECURITY DEFINER, anon-executable, has no auth check and deletes captures; its only caller, `after_page_capture_saved`, is attached to no trigger. | Anyone can delete another user's captures by ids. | BC-01: drop or lock both. **Fixed 2026-10-19 (BC-01):** both dropped. |
+| PRO-D05 | `get_reading_calendar`, `get_monthly_reading`, `get_reading_records`, `upsert_weekly_goal` and `get_retention_summary` are PUBLIC/anon-executable; `pg_default_acl` grants EXECUTE on every new function. | Safe today only through internal guards; a widened attack surface. | BC-01: revoke and fix default ACLs. **Fixed 2026-10-19 (BC-01):** PUBLIC/anon `EXECUTE` revoked (`upsert_weekly_goal` and `get_retention_summary` are no longer client-executable); default ACL fixed for owner `postgres`. |
 | PRO-D06 | `generate-reading-dna` hand-decodes the JWT (it relies on gateway `verify_jwt: true`), interpolates titles unescaped, has no cap on `books[]` and no usage/entitlement check (PRO-61). | Cost and abuse exposure; prompt injection through titles. | BC-02 (real verification), BC-12 (usage check), cap the list, quote titles. |
 | PRO-D07 | `upsert_my_community_profile` accepts any `avatarUrl` and an unbounded display name (PRO-80). | Profiles can point to arbitrary URLs; very long names break layouts. | Validate that `avatarUrl` is the caller's own `community-avatars/{uid}/` public URL (or NULL); CHECK `char_length(display_name) ≤ 60`. |
 | PRO-D08 | Achievements accept arbitrary keys; `progress_history` is owner-ALL under RLS, so XP inputs are client-writable (PRO-47). | Trivial cheating; matters for any leaderboard or Game Center. | BC-09 server catalog; BC-04 server-written history. |
@@ -1263,7 +1261,7 @@ Wipe every per-user cache on user change.
 | PRO-D38 | Dormant `get_public_profile_by_username` stats count imports, ignore DNF for `currentlyReading` and use UTC streaks (COM-28/COM-29). | A public number would differ from the owner's view. | Align with PRO-Q01 before the Community phase. |
 | PRO-D39 | Copy drift: `ProfileIdentityHeader.vue:2-4` comment says the tap opens the Trophy Room; the first-run intro says "private until you say otherwise" while `isPublic` defaults on; the quest CTA says "BookHero will track your pace" (D-03). | Misleading comment and copy; wrong product name. | Fix the comment; fix the copy with PRO-Q08; "The Chronicler" in copy. |
 | PRO-D40 | Dead outputs: `pagesThisWeek`, `pagesThisMonth`, `avgCompletionPct`; the unreachable `'Unknown Book'` fallback in the calendar; the 5th genre color. | Contract noise. | Document as unused; drop or define in BC-06. |
-| PRO-D41 | Duplicate indexes: `reading_goals_user_year_idx` ≡ `reading_goals_user_year_key`; two `progress_history (user_id, recorded_at)` indexes. | Write overhead. | BC-01 duplicate-index cleanup. |
+| PRO-D41 | Duplicate indexes: `reading_goals_user_year_idx` ≡ `reading_goals_user_year_key`; two `progress_history (user_id, recorded_at)` indexes. | Write overhead. | BC-01 duplicate-index cleanup. **Fixed 2026-10-19 (BC-01):** `reading_goals_user_year_idx` and `progress_history_user_recorded_at_idx` dropped. |
 | PRO-D42 | No repo migration for the community schema, `user_settings`, `upsert_weekly_goal` or `get_retention_summary`. | The repo cannot reproduce production. | BC-03 baseline migration. |
 | PRO-D43 | Delta drift: `get_reading_stats` uses `lag()` ordered by `(recorded_at, id)`, while monthly and records use a strict-`<` lateral without an `id` tiebreak; the per-row lateral risks the 8 s timeout at scale. | Totals differ across screens; possible 57014 timeouts. | One shared delta CTE (window function, high-water) in the BC-06 rewrite. |
 | PRO-D44 | DNA suggestions are not filtered against the reader's library (spec 016 FR-027) (PRO-64). | Recommends books the reader already owns. | Pass the library titles as exclusions in the prompt and filter server-side before persisting. |

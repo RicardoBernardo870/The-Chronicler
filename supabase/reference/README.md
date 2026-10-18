@@ -1,8 +1,10 @@
 # Live schema reference
 
-`live-baseline-2026-10-18.sql` is a **read-only snapshot of the live Supabase database** (project `zlndhygpqacygceivuvk`), captured on 2026-10-18 from the Postgres catalogs. It holds every `public` function, trigger, RLS policy, constraint, index and enum, the storage buckets and their policies, plus a reference listing of table columns, the platform inventory, runtime settings and default privileges. The activity-log feature is excluded.
+`live-baseline-2026-10-19.sql` is the **current read-only snapshot of the live Supabase database** (project `zlndhygpqacygceivuvk`), captured on 2026-10-19 from the Postgres catalogs after the BC-01 security migration (`supabase/migrations/20261018120000_bc01_security_hardening.sql`) was applied. It holds every `public` function, trigger, RLS policy, constraint, index and enum, the `private` schema helpers added by BC-01, the storage buckets and their policies, plus a reference listing of table columns, the platform inventory, runtime settings, function ACLs and default privileges. The activity-log feature is excluded.
 
-Why it exists: `supabase/migrations/` has drifted from production. 55 of the 69 live functions, including the whole community / reading-circles layer, have no local migration, and replaying the folder would regress `get_reading_stats`. Until the drift is fixed (work package **BC-03** in [`docs/backend-consolidation-plan.md`](../../docs/backend-consolidation-plan.md)), this file is the closest thing to a source of truth that lives in the repo.
+`live-baseline-2026-10-18.sql` is the **pre-BC-01 baseline**, kept unchanged for comparison.
+
+Why it exists: `supabase/migrations/` has drifted from production. Most live functions, including the whole community / reading-circles layer, have no local migration, and replaying the folder would regress `get_reading_stats`. Until the drift is fixed (work package **BC-03** in [`docs/backend-consolidation-plan.md`](../../docs/backend-consolidation-plan.md)), the newest dated file here is the closest thing to a source of truth that lives in the repo.
 
 Rules:
 
