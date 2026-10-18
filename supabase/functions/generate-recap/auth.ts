@@ -1,7 +1,3 @@
-/**
- * Manual JWT decode — verify_jwt is disabled in config.toml for ES256 compat.
- * Returns the subject (user id) or null if the header is missing/malformed.
- */
 export const manualJwtDecode = (authHeader: string | null): string | null => {
   if (!authHeader) return null
   const jwt = authHeader.replace(/^Bearer\s+/i, "")

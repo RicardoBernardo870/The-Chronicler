@@ -23,8 +23,6 @@ export interface ExtractionOutcome {
   usage?: unknown;
 }
 
-const VALID_CONFIDENCE = new Set(["high", "medium", "low"]);
-
 export const runExtraction = async (
   ai: any,
   p: ExtractionParams,
@@ -33,7 +31,7 @@ export const runExtraction = async (
 INSTRUCTIONS:
 1. Search for: "${p.title} ${p.author} chapter page count" or "${p.title} table of contents".
 2. Based on a total of ${p.totalPages} pages, determine which chapter corresponds to page ${p.currentPage}.
-3. To prevent spoilers, summarize ONLY up to the chapter BEFORE the one you identified. 
+3. To prevent spoilers, summarize ONLY up to the chapter BEFORE the one you identified.
 4. If you cannot find a page-to-chapter map, stop your summary at the ${Math.round(p.percentage * 0.8)}% mark of the narrative.
 
 BOOK: "${p.title}" by ${p.author}
@@ -45,17 +43,13 @@ USER IS AT: Page ${p.currentPage} of ${p.totalPages} (${p.percentage}%)
     model: "gemini-2.5-pro",
     contents: [{ role: "user", parts: [{ text: message }] }],
     config: {
-      systemInstruction: buildExtractionPrompt(
-        p.fromPage,
-        p.currentPage,
-        p.totalPages,
-      ),
-      temperature: 0.0, // Forced determinism
+      systemInstruction: buildExtractionPrompt(p.fromPage, p.currentPage, p.totalPages),
+      temperature: 0.0,
       maxOutputTokens: 8192,
       tools: [{ googleSearch: {} }],
       dynamicRetrievalConfig: {
         mode: "MODE_DYNAMIC",
-        dynamicThreshold: 0, // Back to forced grounding
+        dynamicThreshold: 0,
       },
     },
   });
@@ -67,7 +61,6 @@ USER IS AT: Page ${p.currentPage} of ${p.totalPages} (${p.percentage}%)
   if (rawJson) {
     try {
       const parsed = JSON.parse(rawJson);
-      // Ensure we still match your ExtractionResult type while using the new audit logic
       if (parsed && typeof parsed === "object") {
         result = parsed as ExtractionResult;
       }

@@ -1,9 +1,3 @@
-/**
- * Passport Summary prompt — narrative paragraph for a completed book.
- *
- * Synced with the deployed generate-recap (v84, 2026-07-13): paragraph
- * length was shortened to 90-100 words in production.
- */
 export const buildPassportSummaryPrompt = (title: string, author: string): string =>
   `You are a book chronicler celebrating a reader's completion of "${title}" by ${author}. Write a flowing, personal narrative summary of this book for the reader who has just finished it.
 
