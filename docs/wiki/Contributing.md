@@ -1,8 +1,8 @@
 # Contributing
 
-Last updated: 2026-05-17
+Last updated: 2026-10-18
 
-BookHero is an active application with feature planning artifacts, migrations, unit tests, and a Vue/Supabase architecture. This page outlines contribution expectations.
+The Chronicler (internal code name BookHero, D-03) is an active application with a business-rules catalog, migrations, unit tests, and a Vue/Supabase architecture. This page outlines contribution expectations.
 
 ## Before You Start
 
@@ -27,7 +27,8 @@ Every meaningful PR should include:
 
 - Clear description of user-facing behavior.
 - Tests for changed business rules where practical.
-- Migration updates for schema changes.
+- Rule IDs from the [business-rules catalog](../business-rules/README.md), and catalog updates for changed rules.
+- For backend changes: one new migration file, a regenerated `supabase/reference/` snapshot and a [backend-contract.md](../backend-contract.md) update (BC-03).
 - Documentation updates for new env variables, APIs, or workflows.
 - `pnpm test` result.
 - `pnpm build` result.
@@ -57,7 +58,7 @@ When reporting a bug, include:
 
 ## Feature Planning
 
-The repository uses numbered feature folders under `specs/`. Significant changes should add or update the relevant spec, plan, task list, contracts, and quickstart where appropriate.
+Features are built with Claude Code (Opus 5.5; ultracode mode from a kickoff brief for large work), not Spec Kit (D-02). The `specs/` folders are historical reference only; do not add new ones. Start from the rules and decisions in the [business-rules catalog](../business-rules/README.md) and follow [[Development Workflow]].
 
 ## License
 

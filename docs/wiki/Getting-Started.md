@@ -1,19 +1,20 @@
 # Getting Started
 
-Last updated: 2026-05-17
+Last updated: 2026-10-18
 
-This page explains how to set up BookHero locally for development.
+This page explains how to set up The Chronicler (internal code name BookHero, D-03) locally for development.
 
 ## Prerequisites
 
 | Requirement | Purpose |
 | --- | --- |
 | Node.js | Required by Vite, Vue, TypeScript, and Vitest. Exact version is not currently documented in the codebase. |
-| pnpm or npm | The README uses `pnpm`; `package.json` only defines standard package scripts. |
+| pnpm | Required for installs (`pnpm-lock.yaml`); `npm install` fails in this repo. |
 | Supabase project | Required for authentication, database, storage, RPCs, and edge functions. |
-| Supabase CLI | Needed to apply migrations, deploy functions, and set function secrets. |
+| Supabase CLI | Needed to serve and deploy edge functions and set function secrets. Database changes follow the rules in [Deployment › Database changes](Deployment.md#database-changes). |
 | Gemini API key | Required for AI-powered edge functions. |
-| Google Books API key | Optional fallback for ISBN lookup. |
+| OpenAI API key | Required for recap images (`generate-recap` image mode). |
+| Google Books API key | Optional. Google Books is the primary book-metadata source; without a key, calls use Google's anonymous quota. |
 
 ## Install Dependencies
 
@@ -45,28 +46,20 @@ Set server-side AI secrets in Supabase, not in `.env.local`:
 
 ```bash
 supabase secrets set GEMINI_API_KEY=<your-gemini-api-key>
+supabase secrets set OPENAI_API_KEY=<your-openai-api-key>   # recap images
 ```
 
-Recap image generation code also references OpenAI image generation through the `generate-recap` edge function. The exact production secret name is not currently documented in the top-level README; inspect `supabase/functions/generate-recap/openaiClient.ts` before enabling recap images.
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected by the platform. Names only: [Configuration › Edge-function secrets](Configuration.md#edge-function-secrets).
 
 ## Database Setup
 
-Apply the migrations under `supabase/migrations`.
+Development uses the shared hosted project. **Do not run `supabase db push` or `supabase db reset` from `supabase/migrations/`**: the folder has drifted from production, and replaying it regresses `get_reading_stats`, re-adds a stale `lore_cards.type` CHECK and sets a 512 KB `recap-images` limit (BC-03).
 
-```bash
-supabase db push
-```
+- The reference for the current schema is the read-only snapshot [`supabase/reference/live-baseline-2026-10-18.sql`](../../supabase/reference/README.md) and the [backend contract](../backend-contract.md). It is not a migration.
+- A local stack cannot be rebuilt reliably until BC-03's baseline migration lands.
+- Every schema change is one new migration file, applied as-is: [Deployment › Database changes](Deployment.md#database-changes).
 
-If you are using a local Supabase stack:
-
-```bash
-supabase start
-supabase db reset
-```
-
-The repository contains incremental migrations for newer features. The complete original base schema is also described in older Spec Kit artifacts such as `specs/001-the-chronicler/contracts/supabase-schema.sql`.
-
-## Deploy Edge Functions Locally or Remotely
+## Edge Functions
 
 Serve functions locally:
 
@@ -74,15 +67,7 @@ Serve functions locally:
 supabase functions serve
 ```
 
-Deploy functions:
-
-```bash
-supabase functions deploy generate-recap
-supabase functions deploy generate-lore
-supabase functions deploy ocr-page
-supabase functions deploy extract-vocabulary
-supabase functions deploy generate-reading-dna
-```
+Deploy only as described in [Deployment › Edge functions](Deployment.md#edge-functions). There is no `supabase/config.toml` yet, so the `verify_jwt` flags must be passed by hand, and `generate-lore` and `generate-reading-dna` must **not** be deployed from the repo until their sources are synced to the deployed (canonical) versions (D-09 · BC-03). There are seven product functions: `generate-recap`, `generate-lore`, `ocr-page`, `extract-vocabulary`, `generate-reading-dna`, `generate-page-resume` and `generate-book-quiz`.
 
 ## Run the App
 
@@ -119,5 +104,5 @@ Manual smoke test:
 
 - Exact required Node.js version is not currently documented in the codebase.
 - CI/CD setup is not currently documented in the codebase.
-- Production Supabase project bootstrap steps are partially inferred from migrations and function folders.
+- A fresh Supabase project cannot be bootstrapped from the repo until BC-03's baseline migration and `supabase/config.toml` (BC-02) land.
 
