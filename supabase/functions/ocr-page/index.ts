@@ -1,17 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
-// =====================================================================
-// ocr-page edge function (015-corpus-recaps)
-// =====================================================================
-// Purpose: Accept a base64-encoded book-page image, send to Gemini 2.5
-//          Flash multimodal for text extraction, return { text, confidence,
-//          wordCount }.
-//
-// CRITICAL: The image bytes are held in memory only for the duration of
-//          this request and are NEVER persisted to disk, logs, or Storage.
-//          Only the extracted text is returned to the client.
-// =====================================================================
-
 import { GoogleGenAI } from "npm:@google/genai"
+import { requireUser } from "../_shared/auth.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin":  "*",
@@ -19,50 +8,12 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
-// ─── Auth ─────────────────────────────────────────────────────────────
-// Mirror the manualJwtDecode pattern used by sibling edge functions.
-const manualJwtDecode = (authHeader: string | null): string | null => {
-  if (!authHeader) return null
-  const jwt = authHeader.replace(/^Bearer\s+/i, "")
-  const parts = jwt.split(".")
-  if (parts.length < 2) return null
-  try {
-    const payload = JSON.parse(atob(parts[1]))
-    return typeof payload?.sub === "string" ? payload.sub : null
-  } catch {
-    return null
-  }
-}
-
-// ─── Constants ────────────────────────────────────────────────────────
-const MAX_DECODED_BYTES   = 5 * 1024 * 1024  // 5 MB
+const MAX_DECODED_BYTES   = 5 * 1024 * 1024
 const GEMINI_TIMEOUT_MS   = 10_000
 const ALLOWED_MIME_TYPES  = new Set(["image/jpeg", "image/png"])
 
-// ─── OCR prompt (per contracts/ocr-page.md) ──────────────────────────
-const OCR_PROMPT = `You are an OCR engine for a personal reading-tracking application. Extract all visible text from the provided image of a book page. Preserve paragraph breaks as \\n\\n and line breaks within paragraphs as single \\n.
+const OCR_PROMPT = "You are an OCR engine for a personal reading-tracking application. Extract all visible text from the provided image of a book page. Preserve paragraph breaks as \\n\\n and line breaks within paragraphs as single \\n.\n\nDo not include:\n- Page numbers printed on the image (the application tracks page numbers separately)\n- Headers/footers (chapter titles, running titles)\n- Footnote markers\n- Decorative ornaments or page-break symbols\n\nRespond with a JSON object only, no markdown fences:\n\n{\n  \"text\": \"<extracted text>\",\n  \"confidence\": <number 0.0-1.0 your assessment of how legibly the text was captured>,\n  \"notes\": \"<optional caveats>\"\n}\n\nConfidence guidance:\n- 0.95-1.00 = clean, no doubts\n- 0.70-0.94 = good but minor uncertainty in some words\n- 0.40-0.69 = significant uncertainty; user should review carefully\n- 0.00-0.39 = poor capture; recommend retake"
 
-Do not include:
-- Page numbers printed on the image (the application tracks page numbers separately)
-- Headers/footers (chapter titles, running titles)
-- Footnote markers
-- Decorative ornaments or page-break symbols
-
-Respond with a JSON object only, no markdown fences:
-
-{
-  "text": "<extracted text>",
-  "confidence": <number 0.0-1.0 — your assessment of how legibly the text was captured>,
-  "notes": "<optional: any caveats about the extraction, e.g. 'partial blur on right margin'>"
-}
-
-Confidence guidance:
-- 0.95-1.00 = clean, no doubts
-- 0.70-0.94 = good but minor uncertainty in some words
-- 0.40-0.69 = significant uncertainty; user should review carefully
-- 0.00-0.39 = poor capture; recommend retake`
-
-// ─── Helpers ──────────────────────────────────────────────────────────
 const jsonResponse = (status: number, body: Record<string, unknown>): Response =>
   new Response(JSON.stringify(body), {
     status,
@@ -70,7 +21,6 @@ const jsonResponse = (status: number, body: Record<string, unknown>): Response =
   })
 
 const decodedBase64Length = (b64: string): number => {
-  // base64 decoded bytes = 3/4 of the encoded length minus padding.
   const padding = (b64.match(/=+$/) ?? [""])[0].length
   return Math.floor((b64.length * 3) / 4) - padding
 }
@@ -130,28 +80,27 @@ const callGeminiWithRetry = async (
   try {
     return await callGeminiOnce(ai, imageBase64, mimeType)
   } catch (err) {
-    // Single retry on transient errors. Re-throw if the second attempt also fails.
     console.warn("ocr-page: first attempt failed, retrying once.", String(err).slice(0, 200))
     return await callGeminiOnce(ai, imageBase64, mimeType)
   }
 }
 
-// ─── Main handler ─────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
-  // Preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
   }
 
+  if (req.method !== "POST") {
+    return jsonResponse(405, { error: "MethodNotAllowed", message: "Use POST" })
+  }
+
   try {
-    // Auth
-    const authHeader = req.headers.get("Authorization")
-    const userId = manualJwtDecode(authHeader)
+    // Verified by Supabase Auth (signature + expiry), never decoded locally.
+    const userId = await requireUser(req)
     if (!userId) {
       return jsonResponse(401, { error: "Unauthorized", message: "Missing or invalid JWT" })
     }
 
-    // Parse body
     const body = await req.json().catch(() => null) as { imageBase64?: unknown; mimeType?: unknown } | null
     if (!body) {
       return jsonResponse(400, { error: "InvalidRequest", message: "Body must be JSON" })
@@ -172,14 +121,12 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(400, { error: "InvalidRequest", message: "Image exceeds 5 MB limit" })
     }
 
-    // AI client
     const apiKey = Deno.env.get("GEMINI_API_KEY")
     if (!apiKey) {
       return jsonResponse(503, { error: "AiUnavailable", message: "AI service not configured" })
     }
     const ai = new GoogleGenAI({ apiKey })
 
-    // OCR with timeout
     const ocrPromise = callGeminiWithRetry(ai, imageBase64, mimeType)
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Gemini call timed out")), GEMINI_TIMEOUT_MS),
@@ -200,7 +147,6 @@ Deno.serve(async (req: Request) => {
     const text = result.text
     const wordCount = text.split(/\s+/).filter(Boolean).length
 
-    // Note: image bytes go out of scope here and are GC'd. Not persisted anywhere.
     return jsonResponse(200, {
       text,
       confidence: result.confidence,

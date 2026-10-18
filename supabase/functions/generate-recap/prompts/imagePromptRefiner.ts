@@ -1,7 +1,4 @@
 // deno-lint-ignore-file no-explicit-any
-// Synced with the deployed generate-recap (v84, 2026-07-13): full-frame
-// square composition guidance, "source recap is the source of truth" rule,
-// gemini refinement at temperature 0.4 / 4096 tokens.
 import { DEFAULT_THINKING_CONFIG } from "../aiClient.ts"
 
 export interface ImagePromptInput {

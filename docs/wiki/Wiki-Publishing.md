@@ -1,6 +1,6 @@
 # Wiki Publishing
 
-Last updated: 2026-05-17
+Last updated: 2026-10-18
 
 GitHub Wikis are separate Git repositories attached to the main repository. You can edit pages in the GitHub web UI or clone the wiki repository and add Markdown files directly.
 
@@ -30,6 +30,7 @@ Configuration.md
 Architecture.md
 Features.md
 API-Documentation.md
+API-Quick-Reference.md
 Database-Data-Model.md
 Authentication-Authorization.md
 Development-Workflow.md
