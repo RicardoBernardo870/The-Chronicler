@@ -3,7 +3,8 @@
 // All business logic lives in the handlers/ directory.
 
 import { corsHeaders, handleOptions } from "./cors.ts"
-import { manualJwtDecode } from "./auth.ts"
+import { requireUser } from "../_shared/auth.ts"
+import { internalErrorBody } from "../_shared/errors.ts"
 import { createGeminiClient } from "./aiClient.ts"
 import { createOpenAIClient } from "./openaiClient.ts"
 import { resolveMode } from "./router.ts"
@@ -18,21 +19,35 @@ Deno.serve(async (req: Request) => {
   if (preflight) return preflight
 
   try {
+    if (req.method !== "POST") {
+      return jsonResponse(405, { error: "Method not allowed" })
+    }
+
     // ── Auth ────────────────────────────────────────────────────────────────
-    const authHeader = req.headers.get("Authorization")
-    if (!authHeader) {
+    // Verified by Supabase Auth (signature + expiry), never decoded locally.
+    if (!req.headers.get("Authorization")) {
       return jsonResponse(401, { error: "No authorization header" })
     }
 
-    const userId = manualJwtDecode(authHeader)
+    const userId = await requireUser(req)
     if (!userId) {
       return jsonResponse(401, { error: "Unauthorized" })
     }
 
     // ── Body validation ─────────────────────────────────────────────────────
-    const body = (await req.json()) as RequestBody | RecapImageRequestBody
+    let body: RequestBody | RecapImageRequestBody
+    try {
+      body = (await req.json()) as RequestBody | RecapImageRequestBody
+    } catch {
+      return jsonResponse(400, { error: "invalid_input" })
+    }
+    if (!body || typeof body !== "object") {
+      return jsonResponse(400, { error: "invalid_input" })
+    }
+
     if (body.mode === "recap_image") {
-      if (!body.recapId || !body.title || !body.memoryJogger) {
+      const imageBody = body as RecapImageRequestBody
+      if (!imageBody.recapId || !imageBody.title || !imageBody.memoryJogger) {
         return jsonResponse(400, { error: "Missing required image fields" })
       }
     } else if (!body.title || !body.author || body.percentage === undefined || !body.totalPages) {
@@ -59,8 +74,7 @@ Deno.serve(async (req: Request) => {
       case "recap_image":        return await handleRecapImage(ai, openai!, body as RecapImageRequestBody, userId)
     }
   } catch (err) {
-    console.error("Edge function error:", err)
-    return jsonResponse(500, { error: "Internal server error", detail: String(err) })
+    return jsonResponse(500, internalErrorBody("generate-recap", err))
   }
 })
 

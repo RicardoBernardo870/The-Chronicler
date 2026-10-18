@@ -1,23 +1,11 @@
 // deno-lint-ignore-file no-explicit-any
 import { GoogleGenAI } from "npm:@google/genai"
+import { requireUser } from "../_shared/auth.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin":  "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-}
-
-const manualJwtDecode = (authHeader: string | null): string | null => {
-  if (!authHeader) return null
-  const jwt = authHeader.replace(/^Bearer\s+/i, "")
-  const parts = jwt.split(".")
-  if (parts.length < 2) return null
-  try {
-    const payload = JSON.parse(atob(parts[1]))
-    return typeof payload?.sub === "string" ? payload.sub : null
-  } catch {
-    return null
-  }
 }
 
 const MAX_DECODED_BYTES   = 5 * 1024 * 1024
@@ -102,9 +90,13 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders })
   }
 
+  if (req.method !== "POST") {
+    return jsonResponse(405, { error: "MethodNotAllowed", message: "Use POST" })
+  }
+
   try {
-    const authHeader = req.headers.get("Authorization")
-    const userId = manualJwtDecode(authHeader)
+    // Verified by Supabase Auth (signature + expiry), never decoded locally.
+    const userId = await requireUser(req)
     if (!userId) {
       return jsonResponse(401, { error: "Unauthorized", message: "Missing or invalid JWT" })
     }

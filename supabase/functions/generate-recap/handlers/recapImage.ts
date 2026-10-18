@@ -5,6 +5,8 @@ import { handleImageGeneration } from "./image.ts"
 import type { RecapImageRequestBody } from "../types.ts"
 import type { OpenAIClient } from "../openaiClient.ts"
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export const handleRecapImage = async (
   ai: any,
   openai: OpenAIClient,
@@ -14,6 +16,22 @@ export const handleRecapImage = async (
   const admin = createSupabaseAdmin()
   if (!admin) {
     return jsonResponse(503, { error: "Supabase admin client not configured" })
+  }
+
+  // Ownership before cost: the service-role client below writes to this recap
+  // and to recap-images/{userId}/, so the caller must own the recap.
+  if (!UUID_RE.test(String(body.recapId))) {
+    return jsonResponse(404, { error: "recap_not_found" })
+  }
+  const { data: owned, error: ownErr } = await admin
+    .from("recaps")
+    .select("id")
+    .eq("id", body.recapId)
+    .eq("user_id", userId)
+    .maybeSingle()
+  if (ownErr) throw ownErr
+  if (!owned) {
+    return jsonResponse(404, { error: "recap_not_found" })
   }
 
   waitUntil(handleImageGeneration(admin, ai, openai, {

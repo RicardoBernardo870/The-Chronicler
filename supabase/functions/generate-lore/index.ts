@@ -1,19 +1,12 @@
 // deno-lint-ignore-file no-explicit-any
 import { GoogleGenAI } from "npm:@google/genai"
+import { requireUser } from "../_shared/auth.ts"
+import { internalErrorBody } from "../_shared/errors.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-}
-
-const decodeJwt = (token: string): Record<string, any> | null => {
-  try {
-    const [, payload] = token.split(".")
-    return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")))
-  } catch {
-    return null
-  }
 }
 
 const SYSTEM_PROMPT = `You are the "Chronicler Historian." Your task is to provide one focused lore entry that provides established background, history, or context for a specific book's world based on a provided "Master Recap." You must act as a scholar of the specific author's canon.
@@ -127,17 +120,9 @@ Deno.serve(async (req: Request) => {
     })
   }
 
-  const authHeader = req.headers.get("Authorization") ?? ""
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim()
-  if (!token) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    })
-  }
-
-  const claims = decodeJwt(token)
-  if (!claims || !claims.sub) {
+  // Verified by Supabase Auth (signature + expiry), never decoded locally.
+  const userId = await requireUser(req)
+  if (!userId) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -286,9 +271,8 @@ Generate the lore entry now.`
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     )
   } catch (err: any) {
-    console.error("[generate-lore] Unhandled error:", err)
     return new Response(
-      JSON.stringify({ error: "Internal server error", detail: String(err?.message ?? err) }),
+      JSON.stringify(internalErrorBody("generate-lore", err)),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     )
   }
